@@ -5,7 +5,13 @@
 (defpackage :datapouch.cli
   (:use :cl)
   (:nicknames :d.cli)
-  (:export interactive-input mainloop))
+  (:export :interactive-input
+           :mainloop
+           :*input*
+           :prompt-function
+           :prompt-list
+           :command-sign
+           :accumulator-sign))
 
 (defpackage :datapouch.sql
   (:use :cl)
@@ -24,11 +30,9 @@
            :edit))
 
 (defpackage datapouch.user
-  (:use #:cl)
+  (:use #:cl #:d.cli)
   (:import-from :sb-ext
                 :quit)
-  (:import-from :datapouch.cli
-                :mainloop)
   (:import-from :datapouch.sql
                 select union-queries union-all-queries
                 insert-into update delete-from

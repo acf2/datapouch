@@ -89,10 +89,11 @@
            (values nil c))))
 
 (defun mainloop (&key ((:input input-object) nil) ((:print-output print-output) nil))
-  (let ((input (or input-object
-                   (make-instance 'interactive-input))))
+  (let ((*input* (or input-object
+                     (make-instance 'interactive-input))))
+    (declare (special *input*))
     (loop
-      (handler-case (multiple-value-bind (form is-eof?) (read-form-from input)
+      (handler-case (multiple-value-bind (form is-eof?) (read-form-from *input*)
                       (when (and (null form) is-eof?)
                         (format t "~&")
                         (return-from mainloop))
