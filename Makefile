@@ -10,19 +10,19 @@ PACK := $(NAME)-$(VERSION)
 
 executable: $(FILES) $(ASDF_DEF)
 	sbcl --noinform \
-	  	 --load $(QUICKLISP)/setup.lisp \
-		 --load load.lisp \
-		 --eval '(sb-ext:save-lisp-and-die "$(EXEC)" :toplevel #'\''d.main:main :executable t :compression 9)'
+	     --load $(QUICKLISP)/setup.lisp \
+	     --load load.lisp \
+	     --eval '(sb-ext:save-lisp-and-die "$(EXEC)" :toplevel #'\''d.main:main :executable t :compression 9)'
 
 no_compress: $(FILES) $(ASDF_DEF)
 	sbcl --noinform \
-	  	 --load $(QUICKLISP)/setup.lisp \
-		 --load load.lisp \
-		 --eval '(sb-ext:save-lisp-and-die "$(EXEC)" :toplevel #'\''d.main:main :executable t)'
+	     --load $(QUICKLISP)/setup.lisp \
+	     --load load.lisp \
+	     --eval '(sb-ext:save-lisp-and-die "$(EXEC)" :toplevel #'\''d.main:main :executable t)'
 
 debug: $(FILES) $(ASDF_DEF)
 	rlwrap sbcl --load $(QUICKLISP)/setup.lisp \
-				--load load.lisp
+	            --load load.lisp
 
 deploy: executable
 	mkdir -p $(PACK)
