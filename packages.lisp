@@ -27,18 +27,15 @@
   (:export :main
            :*editor*
            :*editor-interface*
+           :*print-output*
            :edit))
 
 (defpackage datapouch.user
-  (:use #:cl #:d.cli)
+  (:use #:cl #:d.cli #:d.main)
   (:import-from :sb-ext
                 :quit)
   (:import-from :datapouch.sql
                 select union-queries union-all-queries
                 insert-into update delete-from
                 create-table drop-table alter-table
-                create-index drop-index)
-  (:import-from :datapouch.main
-                :*editor*
-                :*editor-interface*
-                :edit))
+                create-index drop-index))
