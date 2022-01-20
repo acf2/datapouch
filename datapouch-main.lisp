@@ -6,6 +6,8 @@
 (defvar +config-sample+ '("user.lisp"
                           "This is a sample config file"
                           "It would not be modified automatically once created"))
+(defparameter +work-dir+ (directory-namestring (or *load-truename* *default-pathname-defaults*)))
+
 
 (defun ensure-config-exists ()
   (or (probe-file +config-path+)
@@ -28,6 +30,15 @@
 (defparameter *editor* "vim")
 (defparameter *editor-interface* (lambda (pathname) (list *editor* (namestring pathname))))
 (defparameter *print-output* t)
+(defparameter *database-path* (make-pathname :directory (pathname-directory +config-path+)
+                                             :name "database"))
+
+(defun ensure-database-exists ()
+  (or (probe-file *database-path*)
+      (progn
+        (ensure-directories-exist (make-pathname :directory (pathname-directory *database-path*)))
+        (with-open-file (file *database-path* :direction :output)
+          nil))))
 
 (defmacro edit (&optional text)
   `(call-editor *editor-interface* :initial-text ,text))
@@ -36,5 +47,8 @@
   (in-package :datapouch.user)
   (ensure-config-exists)
   (load (namestring +config-path+))
-  (d.cli:mainloop :print-output *print-output*)
+  (ensure-database-exists)
+  (sqlite:with-open-database (db (truename *database-path*))
+    (d.sql:with-binded-db db
+      (d.cli:mainloop :print-output *print-output*)))
   0)
