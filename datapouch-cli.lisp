@@ -1,6 +1,6 @@
 ;;;; datapouch-cli.lisp
 
-(in-package :d.cli)
+(in-package :datapouch.cli)
 
 (defparameter *msg/expression-error* "Expression error: ~A~&")
 (defparameter *msg/undefined-function-error* "Error: unknown function (~A).~&")
@@ -89,11 +89,10 @@
            (values nil c))))
 
 (defun mainloop (&key ((:input input-object) nil) ((:print-output print-output) nil))
-  (let ((*input* (or input-object
+  (let ((input (or input-object
                      (make-instance 'interactive-input))))
-    (declare (special *input*))
     (loop
-      (handler-case (multiple-value-bind (form is-eof?) (read-form-from *input*)
+      (handler-case (multiple-value-bind (form is-eof?) (read-form-from input)
                       (when (and (null form) is-eof?)
                         (format t "~&")
                         (return-from mainloop))

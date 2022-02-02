@@ -1,6 +1,6 @@
 ;;;; datapouch-sql.lisp
 
-(in-package :d.sql)
+(in-package :datapouch.sql)
 
 (defparameter *db* nil)
 

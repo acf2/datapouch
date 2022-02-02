@@ -7,11 +7,11 @@
   (:nicknames :d.cli)
   (:export :interactive-input
            :mainloop
-           :*input*
            :prompt-function
            :prompt-list
            :command-sign
-           :accumulator-sign))
+           :accumulator-sign
+           :read-form-from))
 
 (defpackage :datapouch.sql
   (:use :cl)
@@ -29,10 +29,24 @@
            :*editor*
            :*editor-interface*
            :*print-output*
+           :*input*
            :edit))
 
-(defpackage datapouch.user
+(defpackage datapouch.interaction
   (:use #:cl #:d.cli #:d.main)
+  (:nicknames :d.inter)
+  (:export :*max-string-length*
+           :*wrap-marker*
+           :*table-metaformat*
+           :*table-pad-width*
+           :*get-table-name-delimiter*
+           :find-max-field-widths
+           :pretty-print-rows
+           :pretty-print-table
+           :find-one-row-dialog))
+
+(defpackage datapouch.user
+  (:use #:cl #:d.cli #:d.inter #:d.main)
   (:import-from :sb-ext
                 :quit)
   (:import-from :sxql

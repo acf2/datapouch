@@ -7,5 +7,6 @@
   :components ((:file "packages")
                (:file "datapouch-cli" :depends-on ("packages"))
                (:file "datapouch-sql" :depends-on ("packages"))
-               (:file "datapouch-main" :depends-on ("packages" "datapouch-cli" "datapouch-sql")))
+               (:file "datapouch-main" :depends-on ("packages" "datapouch-cli" "datapouch-sql"))
+               (:file "datapouch-interaction" :depends-on ("packages" "datapouch-cli" "datapouch-main")))
   :depends-on (:cl-readline :sqlite :sxql :uiop))

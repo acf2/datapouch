@@ -32,6 +32,7 @@
 (defparameter *print-output* t)
 (defparameter *database-path* (make-pathname :directory (pathname-directory +config-path+)
                                              :name "database"))
+(defparameter *input* (make-instance 'd.cli:interactive-input))
 
 (defun ensure-database-exists ()
   (or (probe-file *database-path*)
@@ -50,5 +51,5 @@
   (ensure-database-exists)
   (sqlite:with-open-database (db (truename *database-path*))
     (d.sql:with-binded-db db
-      (d.cli:mainloop :print-output *print-output*)))
+      (d.cli:mainloop :input *input* :print-output *print-output*)))
   0)
