@@ -84,7 +84,7 @@
     (cond ((functionp prompt) (funcall prompt column-names rows))
           (:else (format t prompt)
                  (finish-output t))))
-  (let ((number (loop for (form is-eof?) = (multiple-value-list (read-form-from input-object))
+  (let ((number (loop for (form is-eof?) = (multiple-value-list (read-form input-object))
                       if is-eof? return nil
                       else if (and (integerp form) (<= 1 form (length rows))) return form
                       else if error-prompt do (cond ((functionp error-prompt) (funcall error-prompt column-names rows form))

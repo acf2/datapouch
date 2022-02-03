@@ -5,13 +5,9 @@
 (defpackage :datapouch.cli
   (:use :cl)
   (:nicknames :d.cli)
-  (:export :interactive-input
-           :mainloop
-           :prompt-function
-           :prompt-list
-           :command-sign
-           :accumulator-sign
-           :read-form-from))
+  (:export :mainloop
+           :interactive-input :prompt-list :command-sign :accumulator-sign
+           :read-form))
 
 (defpackage :datapouch.sql
   (:use :cl)
