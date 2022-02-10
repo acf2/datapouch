@@ -21,14 +21,25 @@
     (when initial-text
       (write-string initial-text stream))
     :close-stream
-    (run-program (funcall editor-interface pathname)
-                 :input :interactive
-                 :output :interactive)
+    (funcall editor-interface (list pathname))
     (with-open-file (stream pathname)
       (read-file-string pathname))))
 
-(defparameter *editor* "vim")
-(defparameter *editor-interface* (lambda (pathname) (list *editor* (namestring pathname))))
+(defun call-editor-for-many (editor-interface initial-texts &optional (pathnames nil))
+  (if initial-texts
+    (let* ((other-results nil)
+           (result (call-editor (lambda (new-pathname)
+                                  (setf other-results (call-editor-for-many editor-interface
+                                                                            (cdr initial-texts)
+                                                                            (append pathnames new-pathname))))
+                                :initial-text (car initial-texts))))
+      (cons result other-results))
+    (when pathnames
+      (funcall editor-interface pathnames))))
+
+(defparameter *editor-interface* (lambda (pathnames) (run-program (append (list "vim" "-p") (map 'list #'namestring pathnames))
+                                                                  :input :interactive
+                                                                  :output :interactive)))
 (defparameter *print-output* t)
 (defparameter *database-path* (make-pathname :directory (pathname-directory +config-path+)
                                              :name "database"))
@@ -41,8 +52,11 @@
         (with-open-file (file *database-path* :direction :output)
           nil))))
 
-(defmacro edit (&optional text)
-  `(call-editor *editor-interface* :initial-text ,text))
+(defun edit (&rest texts)
+  (and texts
+       (if (= (length texts) 1)
+         (call-editor *editor-interface* :initial-text (car texts))
+         (call-editor-for-many *editor-interface* texts))))
 
 (defun main ()
   (in-package :datapouch.user)

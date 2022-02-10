@@ -22,7 +22,6 @@
   (:use #:cl #:uiop)
   (:nicknames :d.main)
   (:export :main
-           :*editor*
            :*editor-interface*
            :*print-output*
            :*input*
