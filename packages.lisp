@@ -6,7 +6,7 @@
   (:use :cl)
   (:nicknames :d.cli)
   (:export :mainloop
-           :interactive-input :prompt-list :command-sign :accumulator-sign
+           :interactive-input :get-prompt :prompt-list :command-sign :accumulator-sign
            :read-form))
 
 (defpackage :datapouch.sql

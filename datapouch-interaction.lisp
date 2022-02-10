@@ -40,14 +40,15 @@
 
 (defun find-max-field-widths (row-list)
   (map 'list (lambda (lst)
-            (apply #'max lst))
-          (rotate (map 'list (lambda (lst)
-                               (map 'list (lambda (elem)
-                                            (if (stringp elem)
-                                              (length elem)
-                                              (length (write-to-string elem))))
-                                    lst))
-                       row-list))))
+               (apply #'max lst))
+       (rotate (map 'list (lambda (lst)
+                            (map 'list (lambda (elem)
+                                         (length (wrap-string
+                                                   (if (stringp elem)
+                                                     elem
+                                                     (write-to-string elem)))))
+                                 lst))
+                    row-list))))
 
 (defun pretty-print-rows (row-list &optional (max-field-widths nil))
   (format t (format nil *table-metaformat* (map 'list

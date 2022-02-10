@@ -31,7 +31,8 @@
     (let* ((line (rl:readline :prompt prompt
                               :erase-empty-line nil
                               :add-history t))
-           (new-accumulator (concatenate 'string accumulator +default-term-separator+ line)))
+           (new-accumulator (string-left-trim '(#\Space #\Newline #\Tab)
+                                              (concatenate 'string accumulator +default-term-separator+ line))))
       (if (null line) ; nil from rl:readline means EOF
         (return-from try-to-read-form (values nil accumulator t))
         (handler-case
@@ -42,7 +43,7 @@
                                                     nil)
                                                   nil)))
           ; EOF from read-from-string means that form is not finished
-          (end-of-file () (values nil new-accumulator nil))))))
+          (end-of-file () (values nil (if (string= new-accumulator "") nil new-accumulator) nil))))))
 
 (defclass interactive-input ()
   ((buffer :initform nil
@@ -102,8 +103,11 @@
            (values nil c))))
 
 (defun mainloop (&key ((:input input-object) nil) ((:print-output print-output) nil))
+  ;; Piece of shit
+  ;; https://github.com/hanslub42/rlwrap/issues/108
+  (rl:variable-bind "enable-bracketed-paste" "off")
   (let ((input (or input-object
-                     (make-instance 'interactive-input))))
+                   (make-instance 'interactive-input))))
     (loop
       (handler-case (multiple-value-bind (form is-eof?) (read-form input)
                       (when (and (null form) is-eof?)
@@ -112,5 +116,5 @@
                       (unless (null form)
                         (multiple-value-bind (vals c) (evaluate-form form)
                           (when (and print-output (null c))
-                            (format t "~{~S~&~}" vals)))))
+                            (format t "~&~{~S~%~}" vals)))))
         (sb-int:simple-reader-error (c) (format t *msg/expression-error* c))))))
