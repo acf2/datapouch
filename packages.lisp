@@ -25,7 +25,7 @@
            :*editor-interface*
            :*print-output*
            :*input*
-           :edit))
+           :edit-strings))
 
 (defpackage datapouch.interaction
   (:use #:cl #:d.cli #:d.main)
