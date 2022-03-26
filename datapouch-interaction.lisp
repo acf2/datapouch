@@ -76,7 +76,8 @@
                             ((:prompt prompt) "Enter row number:~&")
                             ((:error-prompt error-prompt) "Please, try again.~&")
                             ((:id-column-name id-column-name) "Row number")
-                            ((:input-object input-object) *input*))
+                            ((:input-object input-object) *input*)
+                            ((:get-index get-index) nil))
   (pretty-print-table (cons id-column-name column-names)
                       (loop for row in rows
                             for i from 1 to (length rows)
@@ -92,4 +93,6 @@
                                                     (:else (format t error-prompt)
                                                            (finish-output t))))))
     (when number
-      (nth (1- number) rows))))
+      (if get-index
+        (1- number)
+        (nth (1- number) rows)))))
