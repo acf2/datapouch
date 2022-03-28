@@ -3,18 +3,21 @@
 (in-package :datapouch.main)
 
 (defvar +config-path+ #P"~/.config/datapouch/user.lisp")
-(defvar +config-sample+ '("user.lisp"
-                          "This is a sample config file"
-                          "It would not be modified automatically once created"))
+; TODO Refactor
+(defvar +config-sample+
+  (format nil ";;;; ~A~&~{;; ~A~&~}"
+          "user.lisp"
+          '("This is a sample config file"
+            "It would not be modified automatically once created")))
 (defparameter +work-dir+ (directory-namestring (or *load-truename* *default-pathname-defaults*)))
 
-
-(defun ensure-config-exists ()
-  (or (probe-file +config-path+)
+(defun ensure-file-exists (path &optional (initial-text nil))
+  (or (probe-file path)
       (progn
-        (ensure-directories-exist (make-pathname :directory (pathname-directory +config-path+)))
-        (with-open-file (file +config-path+ :direction :output)
-          (format file ";;;; ~A~&~{;; ~A~&~}" (first +config-sample+) (rest +config-sample+))))))
+        (ensure-directories-exist (make-pathname :directory (pathname-directory path)))
+        (with-open-file (file path :direction :output)
+          (when initial-text
+            (write initial-text :stream file))))))
 
 (defun call-editor (editor-interface &key ((:initial-text initial-text) nil))
   (with-temporary-file (:stream stream :pathname pathname :prefix "" :suffix "")
@@ -58,24 +61,20 @@
 (defparameter *print-output* t)
 (defparameter *database-path* (make-pathname :directory (pathname-directory +config-path+)
                                              :name "database"))
+(defparameter *history-path* (make-pathname :directory (pathname-directory +config-path+)
+                                            :name "history"))
 (defparameter *input* (make-instance 'd.cli:interactive-input))
-
-(defun ensure-database-exists ()
-  (or (probe-file *database-path*)
-      (progn
-        (ensure-directories-exist (make-pathname :directory (pathname-directory *database-path*)))
-        (with-open-file (file *database-path* :direction :output)
-          nil))))
 
 (defun edit-strings (&rest texts)
   (call-editor-for-many *editor-interface* texts))
 
 (defun main ()
   (in-package :datapouch.user)
-  (ensure-config-exists)
+  (ensure-file-exists +config-path+ +config-sample+)
   (load (namestring +config-path+))
-  (ensure-database-exists)
+  (ensure-file-exists *database-path*)
+  (ensure-file-exists *history-path*)
   (sqlite:with-open-database (db (truename *database-path*))
     (d.sql:with-binded-db db
-      (d.cli:mainloop :input *input* :print-output *print-output*)))
+      (d.cli:mainloop :input *input* :print-output *print-output* :history-file *history-path*)))
   0)

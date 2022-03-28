@@ -102,19 +102,24 @@
            (format t *msg/generic-error* c)
            (values nil c))))
 
-(defun mainloop (&key ((:input input-object) nil) ((:print-output print-output) nil))
+(defun mainloop (&key ((:input input-object) nil)
+                      ((:print-output print-output) nil)
+                      ((:history-file history-file) nil))
   ;; Piece of shit
   ;; https://github.com/hanslub42/rlwrap/issues/108
   (rl:variable-bind "enable-bracketed-paste" "off")
-  (let ((input (or input-object
-                   (make-instance 'interactive-input))))
-    (loop
-      (handler-case (multiple-value-bind (form is-eof?) (read-form input)
-                      (when (and (null form) is-eof?)
-                        (format t "~&")
-                        (return-from mainloop))
-                      (unless (null form)
-                        (multiple-value-bind (vals c) (evaluate-form form)
-                          (when (and print-output (null c))
-                            (format t "~&~{~S~%~}" vals)))))
-        (sb-int:simple-reader-error (c) (format t *msg/expression-error* c))))))
+  (when history-file (rl:read-history (namestring (truename history-file))))
+  (unwind-protect
+    (let ((input (or input-object
+                     (make-instance 'interactive-input))))
+      (loop
+        (handler-case (multiple-value-bind (form is-eof?) (read-form input)
+                        (when (and (null form) is-eof?)
+                          (format t "~&")
+                          (return-from mainloop))
+                        (unless (null form)
+                          (multiple-value-bind (vals c) (evaluate-form form)
+                            (when (and print-output (null c))
+                              (format t "~&~{~S~%~}" vals)))))
+          (sb-int:simple-reader-error (c) (format t *msg/expression-error* c)))))
+    (when history-file (rl:write-history (namestring (truename history-file))))))
