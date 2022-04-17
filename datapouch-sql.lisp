@@ -17,8 +17,8 @@
                                                  :append (loop :for name :in names :collect
                                                                `(define-sxql-wrapper ,name ,sfun))))))
   (define-sxql-wrappers
-    (sqlite:execute-to-list select union-queries union-all-queries)
-    (sqlite:execute-non-query insert-into update delete-from create-table drop-table alter-table create-index drop-index)))
+    (sqlite:execute-to-list select union-queries union-all-queries insert-into update delete-from)
+    (sqlite:execute-non-query create-table drop-table alter-table create-index drop-index)))
 
 (defmacro with-binded-db (db-symbol &body body)
   `(let ((*db* ,db-symbol))
