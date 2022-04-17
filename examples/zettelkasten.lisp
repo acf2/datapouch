@@ -5,6 +5,8 @@
 ;;; it's config for particular user, not some production-quality code
 ;;; so you will see several examples of *very* bad and tangled lisp down there
 
+(defparameter *note* nil)
+
 (defun recreate-zettelkasten ()
   (create-table (:note :if-not-exists t)
                 ((:id :type 'integer
@@ -25,14 +27,13 @@
                 (foreign-key :destination
                              :references '(:note :id)
                              :on-delete :cascade
-                             :on-update :cascade))
-  (unless (select :* (from :note))
-    (insert-into :note (set= :text ""))))
-
-(defparameter *note* nil)
+                             :on-update :cascade)))
 
 (defmacro max-note-id ()
   `(caar (select :id (from :note) (order-by (:desc :id)) (limit 1))))
+
+(defun get-note-by-id (id)
+  (select :* (from :note) (where (:= :id id))))
 
 ;; TODO: Feature: Use note id as number in base36 with zero padding
 ;; NOTE: You can inherit interactive-input for more drastic changes
@@ -48,9 +49,6 @@
      (pop (prompt-list *input*))
      result))
 
-(defun get-note-by-id (id)
-  (select :* (from :note) (where (:= :id id))))
-
 (defun find-note (substring)
   (let ((found-notes (select :* (from :note) (where (:instr :text substring)))))
     (cond ((= (length found-notes) 1) (first found-notes))
@@ -60,6 +58,14 @@
                                                               (map 'list #'cdr found-notes)
                                                               :get-index t)
                                               found-notes)))))))
+
+;(defun note-search ()
+;  (with-state 'search
+;    (format t "Please enter part of note or its ID to find it:~&")
+;    (loop for info = (read-form *input*)
+;          if (stringp info) return (find-note info)
+;          else if (integerp info) return (get-note-by-id info)
+;          else do (format t "That is not string or a number. Try again:~&"))))
 
 (defun edit-note (&rest notes)
   (cond ((null notes) (edit-note *note*))
@@ -76,6 +82,23 @@
                   (update :note
                           (set= :text (second new-note))
                           (where (:= :id (first new-note)))))))))
+
+(defun add-note (&key ((:from from) nil)
+                      ((:number num) nil))
+  (let ((source-note (cond ((null from) *note*)
+                           ((listp from) (first from))
+                           ((stringp from) (first (find-note from)))
+                           ((integerp from) from)
+                           (:else nil)))
+        (first-note (null (select :* (from :note)))))
+    (when (or source-note first-note)
+      (let ((new-note (caar (insert-into :note
+                                         (set= :text (first (edit-strings "")))
+                                         (returning :id)))))
+        (unless first-note
+          (insert-into :link (set= :source source-note
+                                   :destination new-note
+                                   :number num)))))))
 
 
 ;;; HIGH LEVEL
