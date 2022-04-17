@@ -5,9 +5,11 @@
 ;;; it's config for particular user, not some production-quality code
 ;;; so you will see several examples of *very* bad and tangled lisp down there
 
-(defparameter *note* nil)
+(defparameter *can-modify-prompt* t)
 
-(defun recreate-zettelkasten ()
+(defparameter *current-note* nil)
+
+(defun create-zettelkasten ()
   (create-table (:note :if-not-exists t)
                 ((:id :type 'integer
                       :primary-key t
@@ -35,12 +37,18 @@
 (defun get-note-by-id (id)
   (select :* (from :note) (where (:= :id id))))
 
-;; TODO: Feature: Use note id as number in base36 with zero padding
+;(defun get-orphans ()
+;  (select :*
+;    (from :note)
+;    (left-join :link :on (:= :link.destination :note.id))
+;    (where (:is-null :link.source))))
+
 ;; NOTE: You can inherit interactive-input for more drastic changes
-(defmethod get-prompt :around ((input interactive-input))
-  (concatenate 'string
-               (when *note* (format nil "[~36,V,'0R] " (1+ (floor (log (max-note-id) 36))) *note*))
-               (call-next-method input)))
+(when (and (boundp '*can-modify-prompt*) *can-modify-prompt*)
+  (defmethod get-prompt :around ((input interactive-input))
+    (concatenate 'string
+                 (when *current-note* (format nil "[~36,V,'0R] " (1+ (floor (log (max-note-id) 36))) *current-note*))
+                 (call-next-method input))))
 
 (defmacro with-state (state &body body)
   `(let (result)
@@ -48,6 +56,9 @@
      (setf result (progn ,@body))
      (pop (prompt-list *input*))
      result))
+
+(defun show-current-note ()
+  (format t "~A~&" (second (first (get-note-by-id *current-note*)))))
 
 (defun find-note (substring)
   (let ((found-notes (select :* (from :note) (where (:instr :text substring)))))
@@ -68,7 +79,7 @@
 ;          else do (format t "That is not string or a number. Try again:~&"))))
 
 (defun edit-note (&rest notes)
-  (cond ((null notes) (edit-note *note*))
+  (cond ((null notes) (edit-note *current-note*))
         (:else 
           (let* ((old-notes (select :*
                                     (from :note)
@@ -85,7 +96,7 @@
 
 (defun add-note (&key ((:from from) nil)
                       ((:number num) nil))
-  (let ((source-note (cond ((null from) *note*)
+  (let ((source-note (cond ((null from) *current-note*)
                            ((listp from) (first from))
                            ((stringp from) (first (find-note from)))
                            ((integerp from) from)
@@ -100,12 +111,16 @@
                                    :destination new-note
                                    :number num)))))))
 
+(defun delete-note (substring)
+  (delete-from :note (where (:= :id (first (find-note substring))))))
+
 
 ;;; HIGH LEVEL
                              
 (defun note (&optional substring)
-  (cond ((and *note* (not substring)) (format t "~A~&" (second (first (get-note-by-id *note*)))))
-        (substring (setf *note* (first (find-note substring))))))
+  (when substring
+    (setf *current-note* (first (find-note substring))))
+  (show-current-note))
 
 (defun clear ()
-  (setf *note* nil))
+  (setf *current-note* nil))
