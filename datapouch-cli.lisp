@@ -66,7 +66,7 @@
   (with-slots (buffer prompt-list command-sign accumulator-sign) input
     (format nil "~{~#[~^~;~A~:;~A-~]~}~A "
             (map 'list (lambda (sym) (string-downcase (symbol-name sym)))
-                 prompt-list)
+                 (reverse prompt-list))
             (if buffer
               accumulator-sign
               command-sign))))
