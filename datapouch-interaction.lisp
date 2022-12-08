@@ -33,6 +33,7 @@
 ;; Usage:
 ;; (format nil *table-metaformat* desired-field-widths) to get format string
 ;; (format t format-string table) to pretty print table
+;; TODO: Right justify number columns
 (defparameter *table-metaformat* "~~:{~{~~~A,4@<~~A~~>~}~~&~~}")
 (defparameter *table-pad-width* 2)
 (defparameter *get-table-name-delimiter* (lambda (length)

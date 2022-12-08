@@ -47,9 +47,10 @@
   (if initial-texts
     (let* ((other-results nil)
            (result (call-editor (lambda (new-pathname)
-                                  (setf other-results (call-editor-for-many editor-interface
-                                                                            (cdr initial-texts)
-                                                                            (append pathnames new-pathname))))
+                                  (setf other-results
+                                        (call-editor-for-many editor-interface
+                                                              (cdr initial-texts)
+                                                              (append pathnames new-pathname))))
                                 :initial-text (car initial-texts))))
       (cons result other-results))
     (when pathnames
