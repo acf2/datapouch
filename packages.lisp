@@ -18,7 +18,7 @@
            :create-table :drop-table :alter-table
            :create-index :drop-index))
 
-(defpackage datapouch.main
+(defpackage :datapouch.main
   (:use #:cl #:uiop)
   (:nicknames :d.main)
   (:export :main
@@ -27,7 +27,7 @@
            :*input*
            :edit-strings))
 
-(defpackage datapouch.interaction
+(defpackage :datapouch.interaction
   (:use #:cl #:d.cli #:d.main)
   (:nicknames :d.inter)
   (:export :*max-string-length*
@@ -40,7 +40,20 @@
            :pretty-print-table
            :find-one-row-dialog))
 
-(defpackage datapouch.user
+(defpackage :datapouch.regex-support
+  (:use #:cl #:cl-ppcre)
+  (:nicknames :d.regex)
+  (:export :regex
+           :wrap-in-noncapturing-group
+           :make-named-group
+           :concat-two
+           :concat
+           :combine
+           :interchange
+           :interchange-three
+           :scan-named-groups))
+
+(defpackage :datapouch.user
   (:use #:cl #:d.cli #:d.inter #:d.main)
   (:import-from :sb-ext
                 :quit)
@@ -75,4 +88,14 @@
                 :select :union-queries :union-all-queries
                 :insert-into :update :delete-from
                 :create-table :drop-table :alter-table
-                :create-index :drop-index))
+                :create-index :drop-index)
+  (:import-from :datapouch.regex-support
+                :regex
+                :wrap-in-noncapturing-group
+                :make-named-group
+                :concat-two
+                :concat
+                :combine
+                :interchange
+                :interchange-three
+                :scan-named-groups))

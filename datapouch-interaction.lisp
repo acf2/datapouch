@@ -18,8 +18,8 @@
                                         part-length))
                    *wrap-marker*))))
 
-;; Transpose lists
-;; https://stackoverflow.com/a/3513158
+;;; Transpose lists
+;;; https://stackoverflow.com/a/3513158
 (defun rotate (list-of-lists)
   (if (or (null list-of-lists)
           (and (null (car list-of-lists))
@@ -71,8 +71,8 @@
                                         max-field-widths)
                                    rows)))))
 
-;; prompt, if function, should handle 2 args: column-names, rows
-;; error-prompt, if function, should handler 3 args: column-names, rows, entered-form
+;;; if prompt is a function, it should handle 2 args: column-names, rows
+;;; if error-prompt is a function, it should handle 3 args: column-names, rows, entered-form
 (defun find-one-row-dialog (column-names rows &key
                             ((:prompt prompt) "Enter row number:~&")
                             ((:error-prompt error-prompt) "Please, try again.~&")

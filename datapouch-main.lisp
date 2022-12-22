@@ -3,9 +3,9 @@
 (in-package :datapouch.main)
 
 (defvar +config-path+ #P"~/.config/datapouch/user.lisp")
-; TODO Refactor
+;;; TODO Refactor
 (defvar +config-sample+
-  (format nil ";;;; ~A~&~{;; ~A~&~}"
+  (format nil ";;;; ~A~&~{;;; ~A~&~}"
           "user.lisp"
           '("This is a sample config file"
             "It would not be modified automatically once created")))
@@ -28,7 +28,7 @@
     (with-open-file (stream pathname)
       (read-file-string pathname))))
 
-;; This is the simplier version, maybe later I'll consider it.
+;;; This is the simplier version, maybe later I'll consider it.
 ;(defun call-editor (editor-interface &key initial-text/s)
 ;  (let ((streams))
 ;    (unwind-protect
@@ -40,8 +40,8 @@
 ;           (close s)
 ;           (collect (uiop:read-file-string (pathname s)))))))
 
-;; Also, there is the version with explicit catamorphism.
-;; Not that I know how it works. Maybe later too.
+;;; Also, there is the version with explicit catamorphism.
+;;; Not that I know how it works. Maybe later too.
 
 (defun call-editor-for-many (editor-interface initial-texts &optional (pathnames nil))
   (if initial-texts

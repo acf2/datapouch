@@ -23,5 +23,5 @@
 (defmacro with-binded-db (db-symbol &body body)
   `(let ((*db* ,db-symbol))
      ;(declare (special *db*))
-     (sqlite:execute-non-query *db* "PRAGMA foreign_keys=ON;") ;; XXX: Because FUCK YOU foreign key default support
+     (sqlite:execute-non-query *db* "PRAGMA foreign_keys=ON;") ; XXX: Because FUCK YOU foreign key default support
      ,@body))

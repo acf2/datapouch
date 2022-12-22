@@ -7,17 +7,17 @@
 (defparameter *msg/unbound-variable-error* "Error: unknown variable (~A).~&")
 (defparameter *msg/generic-error* "Error: ~A.~&")
 
-;; Make defconstant when possible
-;;   Avoid alexandria like fire, but if it can't be helped
-;;   use alexandria:define-constant
-;;   https://stackoverflow.com/a/34801400
+;;; Make defconstant when possible
+;;;   Avoid alexandria like fire, but if it can't be helped
+;;;   use alexandria:define-constant
+;;;  https://stackoverflow.com/a/34801400
 (defvar +default-command-sign+ ">")
 (defvar +default-accumulator-sign+ "*")
 (defvar +default-term-separator+ " ")
 
-;; NOTE: Nice function to test other langs on.
-;;       Complex graph for such simple operation.
-;; Returns (form unused-chars is-eof?)
+;;; NOTE: Nice function to test other langs on.
+;;;       Complex graph for such simple operation.
+;;; Returns (form unused-chars is-eof?)
 (defun try-to-read-form (prompt &key ((:accumulator accumulator) nil))
     (when accumulator
       (handler-case (multiple-value-bind (form last-character) (read-from-string accumulator)
@@ -26,7 +26,7 @@
                                                               (subseq accumulator last-character)
                                                               nil)
                                                             nil)))
-        ; EOF from read-from-string means that form is not finished
+        ;; EOF from read-from-string means that form is not finished
         (end-of-file () nil)))
     (let* ((line (rl:readline :prompt prompt
                               :erase-empty-line nil
@@ -42,7 +42,7 @@
                                                     (subseq new-accumulator last-character)
                                                     nil)
                                                   nil)))
-          ; EOF from read-from-string means that form is not finished
+          ;; EOF from read-from-string means that form is not finished
           (end-of-file () (values nil (if (string= new-accumulator "") nil new-accumulator) nil))))))
 
 (defclass interactive-input ()
@@ -74,7 +74,9 @@
 (defgeneric read-form (input-object)
   (:documentation "Read one form from input object"))
 
-;; Returns (form is-eof?)
+;;; Returns two values:
+;;;   form, read from input
+;;;   is-eof, boolean value
 (defmethod read-form ((input interactive-input))
   (with-slots (buffer) input
     (loop named readloop do
@@ -101,6 +103,8 @@
     (error (c)
            (format t *msg/generic-error* c)
            (values nil c))))
+
+(defparameter *shortcut-lexicon* '())
 
 (defun mainloop (&key ((:input input-object) nil)
                       ((:print-output print-output) nil)

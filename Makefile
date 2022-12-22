@@ -24,6 +24,11 @@ debug: $(FILES) $(ASDF_DEF)
 	rlwrap sbcl --load $(QUICKLISP)/setup.lisp \
 	            --load load.lisp
 
+test: $(FILES) $(ASDF_DEF)
+	sbcl --load $(QUICKLISP)/setup.lisp \
+	     --load load.lisp \
+	     --eval '(d.main:main)'
+
 deploy: executable
 	mkdir -p $(PACK)
 	mv $(EXEC) $(PACK)/
