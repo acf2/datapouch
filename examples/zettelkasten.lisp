@@ -2,6 +2,7 @@
 ;;; Zettelkasten example
 
 (defparameter *current-note* nil)
+(defparameter *node-history* nil) ; TBD
 
 ;;; Table creation
 ;;; note: id [int] PK, text [text] NN
@@ -154,7 +155,7 @@
               (order-by (:asc :link.number))))))
 
 ;;; Go to link *if and only if* current note is set
-(defun goto ()
+(defun choose-link-interactive ()
   (if (null *current-note*)
     (show-current-note)
     (let ((linked-notes (select (:link.destination :link.number :note.text)
@@ -163,12 +164,19 @@
                                 (order-by (:asc :link.number))
                                 (where (:= :link.source *current-note*)))))
       (when linked-notes
-        (format t "~A~&" linked-notes)
-        (format t "~A~&" (map 'list #'cdr linked-notes))
-        (with-state 'link (setf *current-note* (first (nth (find-one-row-dialog '("Number" "Text")
-                                                                                (map 'list #'cdr linked-notes)
-                                                                                :get-index t)
-                                                           linked-notes))))))))
+        (if (= (length linked-notes) 1)
+          (setf *current-note* (first (first linked-notes)))
+          (progn
+            (format t "~A~&" linked-notes)
+            (format t "~A~&" (map 'list #'cdr linked-notes))
+            (with-state 'link (setf *current-note* (first (nth (find-one-row-dialog '("Number" "Text")
+                                                                                    (map 'list #'cdr linked-notes)
+                                                                                    :get-index t)
+                                                               linked-notes))))))))))
+
+;; Deprecation?
+(defun clear ()
+  (setf *current-note* nil))
 
 ;;; HIGH LEVEL
                              
@@ -176,6 +184,3 @@
   (when substring
     (setf *current-note* (first (find-note substring))))
   (show-current-note))
-
-(defun clear ()
-  (setf *current-note* nil))
