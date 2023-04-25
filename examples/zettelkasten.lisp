@@ -1,12 +1,6 @@
 ;;;; user.lisp
 ;;; Zettelkasten example
 
-;;; user.lisp was made to be somewhat jury-rigged in feel and composition
-;;; it's config for particular user, not some production-quality code
-;;; so you will see several examples of *very* bad and tangled lisp down there
-
-(defparameter *can-modify-prompt* t)
-
 (defparameter *current-note* nil)
 
 ;;; Table creation
@@ -50,12 +44,15 @@
 ;    (left-join :link :on (:= :link.destination :note.id))
 ;    (where (:is-null :link.source))))
 
+(defun get-zettelkasten-prompt ()
+  (when *current-note* (format nil "[~36,V,'0R] " (1+ (floor (log (max-note-id) 36))) *current-note*)))
+
 ;;; Add note number to prompt
 ;;; NOTE: You can inherit interactive-input for more drastic changes
 (when (and (boundp '*can-modify-prompt*) *can-modify-prompt*)
   (defmethod get-prompt :around ((input interactive-input))
     (concatenate 'string
-                 (when *current-note* (format nil "[~36,V,'0R] " (1+ (floor (log (max-note-id) 36))) *current-note*))
+                 (get-zettelkasten-prompt)
                  (call-next-method input))))
 
 ;;; Easier prompt modification (within a block of code)
@@ -143,15 +140,18 @@
 
 ;;; Show all links of a note (find by substring of use current one)
 (defun show-links (&optional substring)
-  (pretty-print-table
-    '("Number" "Note")
-    (select ((:ifnull :link.number "") :note.text)
-            (from :link)
-            (left-join :note :on (:= :link.destination :note.id))
-            (where (:= :link.source (if (and *current-note* (null substring))
-                                      *current-note*
-                                      (first (find-note substring)))))
-            (order-by (:asc :link.number)))))
+  (if (and (null *current-note*)
+           (null substring))
+    nil
+    (pretty-print-table
+      '("Number" "Note")
+      (select ((:ifnull :link.number "") :note.text)
+              (from :link)
+              (left-join :note :on (:= :link.destination :note.id))
+              (where (:= :link.source (if (and *current-note* (null substring))
+                                        *current-note*
+                                        (first (find-note substring)))))
+              (order-by (:asc :link.number))))))
 
 ;;; Go to link *if and only if* current note is set
 (defun goto ()
