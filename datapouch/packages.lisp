@@ -10,10 +10,13 @@
            :*buffer*
            :*no-newline*
            :*prompt-fun*
+           :*command-table*
            :read-form
            :disable-bracketed-paste
            :restore-bracketed-paste
-           :get-repl))
+           :get-repl
+           :command-reader-macro
+           :read-line-to-semicolon-or-newline))
 
 (defpackage :datapouch.sql
   (:use #:cl)
@@ -34,7 +37,8 @@
                 :*no-newline*
                 :disable-bracketed-paste
                 :restore-bracketed-paste
-                :get-repl)
+                :get-repl
+                :command-reader-macro)
   (:export :*database-path*
            :*history-path*
            :*init-hooks*

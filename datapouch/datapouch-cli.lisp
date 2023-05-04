@@ -77,3 +77,29 @@
         (sb-ext:quit))
       (setf *buffer* new-buffer)
       form)))
+
+;; list of pairs:
+;; ("command" . command-handler)
+(defparameter *command-table* nil)
+
+(defun command-reader-macro (stream char)
+  (let* ((command (read stream))
+         (command-handler (loop for (command-name . command-handler) in *command-table*
+                                if (string= (string-upcase command)
+                                            (string-upcase command-name))
+                                return command-handler)))
+    (if command-handler
+      (funcall command-handler stream char)
+      (error 'unknown-command))))
+
+;;; Use this in reader macro
+(defun read-line-to-semicolon-or-newline (stream char)
+  (declare (ignore char))
+  (let ((line (make-array 0
+                          :element-type 'character
+                          :fill-pointer 0
+                          :adjustable t)))
+    (loop for char = (read-char stream)
+          until (or (eql char #\newline)
+                    (eql char #\;))
+          return line)))

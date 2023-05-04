@@ -131,4 +131,5 @@
   (setf sb-ext:*invoke-debugger-hook* #'debugger-hook)
   (setf sb-int:*repl-prompt-fun* (constantly ""))
   (setf sb-int:*repl-read-form-fun* (get-repl))
+  (set-macro-character #\/ #'command-reader-macro nil *readtable*)
   (apply #'sb-ext:save-lisp-and-die args))
