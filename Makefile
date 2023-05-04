@@ -1,10 +1,10 @@
-FILES=$(wildcard *.lisp)
-ASDF_DEF=datapouch.asd
+FILES=$(wildcard datapouch/*.lisp)
+ASDF_DEF=datapouch/datapouch.asd
 QUICKLISP=~/lisp/quicklisp
 
-EXEC=datapouch
+EXEC=dtpch
 NAME=datapouch
-VERSION=0.1
+VERSION=0.2
 
 PACK := $(NAME)-$(VERSION)
 
@@ -12,13 +12,13 @@ executable: $(FILES) $(ASDF_DEF)
 	sbcl --noinform \
 	     --load $(QUICKLISP)/setup.lisp \
 	     --load load.lisp \
-	     --eval '(sb-ext:save-lisp-and-die "$(EXEC)" :toplevel #'\''d.main:main :executable t :compression 9)'
+	     --eval '(d.main:make-image "$(EXEC)" :executable t :compression 9)'
 
 no_compress: $(FILES) $(ASDF_DEF)
 	sbcl --noinform \
 	     --load $(QUICKLISP)/setup.lisp \
 	     --load load.lisp \
-	     --eval '(sb-ext:save-lisp-and-die "$(EXEC)" :toplevel #'\''d.main:main :executable t)'
+	     --eval '(d.main:make-image "$(EXEC)" :executable t)'
 
 debug: $(FILES) $(ASDF_DEF)
 	rlwrap sbcl --load $(QUICKLISP)/setup.lisp \

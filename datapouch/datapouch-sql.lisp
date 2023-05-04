@@ -19,9 +19,3 @@
   (define-sxql-wrappers
     (sqlite:execute-to-list select union-queries union-all-queries insert-into update delete-from)
     (sqlite:execute-non-query create-table drop-table alter-table create-index drop-index)))
-
-(defmacro with-binded-db (db-symbol &body body)
-  `(let ((*db* ,db-symbol))
-     ;(declare (special *db*))
-     (sqlite:execute-non-query *db* "PRAGMA foreign_keys=ON;") ; XXX: Because FUCK YOU foreign key default support
-     ,@body))

@@ -3,16 +3,22 @@
 (in-package :cl-user)
 
 (defpackage :datapouch.cli
-  (:use :cl)
+  (:use #:cl)
   (:nicknames :d.cli)
-  (:export :mainloop
-           :interactive-input :get-prompt :prompt-list :command-sign :accumulator-sign
-           :read-form))
+  (:export :+default-line-separator+
+           :+default-space-characters+
+           :*buffer*
+           :*no-newline*
+           :*prompt-fun*
+           :read-form
+           :disable-bracketed-paste
+           :restore-bracketed-paste
+           :get-repl))
 
 (defpackage :datapouch.sql
-  (:use :cl)
+  (:use #:cl)
   (:nicknames :d.sql)
-  (:export :*db* :with-binded-db
+  (:export :*db*
            :select :union-queries :union-all-queries
            :insert-into :update :delete-from
            :create-table :drop-table :alter-table
@@ -21,15 +27,29 @@
 (defpackage :datapouch.main
   (:use #:cl #:uiop)
   (:nicknames :d.main)
-  (:export :main
+  (:import-from :d.sql
+                :*db*)
+  (:import-from :d.cli
+                :*buffer*
+                :*no-newline*
+                :disable-bracketed-paste
+                :restore-bracketed-paste
+                :get-repl)
+  (:export :*database-path*
+           :*history-path*
+           :*init-hooks*
+           :*exit-hooks*
+           :*debugger-hooks*
            :*editor-interface*
-           :*print-output*
-           :*input*
-           :edit-strings))
+           :edit-strings
+           :make-image))
 
 (defpackage :datapouch.interaction
-  (:use #:cl #:d.cli #:d.main)
+  (:use #:cl)
   (:nicknames :d.inter)
+  (:import-from :d.cli
+                :read-form
+                :*prompt-fun*)
   (:export :*max-string-length*
            :*wrap-marker*
            :*table-metaformat*
@@ -55,6 +75,7 @@
 
 (defpackage :datapouch.user
   (:use #:cl #:d.cli #:d.inter #:d.main)
+  (:nicknames :d.user)
   (:import-from :sb-ext
                 :quit)
   (:import-from :sxql

@@ -6,7 +6,8 @@
 
 (defparameter work-dir (directory-namestring (or *load-truename* *default-pathname-defaults*)))
 
-(pushnew work-dir
+(pushnew (truename (make-pathname :directory work-dir
+                                  :name "datapouch"))
          asdf:*central-registry*
          :test #'equal)
 

@@ -2,7 +2,7 @@
 
 (defsystem datapouch
   :description "The most neat pile of info mess this side of insanity."
-  :version "0.1"
+  :version "0.2"
   :author "Dmitry Kiselev"
   :components ((:file "packages")
                (:file "datapouch-regex-support" :depends-on ("packages"))

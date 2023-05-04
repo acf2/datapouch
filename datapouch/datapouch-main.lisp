@@ -2,13 +2,7 @@
 
 (in-package :datapouch.main)
 
-(defvar +config-path+ #P"~/.config/datapouch/user.lisp")
-;;; TODO Refactor
-(defvar +config-sample+
-  (format nil ";;;; ~A~&~{;;; ~A~&~}"
-          "user.lisp"
-          '("This is a sample config file"
-            "It would not be modified automatically once created")))
+(defvar +config-path+ (merge-pathnames #P".config/datapouch/" (user-homedir-pathname)))
 (defparameter +work-dir+ (directory-namestring (or *load-truename* *default-pathname-defaults*)))
 
 (defun ensure-file-exists (path &optional (initial-text nil))
@@ -23,6 +17,8 @@
   (with-temporary-file (:stream stream :pathname pathname :prefix "" :suffix "")
     (when initial-text
       (write-string initial-text stream))
+    ; or should it be (close stream)?
+    ; like here https://github.com/koji-kojiro/cl-repl/blob/bfd1521f856a9f8020611e8d8b34634fe75fbbc8/src/command.lisp#L60
     :close-stream
     (funcall editor-interface (list pathname))
     (with-open-file (stream pathname)
@@ -56,26 +52,83 @@
     (when pathnames
       (funcall editor-interface pathnames))))
 
-(defparameter *editor-interface* (lambda (pathnames) (run-program (append (list "vim" "-p") (map 'list #'namestring pathnames))
-                                                                  :input :interactive
-                                                                  :output :interactive)))
-(defparameter *print-output* t)
-(defparameter *database-path* (make-pathname :directory (pathname-directory +config-path+)
-                                             :name "database"))
-(defparameter *history-path* (make-pathname :directory (pathname-directory +config-path+)
-                                            :name "history"))
-(defparameter *input* (make-instance 'd.cli:interactive-input))
+(defun vim-editor-interface (pathnames)
+  (run-program (append (list "vim" "-p") (map 'list #'namestring pathnames))
+               :input :interactive
+               :output :interactive))
+
+(defparameter *editor-interface* #'vim-editor-interface)
+(defparameter *database-path* (merge-pathnames #P"database" +config-path+))
+(defparameter *history-path* (merge-pathnames #P"history" +config-path+))
+
+(defun edit-paths (&rest paths)
+  (funcall *editor-interface* paths))
 
 (defun edit-strings (&rest texts)
   (call-editor-for-many *editor-interface* texts))
 
-(defun main ()
-  (in-package :datapouch.user)
-  (ensure-file-exists +config-path+ +config-sample+)
-  (load (namestring +config-path+))
+
+(defparameter *init-hooks* nil)
+(defparameter *exit-hooks* nil)
+(defparameter *debugger-hooks* nil)
+
+
+(defun debugger-hook (con val)
+  (loop for fun in *debugger-hooks* do
+        (funcall fun con val)))
+
+
+;;; Readline config
+
+(defun no-newline-after-debugger (con val)
+  (declare (ignore con val))
+  (setf *no-newline* t))
+
+
+(defun init-readline ()
+  (setf *no-newline* t)
+  (setf *buffer* "")
+  (pushnew #'no-newline-after-debugger *debugger-hooks*)
+  (when *history-path* (rl:read-history (namestring (truename *history-path*))))
+  (disable-bracketed-paste))
+
+
+(defun finalize-readline ()
+  (when *history-path* (rl:write-history (namestring (truename *history-path*))))
+  (restore-bracketed-paste))
+
+; 1. (prompt buffer &rest rest)
+; 2. reader macro table + handler
+; 3. Configure readline
+
+;;; SQLite config
+
+(defun init-sqlite ()
+  (setf *db* (sqlite:connect *database-path*))
+  (sqlite:execute-non-query *db* "PRAGMA foreign_keys=ON;")) ; XXX: Because FUCK YOU foreign key default support
+
+
+(defun finalize-sqlite ()
+  (sqlite:disconnect *db*))
+
+
+;;; Config files initialization
+(defun config-files-init ()
   (ensure-file-exists *database-path*)
-  (ensure-file-exists *history-path*)
-  (sqlite:with-open-database (db (truename *database-path*))
-    (d.sql:with-binded-db db
-      (d.cli:mainloop :input *input* :print-output *print-output* :history-file *history-path*)))
-  0)
+  (when *history-path* (ensure-file-exists *history-path*)))
+
+
+(defun make-image (&rest args)
+  (setf sb-ext:*init-hooks* (remove-duplicates (append sb-ext:*init-hooks*
+                                                       (list #'config-files-init
+                                                             #'init-readline
+                                                             #'init-sqlite)
+                                                       *init-hooks*)))
+  (setf sb-ext:*exit-hooks* (remove-duplicates (append sb-ext:*exit-hooks*
+                                                       (list #'finalize-readline
+                                                             #'finalize-sqlite)
+                                                       *exit-hooks*)))
+  (setf sb-ext:*invoke-debugger-hook* #'debugger-hook)
+  (setf sb-int:*repl-prompt-fun* (constantly ""))
+  (setf sb-int:*repl-read-form-fun* (get-repl))
+  (apply #'sb-ext:save-lisp-and-die args))
