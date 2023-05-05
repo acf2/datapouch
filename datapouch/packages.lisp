@@ -1,6 +1,8 @@
 ;;;; packages.lisp
 
+
 (in-package :cl-user)
+
 
 (defpackage :datapouch.cli
   (:use #:cl)
@@ -18,6 +20,7 @@
            :command-reader-macro
            :read-line-to-semicolon-or-newline))
 
+
 (defpackage :datapouch.sql
   (:use #:cl)
   (:nicknames :d.sql)
@@ -26,6 +29,7 @@
            :insert-into :update :delete-from
            :create-table :drop-table :alter-table
            :create-index :drop-index))
+
 
 (defpackage :datapouch.main
   (:use #:cl #:uiop)
@@ -48,6 +52,7 @@
            :edit-strings
            :make-image))
 
+
 (defpackage :datapouch.interaction
   (:use #:cl)
   (:nicknames :d.inter)
@@ -64,6 +69,7 @@
            :pretty-print-table
            :find-one-row-dialog))
 
+
 (defpackage :datapouch.regex-support
   (:use #:cl #:cl-ppcre)
   (:nicknames :d.regex)
@@ -76,6 +82,7 @@
            :interchange
            :interchange-three
            :scan-named-groups))
+
 
 (defpackage :datapouch.user
   (:use #:cl #:d.cli #:d.inter #:d.main)

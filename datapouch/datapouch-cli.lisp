@@ -1,15 +1,19 @@
 ;;;; datapouch-cli.lisp
 
+
 (in-package :datapouch.cli)
+
 
 (defvar +default-line-separator+ (string #\newline))
 (defvar +default-space-characters+ (list #\Space #\Newline #\Tab))
+
 
 (defun default-prompt (buffer)
   (if (string= buffer "")
     "> "
     "* "))
 (defparameter *prompt-fun* #'default-prompt)
+
 
 ;;; Returns two values: form, unused characters
 (defun try-to-read-form (form-string)
@@ -18,6 +22,7 @@
                   (values form (subseq form-string last-character)))
     ;; EOF from read-from-string means that form is not complete
     (end-of-file () (values nil form-string))))
+
 
 ;;; Read one form from interactive-input
 ;;; Returns three values:
@@ -67,6 +72,7 @@
   (lambda (in out)
     (declare (ignore in))
     ;; Why fresh-line does not work here? [1]
+    ;; (With fresh-line here, *no-newline* can be removed entirely)
     (if *no-newline*
       (setf *no-newline* nil)
       (terpri out))
@@ -78,9 +84,11 @@
       (setf *buffer* new-buffer)
       form)))
 
+
 ;; list of pairs:
 ;; ("command" . command-handler)
 (defparameter *command-table* nil)
+
 
 (defun command-reader-macro (stream char)
   (let* ((command (read stream))
@@ -91,6 +99,7 @@
     (if command-handler
       (funcall command-handler stream char)
       (error 'unknown-command))))
+
 
 ;;; Use this in reader macro
 (defun read-line-to-semicolon-or-newline (stream char)

@@ -1,9 +1,12 @@
 ;;;; datapouch-main.lisp
 
+
 (in-package :datapouch.main)
+
 
 (defvar +config-path+ (merge-pathnames #P".config/datapouch/" (user-homedir-pathname)))
 (defparameter +work-dir+ (directory-namestring (or *load-truename* *default-pathname-defaults*)))
+
 
 (defun ensure-file-exists (path &optional (initial-text nil))
   (or (probe-file path)
@@ -13,6 +16,8 @@
           (when initial-text
             (write initial-text :stream file))))))
 
+
+;;; This will only work while uiop:with-temporary-file ensures existance of temporary file until progn ends
 (defun call-editor (editor-interface &key ((:initial-text initial-text) nil))
   (with-temporary-file (:stream stream :pathname pathname :prefix "" :suffix "")
     (when initial-text
@@ -23,6 +28,7 @@
     (funcall editor-interface (list pathname))
     (with-open-file (stream pathname)
       (read-file-string pathname))))
+
 
 ;;; This is the simplier version, maybe later I'll consider it.
 ;(defun call-editor (editor-interface &key initial-text/s)
@@ -39,6 +45,7 @@
 ;;; Also, there is the version with explicit catamorphism.
 ;;; Not that I know how it works. Maybe later too.
 
+
 (defun call-editor-for-many (editor-interface initial-texts &optional (pathnames nil))
   (if initial-texts
     (let* ((other-results nil)
@@ -52,14 +59,17 @@
     (when pathnames
       (funcall editor-interface pathnames))))
 
+
 (defun vim-editor-interface (pathnames)
   (run-program (append (list "vim" "-p") (map 'list #'namestring pathnames))
                :input :interactive
                :output :interactive))
 
+
 (defparameter *editor-interface* #'vim-editor-interface)
 (defparameter *database-path* (merge-pathnames #P"database" +config-path+))
 (defparameter *history-path* (merge-pathnames #P"history" +config-path+))
+
 
 (defun edit-paths (&rest paths)
   (funcall *editor-interface* paths))
@@ -96,10 +106,6 @@
 (defun finalize-readline ()
   (when *history-path* (rl:write-history (namestring (truename *history-path*))))
   (restore-bracketed-paste))
-
-; 1. (prompt buffer &rest rest)
-; 2. reader macro table + handler
-; 3. Configure readline
 
 ;;; SQLite config
 

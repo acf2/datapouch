@@ -1,12 +1,16 @@
 ;;;; datapouch-sql.lisp
 
+
 (in-package :datapouch.sql)
 
+
 (defparameter *db* nil)
+
 
 (defun sqlite-execute (function statement)
   (multiple-value-bind (query values) (sxql:yield statement)
     (apply function *db* query values)))
+
 
 (macrolet ((define-sxql-wrapper (name sqlite-function)
                                 `(defmacro ,name (fields &body clauses)

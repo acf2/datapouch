@@ -3,9 +3,12 @@
 ;;; They are not supported normally, but could be enabled for ppcre.
 ;;; But their handling is shit. That's why this wrapper exists.
 
+
 (in-package :datapouch.regex-support)
 
+
 (setq ppcre:*allow-named-registers* t)
+
 
 (defclass regex ()
   ((expr :reader expr
@@ -13,7 +16,9 @@
    (groups :reader groups
            :initform nil)))
 
+
 (defgeneric wrap-in-noncapturing-group (regex))
+
 
 (defmethod wrap-in-noncapturing-group ((regex regex))
   (let ((new-regex (make-instance 'regex)))
@@ -23,8 +28,10 @@
         (setf new-expr (format nil "(?:~A)" expr))))
     new-regex))
 
+
 (defgeneric make-named-group (name regex)
   (:documentation "Make named matching group"))
+
 
 (defmethod make-named-group ((name string) (regex regex))
   (let ((new-regex (make-instance 'regex)))
@@ -34,8 +41,10 @@
         (setf new-groups (cons name groups))))
     new-regex))
 
+
 (defgeneric concat-two (one-regex another-regex)
   (:documentation "Concatenate two regexes"))
+
 
 (defmethod concat-two ((one regex) (another regex))
   (let ((new-regex (make-instance 'regex)))
@@ -46,6 +55,7 @@
           (setf new-groups (append one-groups another-groups)))))
     new-regex))
 
+
 (defmethod concat-two ((one regex) (another string))
   (let ((new-regex (make-instance 'regex)))
     (with-slots ((one-expr expr) (one-groups groups)) one
@@ -53,6 +63,7 @@
         (setf new-expr (format nil "~A~A" one-expr another))
         (setf new-groups (copy-list one-groups))))
     new-regex))
+
 
 (defmethod concat-two ((one string) (another regex))
   (let ((new-regex (make-instance 'regex)))
@@ -62,8 +73,10 @@
         (setf new-groups (copy-list another-groups))))
     new-regex))
 
+
 (defun concat (&rest regexes)
   (reduce (lambda (x y) (concat-two x y)) regexes))
+
 
 (defun combine (&rest regexes)
   (flet ((combine-two (one-regex another-regex)
@@ -80,8 +93,10 @@
                                                                      (make-instance 'regex :expr wannabe-regex)))
                                                            regexes)))))
 
+
 (defgeneric interchange (separator-regex one-regex another-regex)
   (:documentation "Make regex that matches two separated regexes in any order"))
+
 
 (defmethod interchange ((separator regex) (one regex) (another regex))
   (let ((new-regex (make-instance 'regex)))
@@ -94,6 +109,7 @@
                                      another-groups sep-groups one-groups))))))
     new-regex))
 
+
 ;;; TODO Rewrite this simpler with (interchange sep first (interchange sep second third))
 (defun interchange-three (separator-regex first-regex second-regex third-regex)
   "Make regex that matches three separated regexes in any order"
@@ -101,10 +117,13 @@
            (concat second-regex separator-regex (interchange separator-regex first-regex third-regex))
            (concat third-regex separator-regex (interchange separator-regex first-regex second-regex))))
 
+
 (defgeneric scan-named-groups (regex str)
   (:documentation "Find named groups in string"))
 
+
 ;;; NOTE something regarding (ppcre:scan-to-strings) ?
+
 
 (defmethod scan-named-groups ((regex regex) (str string))
   (remove-if #'null
