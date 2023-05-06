@@ -12,22 +12,17 @@ executable: $(FILES) $(ASDF_DEF)
 	sbcl --noinform \
 	     --load $(QUICKLISP)/setup.lisp \
 	     --load load.lisp \
-	     --eval '(d.main:make-image "$(EXEC)" :executable t :compression 9)'
+	     --eval '(zac.main:make-zac "$(EXEC)" :executable t :compression 9)'
 
 no_compress: $(FILES) $(ASDF_DEF)
 	sbcl --noinform \
 	     --load $(QUICKLISP)/setup.lisp \
 	     --load load.lisp \
-	     --eval '(d.main:make-image "$(EXEC)" :executable t)'
+	     --eval '(zac.main:make-zac "$(EXEC)" :executable t)'
 
 debug: $(FILES) $(ASDF_DEF)
 	rlwrap sbcl --load $(QUICKLISP)/setup.lisp \
 	            --load load.lisp
-
-test: $(FILES) $(ASDF_DEF)
-	sbcl --load $(QUICKLISP)/setup.lisp \
-	     --load load.lisp \
-	     --eval '(d.main:main)'
 
 deploy: executable
 	mkdir -p $(PACK)

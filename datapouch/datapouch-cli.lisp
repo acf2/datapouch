@@ -29,6 +29,11 @@
 ;;;   form, read from input
 ;;;   buffer, unused characters
 ;;;   is-eof, boolean value
+;;;
+;;; I dunno what to do with output-stream for rl:readline
+;;; More here: https://github.com/vindarel/cl-readline/blob/7653bc094c8f9bf151dde8dbfb3e2d261003047e/cl-readline.lisp#L134
+;;; Especially when it's a synonym stream
+;;; What? (sb-sys:fd-stream-fd (eval (synonym-stream-symbol output-stream)))? Like with naked eval?
 (defun read-form (buffer prompt-fun)
   (declare (type string buffer)
            (type function prompt-fun))

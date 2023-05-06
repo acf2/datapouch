@@ -1,8 +1,20 @@
 ;;;; user.lisp
 ;;; Zettelkasten example
+;;;
+;;; WARNING! Every and any note interaction must interpret a note as ID number
+;;; Note lists are lists of IDs (lists of integers)
+;;; This is the crucial component in maintaining consistency between application and database
+
+
+(in-package :zac.box)
+
 
 (defparameter *current-note* nil)
-(defparameter *node-history* nil) ; TBD
+(defparameter *note-history* nil) ; TBD
+
+
+(defparameter *option-show-note-after-jump* t)
+
 
 ;;; Table creation
 ;;; note: id [int] PK, text [text] NN
@@ -29,60 +41,65 @@
                              :on-delete :cascade
                              :on-update :cascade)))
 
+
 ;;; Returns maximum ID in note table
 (defmacro max-note-id ()
   `(caar (select :id (from :note) (order-by (:desc :id)) (limit 1))))
 
+
 ;;; Returns list of notes with one note (unified format for queries)
 (defun get-note-by-id (id)
-  (select :* (from :note) (where (:= :id id))))
+  (select '(:id :text) (from :note) (where (:= :id id))))
+
 
 ;;; Returns list of all notes without parents (no links with destination == note.id)
-;;; There should be only one such a note in normal zettelkasten, thus function is obsolete
+;;; There should be only one such a note in normal zettelkasten
 ;(defun get-orphans ()
-;  (select :*
+;  (select '(:id :text)
 ;    (from :note)
 ;    (left-join :link :on (:= :link.destination :note.id))
 ;    (where (:is-null :link.source))))
 
-(defun get-zettelkasten-prompt ()
-  (when *current-note* (format nil "[~36,V,'0R] " (1+ (floor (log (max-note-id) 36))) *current-note*)))
 
-;;; Add note number to prompt
-;;; NOTE: You can inherit interactive-input for more drastic changes
-(when (and (boundp '*can-modify-prompt*) *can-modify-prompt*)
-  (defmethod get-prompt :around ((input interactive-input))
-    (concatenate 'string
-                 (get-zettelkasten-prompt)
-                 (call-next-method input))))
+(defun get-prompt ()
+  (when *current-note* (format nil "~36,V,'0R" (1+ (floor (log (max-note-id) 36))) *current-note*)))
 
-;;; Easier prompt modification (within a block of code)
-(defmacro with-state (state &body body)
-  (let ((result (gensym)))
-    `(let (,result)
-       (push ,state (prompt-list *input*))
-       (setf ,result (progn ,@body))
-       (pop (prompt-list *input*))
-       ,result)))
 
-;;; Forcefully show current note or message of absence of such
-(defun show-current-note ()
-  (format t "~A~&"
-          (if *current-note*
-            (second (first (get-note-by-id *current-note*)))
-            "Note is not chosen")))
+(defparameter +errmsg-note-is-not-chosen+ "Note is not chosen.")
 
-;;; Find single note from list, using substring
-;;; If multiple notes are found, use interactive dialog to choose one
-(defun find-note (substring)
-  (let ((found-notes (select :* (from :note) (where (:instr :text substring)))))
-    (cond ((= (length found-notes) 1) (first found-notes))
-          (:else
-            (with-state 'row
-                        (and found-notes (nth (find-one-row-dialog '("Text")
-                                                                   (map 'list #'cdr found-notes)
-                                                                   :get-index t)
-                                              found-notes)))))))
+
+(defun note-is-not-chosen (&key ((:output-stream output-stream) *standard-output*))
+  (if (null *current-note*)
+    (format output-stream "~A~&" +errmsg-note-is-not-chosen+)
+    (error "INTERNAL ERROR in zac.box: *current-note* is not nil, but assumed as such")))
+
+
+(defun show-text (&key
+                   ((:note note) *current-note*)
+                   ((:output-stream output-stream) *standard-output*))
+  (if note
+    (let ((answer (get-note-by-id *current-note*)))
+      (if answer
+        (format output-stream "~A~&" (second (first answer)))
+        (error "INTERNAL: No note with such ID")))
+    (note-is-not-chosen :output-stream output-stream)))
+
+
+;;; Find notes from db, using substring
+;;; Subset of notes can be limited by choosing specific list of IDs
+(defun goto-text (substring &key ((:list note-list) nil))
+  (declare (type list note-list))
+  (let ((where-clause (list :instr :text substring)))
+    (when note-list
+      (setf where-clause (list :and where-clause (list :in :id note-list))))
+    (select :id
+            (from :note)
+            (where where-clause))))
+
+; TODO
+;(defun goto-history
+;(defun goto-link
+
 
 ;;; As with `find-note' but more interactive. Obsolete.
 ;(defun note-search ()
@@ -93,94 +110,98 @@
 ;          else if (integerp info) return (get-note-by-id info)
 ;          else do (format t "That is not string or a number. Try again:~&"))))
 
+
 ;;; Call editor to edit one or more notes
 ;;; (on call with no arguments will attempt to edit current node)
-(defun edit-note (&rest notes)
-  (cond ((null notes) (edit-note *current-note*))
-        (:else 
-          (let* ((old-notes (select :*
-                                    (from :note)
-                                    (where (:in :id (loop for note in notes
-                                                          if (integerp note) collect note
-                                                          else if (and (listp note) (integerp (first note))) collect (first note))))))
-                 (new-notes (map 'list (lambda (note new-text) (list (first note) new-text))
-                                 old-notes
-                                 (apply #'edit-strings (map 'list #'second old-notes)))))
-            (loop for new-note in new-notes do
-                  (update :note
-                          (set= :text (second new-note))
-                          (where (:= :id (first new-note)))))))))
+(defun edit-note (&key ((:notes notes) (list *current-note*)))
+  (declare (type list notes))
+  (and notes
+       (let* ((old-notes (select '(:id :text)
+                                 (from :note)
+                                 (where (:in :id notes))))
+              (new-notes (map 'list (lambda (note new-text) (list (first note) new-text))
+                              old-notes
+                              (apply #'edit-strings (map 'list #'second old-notes)))))
+         (update :note
+                 (set= :text `(:case :id
+                                     ,@(loop for new-note in new-notes
+                                             collect (cons :when new-note))
+                                     (:else :text)))
+                 (where (:in :id notes))))))
+
 
 ;;; Add new note
-;;; Source note can be determined by substring (with `find-note'), whole note or
-;;; ID (by list or integer argument). Or by current-note (if :FROM is NIL)
+;;; Default source-note is *current-note*. In the hope that this will incentivize user not to create dangling notes.
 ;;; :NUMBER will determine number of this link (is userful for sorting and
 ;;; tables of contents)
-(defun add-note (&key ((:from from) nil)
+(defun add-note (&key ((:from source-note) *current-note*)
                       ((:number num) nil))
-  (let ((source-note (cond ((null from) *current-note*)
-                           ((listp from) (first from))
-                           ((stringp from) (first (find-note from)))
-                           ((integerp from) from)
-                           (:else nil)))
-        (first-note (null (select :* (from :note)))))
-    (when (or source-note first-note)
-      (let ((new-note (caar (insert-into :note
-                                         (set= :text (first (edit-strings "")))
-                                         (returning :id)))))
-        (unless first-note
-          (insert-into :link (set= :source source-note
-                                   :destination new-note
-                                   :number num)))))))
+  (let ((new-note (caar (insert-into :note
+                                     (set= :text (first (edit-strings "")))
+                                     (returning :id)))))
+    (when source-note
+      (insert-into :link (set= :source source-note
+                               :destination new-note
+                               :number num)))))
 
-;;; Delete note by substring (or current note if substring is not supplied)
-(defun delete-note (&optional substring)
-  (delete-from :note (where (:= :id (if (and *current-note* (null substring))
-                                      *current-note*
-                                      (first (find-note substring)))))))
 
-;;; Show all links of a note (find by substring of use current one)
-(defun show-links (&optional substring)
-  (if (and (null *current-note*)
-           (null substring))
-    nil
+;;; Remove note by ID (or current note if ID is not supplied)
+;;; When nil is supplied, does nothing
+(defun remove-note (&key ((:note note) *current-note*))
+  (when note
+    (delete-from :note (where (:= :id note)))
+    (when (eql note *current-note*)
+      (setf *current-note* nil)))) ; TODO Remake to last history item, when history is implemented
+
+
+;;; Show all links of a note
+(defun show-links (&key ((:note note) *current-note*)
+                        ((:output-stream output-stream) *standard-output*))
+  (if note
     (pretty-print-table
       '("Number" "Note")
       (select ((:ifnull :link.number "") :note.text)
               (from :link)
               (left-join :note :on (:= :link.destination :note.id))
-              (where (:= :link.source (if (and *current-note* (null substring))
-                                        *current-note*
-                                        (first (find-note substring)))))
-              (order-by (:asc :link.number))))))
+              (where (:= :link.source note))
+              (order-by (:asc :link.number)))
+      :output-stream output-stream)
+    (note-is-not-chosen :output-stream output-stream)))
 
-;;; Go to link *if and only if* current note is set
-(defun choose-link-interactive ()
-  (if (null *current-note*)
-    (show-current-note)
+
+;;; Interactive dialog to choose a note from list
+(defun choose-note-interactive (notes)
+  (declare (type list notes))
+  (if (= (length notes) 1)
+    (first notes)
+    (let* ((found-notes (select '(:id :text) (from :note) (where (:in :id notes))))
+           (chosen-note-index (and found-notes (find-one-row-dialog '("Text")
+                                                                    (map 'list #'cdr found-notes)
+                                                                    :get-index t
+                                                                    :prompt-fun (constantly "note> ")))))
+      (when chosen-note-index (first (nth chosen-note-index found-notes))))))
+
+
+;;; Go to link of some note and return destination note ID
+(defun choose-link-interactive (&key ((:note note) *current-note*)
+                                     ((:output-stream output-stream) *standard-output*))
+  (if note
     (let ((linked-notes (select (:link.destination :link.number :note.text)
                                 (from :link)
                                 (left-join :note :on (:= :link.destination :note.id))
                                 (order-by (:asc :link.number))
-                                (where (:= :link.source *current-note*)))))
-      (when linked-notes
-        (if (= (length linked-notes) 1)
-          (setf *current-note* (first (first linked-notes)))
-          (progn
-            (format t "~A~&" linked-notes)
-            (format t "~A~&" (map 'list #'cdr linked-notes))
-            (with-state 'link (setf *current-note* (first (nth (find-one-row-dialog '("Number" "Text")
-                                                                                    (map 'list #'cdr linked-notes)
-                                                                                    :get-index t)
-                                                               linked-notes))))))))))
+                                (where (:= :link.source note)))))
+      (cond ((null linked-notes) (format output-stream "No links available."))
+            ((= (length linked-notes) 1) (setf *current-note* (first (first linked-notes))))
+            (:else
+              ;(format t "~A~&" linked-notes) ; DEBUG
+              ;(format t "~A~&" (map 'list #'cdr linked-notes)) ; DEBUG
+              (let ((chosen-link-index (find-one-row-dialog '("Number" "Text")
+                                                            (map 'list #'cdr linked-notes)
+                                                            :get-index t
+                                                            :output-stream output-stream)))
+                (when chosen-link-index (first (nth chosen-link-index linked-notes)))))))
+    (note-is-not-chosen)))
 
-;; Deprecation?
-(defun clear ()
-  (setf *current-note* nil))
 
-;;; HIGH LEVEL
-                             
-(defun note (&optional substring)
-  (when substring
-    (setf *current-note* (first (find-note substring))))
-  (show-current-note))
+;;; HIGH LEVEL (To be called from shortcuts)

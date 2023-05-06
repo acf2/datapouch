@@ -84,6 +84,8 @@
            :scan-named-groups))
 
 
+;;; Useful package for user code and/or interactive use
+;;; For other packages (:use #:sxql #:d.sql #:d.regex #:d.cli #:d.inter #:d.main) should be enough
 (defpackage :datapouch.user
   (:use #:cl #:d.cli #:d.inter #:d.main)
   (:nicknames :d.user)

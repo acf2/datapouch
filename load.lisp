@@ -7,12 +7,11 @@
 
 (defparameter work-dir (directory-namestring (or *load-truename* *default-pathname-defaults*)))
 
-(pushnew (truename (make-pathname :directory work-dir
-                                  :name "datapouch"))
-         ;(truename (make-pathname :directory work-dir
-                                  ;:name "zettelkasten-and-accounting"))
-         asdf:*central-registry*
-         :test #'equal)
+(loop for path in (list (truename (make-pathname :directory work-dir
+                                                 :name "datapouch"))
+                        (truename (make-pathname :directory work-dir
+                                                 :name "zettelkasten-and-accounting")))
+      do (pushnew path asdf:*central-registry* :test #'equal))
 
 (with-open-stream (*standard-output* (make-broadcast-stream))
-  (asdf:load-system :datapouch))
+  (asdf:load-system :zettelkasten-and-accounting))
