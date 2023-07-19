@@ -4,9 +4,34 @@
 (in-package :cl-user)
 
 
+(defpackage :datapouch.regex-support
+  (:use #:cl #:cl-ppcre)
+  (:nicknames :d.regex)
+  (:export :allow-named-registers
+           :regex :expr :groups
+           :wrap-in-noncapturing-group
+           :make-named-group
+           :concat-two
+           :concat
+           :combine
+           :interchange
+           :interchange-three
+           :scan-named-groups))
+
+
 (defpackage :datapouch.cli
   (:use #:cl)
   (:nicknames :d.cli)
+  (:import-from :d.regex
+                :regex
+                :wrap-in-noncapturing-group
+                :make-named-group
+                :concat-two
+                :concat
+                :combine
+                :interchange
+                :interchange-three
+                :scan-named-groups)
   (:export :+default-line-separator+
            :+default-space-characters+
            :*buffer*
@@ -70,22 +95,10 @@
            :find-one-row-dialog))
 
 
-(defpackage :datapouch.regex-support
-  (:use #:cl #:cl-ppcre)
-  (:nicknames :d.regex)
-  (:export :regex
-           :wrap-in-noncapturing-group
-           :make-named-group
-           :concat-two
-           :concat
-           :combine
-           :interchange
-           :interchange-three
-           :scan-named-groups))
-
-
 ;;; Useful package for user code and/or interactive use
-;;; For other packages (:use #:sxql #:d.sql #:d.regex #:d.cli #:d.inter #:d.main) should be enough
+;;; You can copy this package, if you want to use userenvironment
+;;; XXX: It's kinda crowded right now, but without reimport I cannot really do anything about sxql clashing with d.sql
+;;;      So... let's just leave it alone. I don't like unnecessary dependencies.
 (defpackage :datapouch.user
   (:use #:cl #:d.cli #:d.inter #:d.main)
   (:nicknames :d.user)
