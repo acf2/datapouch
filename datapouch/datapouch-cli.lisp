@@ -16,6 +16,11 @@
 
 
 ;;; Returns two values: form, unused characters
+;;; linedit uses:
+;;;   - separate package for reads
+;;;   - unwind-protect
+;;; What should we use too? Why?
+;;; Reference: https://github.com/sharplispers/linedit/blob/master/main.lisp#L76
 (defun try-to-read-form (form-string)
   (declare (type string form-string))
   (handler-case (multiple-value-bind (form last-character) (read-from-string form-string)
@@ -46,8 +51,8 @@
             with form
             when (and (null line) (string= new-buffer "")) return (values nil new-buffer t) ; nil from rl:readline means EOF
             when (null line) do (error (make-instance 'end-of-file))
-            do (setf new-buffer (string-trim +default-space-characters+
-                                             (concatenate 'string new-buffer +default-line-separator+ line)))
+            do (setf new-buffer (string-left-trim +default-space-characters+
+                                                  (concatenate 'string new-buffer +default-line-separator+ line +default-line-separator+)))
             ;; Here linedit, for example, reads to throwaway package. Why? Should it do the same?
             do (multiple-value-setq (form new-buffer) (try-to-read-form new-buffer))
             when form return (values form new-buffer nil)))))
