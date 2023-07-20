@@ -7,7 +7,8 @@
 (in-package :datapouch.regex-support)
 
 
-(setq ppcre:*allow-named-registers* t)
+(defun allow-named-registers (&optional (flag t))
+  (setf ppcre:*allow-named-registers* flag))
 
 
 (defclass regex ()
@@ -42,6 +43,14 @@
     new-regex))
 
 
+(defmethod make-named-group ((name string) (regex string))
+  (let ((new-regex (make-instance 'regex)))
+      (with-slots ((new-expr expr) (new-groups groups)) new-regex
+        (setf new-expr (format nil "(?<~A>~A)" name regex))
+        (setf new-groups (list name)))
+    new-regex))
+
+
 (defgeneric concat-two (one-regex another-regex)
   (:documentation "Concatenate two regexes"))
 
@@ -71,6 +80,13 @@
       (with-slots ((new-expr expr) (new-groups groups)) new-regex
         (setf new-expr (format nil "~A~A" one another-expr))
         (setf new-groups (copy-list another-groups))))
+    new-regex))
+
+
+(defmethod concat-two ((one string) (another string))
+  (let ((new-regex (make-instance 'regex)))
+    (with-slots ((new-expr expr) (new-groups groups)) new-regex
+      (setf new-expr (format nil "~A~A" one another)))
     new-regex))
 
 
@@ -123,6 +139,9 @@
 
 
 ;;; NOTE something regarding (ppcre:scan-to-strings) ?
+;;;  If scan fails, it works correctly
+;;;  What if multiple same named groups?
+;;;  What's with the speed? What about scanners?
 
 
 (defmethod scan-named-groups ((regex regex) (str string))
@@ -132,3 +151,33 @@
                     (and match (cons key match)))
                   (nth-value 1 (ppcre:scan-to-strings (expr regex) str))
                   (groups regex))))
+
+
+(defclass regex-scanner ()
+  ((scanner :reader scanner
+            :initform nil)
+   (groups :reader groups
+           :initform nil)))
+
+
+(defgeneric make-scanner (regex)
+  (:documentation "Make faster scanner from regex object"))
+
+
+(defmethod make-scanner ((regex regex))
+  (let ((new-scanner (make-instance 'regex-scanner))
+        (compilation-result (multiple-value-list (ppcre:create-scanner (expr regex)))))
+    (with-slots ((scanner-object scanner) (group-list groups)) new-scanner
+      (setf scanner-object (first compilation-result))
+      (setf group-list (second compilation-result)))
+    new-scanner))
+
+
+(defmethod scan-named-groups ((sc regex-scanner) (str string))
+  (multiple-value-bind (match-start match-end group-starts group-ends) (funcall (scanner sc) str 0 (length str))
+    (declare (ignore match-end))
+    (when match-start
+      (loop for i from 0 to (1- (length (groups sc)))
+            for group-name in (groups sc)
+            when (aref group-starts i)
+            collect (cons group-name (subseq str (aref group-starts i) (aref group-ends i)))))))

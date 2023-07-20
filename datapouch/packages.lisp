@@ -16,22 +16,14 @@
            :combine
            :interchange
            :interchange-three
-           :scan-named-groups))
+           :scan-named-groups
+           :regex-scanner :scanner
+           :make-scanner))
 
 
 (defpackage :datapouch.cli
-  (:use #:cl)
+  (:use #:cl #:d.regex)
   (:nicknames :d.cli)
-  (:import-from :d.regex
-                :regex
-                :wrap-in-noncapturing-group
-                :make-named-group
-                :concat-two
-                :concat
-                :combine
-                :interchange
-                :interchange-three
-                :scan-named-groups)
   (:export :+default-line-separator+
            :+default-space-characters+
            :*buffer*
@@ -67,7 +59,8 @@
                 :disable-bracketed-paste
                 :restore-bracketed-paste
                 :get-repl
-                :command-reader-macro)
+                :command-reader-macro
+                :read-line-to-semicolon-or-newline)
   (:export :*database-path*
            :*history-path*
            :*init-hooks*
@@ -100,7 +93,7 @@
 ;;; XXX: It's kinda crowded right now, but without reimport I cannot really do anything about sxql clashing with d.sql
 ;;;      So... let's just leave it alone. I don't like unnecessary dependencies.
 (defpackage :datapouch.user
-  (:use #:cl #:d.cli #:d.inter #:d.main)
+  (:use #:cl #:d.regex #:d.cli #:d.inter #:d.main)
   (:nicknames :d.user)
   (:import-from :sb-ext
                 :quit)
@@ -135,14 +128,4 @@
                 :select :union-queries :union-all-queries
                 :insert-into :update :delete-from
                 :create-table :drop-table :alter-table
-                :create-index :drop-index)
-  (:import-from :datapouch.regex-support
-                :regex
-                :wrap-in-noncapturing-group
-                :make-named-group
-                :concat-two
-                :concat
-                :combine
-                :interchange
-                :interchange-three
-                :scan-named-groups))
+                :create-index :drop-index))
