@@ -96,29 +96,38 @@
 
 
 ;; list of pairs:
-;; ("command" . command-handler)
+;; (command-regex . command-handler)
+;; Command regex can be an object of either regex or regex-scanner classes
+;; Command handler must be a function and have at least two arguments:
+;;   1. String argument, for full command string
+;;   2. List of conses (string . string), for list of named regex matches
 (defparameter *command-table* nil)
 
 
 (defun command-reader-macro (stream char)
-  (let* ((command (read stream))
-         (command-handler (loop for (command-name . command-handler) in *command-table*
-                                if (string= (string-upcase command)
-                                            (string-upcase command-name))
-                                return command-handler)))
-    (if command-handler
-      (funcall command-handler stream char)
-      (error 'unknown-command))))
+  (let* ((command (read-line-to-semicolon-or-newline stream))
+         (command-bundle (loop for (command-regex . command-handler) in *command-table*
+                               for match = (scan-named-groups command-regex command)
+                               when match
+                               return (list match command-handler))))
+    (if command-bundle
+      `(funcall ,(second command-bundle) ,command ',(first command-bundle))
+      (progn
+        (loop for command-char across (reverse command)
+              do (unread-char command-char stream))
+        (find-symbol (string char) :cl)))))
 
 
 ;;; Use this in reader macro
-(defun read-line-to-semicolon-or-newline (stream char)
-  (declare (ignore char))
+;;; Ref: https://stackoverflow.com/questions/18045842/appending-character-to-string-in-common-lisp
+;;; Ref: https://stackoverflow.com/questions/30942815/read-input-into-string-in-lisp-reader-macro
+(defun read-line-to-semicolon-or-newline (stream)
   (let ((line (make-array 0
                           :element-type 'character
                           :fill-pointer 0
                           :adjustable t)))
-    (loop for char = (read-char stream)
+    (loop for char = (peek-char nil stream t nil t)
           until (or (eql char #\newline)
                     (eql char #\;))
-          return line)))
+          do (vector-push-extend (read-char stream) line))
+    (coerce line 'simple-string)))
