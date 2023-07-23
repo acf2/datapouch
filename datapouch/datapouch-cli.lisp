@@ -5,7 +5,7 @@
 
 
 (defvar +default-line-separator+ (string #\newline))
-(defvar +default-space-characters+ (list #\Space #\Newline #\Tab))
+(defvar +default-space-characters+ (list #\space #\newline #\tab))
 
 
 (defun default-prompt (buffer)
@@ -61,7 +61,7 @@
 ;; Piece of shit
 ;; https://github.com/hanslub42/rlwrap/issues/108
 (let (bracketed-paste)
-  (defun disable-bracketed-paste () 
+  (defun disable-bracketed-paste ()
     (unless bracketed-paste
       (setf bracketed-paste (rl:variable-value "enable-bracketed-paste")))
     (rl:variable-bind "enable-bracketed-paste" "off"))
@@ -71,7 +71,7 @@
       (rl:variable-bind "enable-bracketed-paste" bracketed-paste))))
 
 
-(defparameter *no-newline* t)
+(defparameter *there-is-no-fresh-line-now* t)
 (defparameter *buffer* "")
 
 
@@ -82,9 +82,9 @@
   (lambda (in out)
     (declare (ignore in))
     ;; Why fresh-line does not work here? [1]
-    ;; (With fresh-line here, *no-newline* can be removed entirely)
-    (if *no-newline*
-      (setf *no-newline* nil)
+    ;; (With fresh-line here, *there-is-no-fresh-line-now* can be removed entirely)
+    (if *there-is-no-fresh-line-now*
+      (setf *there-is-no-fresh-line-now* nil)
       (terpri out))
     (multiple-value-bind (form new-buffer eof) (read-form *buffer* *prompt-fun*)
       (when eof

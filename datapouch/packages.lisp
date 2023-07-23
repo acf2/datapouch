@@ -27,7 +27,7 @@
   (:export :+default-line-separator+
            :+default-space-characters+
            :*buffer*
-           :*no-newline*
+           :*there-is-no-fresh-line-now*
            :*prompt-fun*
            :*command-table*
            :read-form

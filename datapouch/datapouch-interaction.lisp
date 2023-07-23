@@ -10,9 +10,9 @@
 
 (defun wrap-string (string)
   (let* ((part-length (min (length string) (- *max-string-length* (length *wrap-marker*))))
-         (space-position (position #\Space string :end part-length :from-end t))
-         (newline-position (position #\Newline string :end part-length)))
-    (if (and (null (find #\Newline string :end (min (length string) *max-string-length*)))
+         (space-position (position #\space string :end part-length :from-end t))
+         (newline-position (position #\newline string :end part-length)))
+    (if (and (null (find #\newline string :end (min (length string) *max-string-length*)))
              (<= (length string) *max-string-length*))
       string
       (concatenate 'string
