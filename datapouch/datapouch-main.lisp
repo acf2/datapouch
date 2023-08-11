@@ -92,11 +92,11 @@
 
 (defun no-newline-after-debugger (con val)
   (declare (ignore con val))
-  (setf *no-newline* t))
+  (setf *there-is-no-fresh-line-now* t))
 
 
 (defun init-readline ()
-  (setf *no-newline* t)
+  (setf *there-is-no-fresh-line-now* t)
   (setf *buffer* "")
   (pushnew #'no-newline-after-debugger *debugger-hooks*)
   (when *history-path* (rl:read-history (namestring (truename *history-path*))))
@@ -111,7 +111,7 @@
 
 (defun init-sqlite ()
   (setf *db* (sqlite:connect *database-path*))
-  (sqlite:execute-non-query *db* "PRAGMA foreign_keys=ON;")) ; XXX: Because FUCK YOU foreign key default support
+  (use-foreign-keys t)) ; XXX: Because FUCK YOU foreign key default support
 
 
 (defun finalize-sqlite ()

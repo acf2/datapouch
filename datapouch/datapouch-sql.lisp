@@ -23,3 +23,11 @@
   (define-sxql-wrappers
     (sqlite:execute-to-list select union-queries union-all-queries insert-into update delete-from)
     (sqlite:execute-non-query create-table drop-table alter-table create-index drop-index)))
+
+
+(defun use-foreign-keys (flag)
+  (sqlite:execute-non-query *db* (format nil "PRAGMA foreign_keys=~A;" (if flag :on :off))))
+
+
+(defun integrity-check (&key (fast nil))
+  nil) ;; TODO

@@ -45,17 +45,19 @@
            :select :union-queries :union-all-queries
            :insert-into :update :delete-from
            :create-table :drop-table :alter-table
-           :create-index :drop-index))
+           :create-index :drop-index
+           :use-foreign-keys))
 
 
 (defpackage :datapouch.main
   (:use #:cl #:uiop)
   (:nicknames :d.main)
   (:import-from :d.sql
-                :*db*)
+                :*db*
+                :use-foreign-keys)
   (:import-from :d.cli
                 :*buffer*
-                :*no-newline*
+                :*there-is-no-fresh-line-now*
                 :disable-bracketed-paste
                 :restore-bracketed-paste
                 :get-repl
