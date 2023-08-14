@@ -23,7 +23,8 @@
            #:remove-note
            #:show-links
            #:choose-note-interactive
-           #:choose-link-interactive))
+           #:choose-link-interactive
+           #:add-zettelkasten-commands))
 
 
 (defpackage :zac.bookkeeping
