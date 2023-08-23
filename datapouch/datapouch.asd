@@ -2,12 +2,15 @@
 
 (defsystem datapouch
   :description "The most neat pile of info mess this side of insanity."
-  :version "0.2"
+  :version "0.3"
   :author "Dmitry Kiselev"
   :components ((:file "packages")
-               (:file "datapouch-regex-support" :depends-on ("packages"))
-               (:file "datapouch-cli" :depends-on ("packages" "datapouch-regex-support"))
-               (:file "datapouch-sql" :depends-on ("packages"))
-               (:file "datapouch-main" :depends-on ("packages" "datapouch-cli" "datapouch-sql"))
-               (:file "datapouch-interaction" :depends-on ("packages" "datapouch-cli" "datapouch-main" "datapouch-regex-support")))
-  :depends-on (:cl-readline :cl-ppcre :sqlite :sxql :uiop))
+               (:file "regex-support" :depends-on ("packages"))
+               (:file "cli" :depends-on ("packages"))
+               (:file "reader-macro" :depends-on ("packages" "cli" "regex-support"))
+               (:file "sql" :depends-on ("packages"))
+               (:file "editor" :depends-on ("packages"))
+               (:file "filesystem" :depends-on ("packages"))
+               (:file "main" :depends-on ("packages" "cli" "reader-macro" "sql" "editor" "filesystem"))
+               (:file "interaction" :depends-on ("packages" "cli" "main" "regex-support")))
+  :depends-on (:cl-readline :cl-ppcre :sqlite :sxql :cl-reexport :uiop :ironclad))

@@ -1,4 +1,4 @@
-;;;; datapouch-regex-support.lisp
+;;;; regex-support.lisp
 ;;; This package is made for much easier usage of named groups.
 ;;; They are not supported normally, but could be enabled for ppcre.
 ;;; But their handling is shit. That's why this wrapper exists.

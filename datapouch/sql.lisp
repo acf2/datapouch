@@ -1,4 +1,4 @@
-;;;; datapouch-sql.lisp
+;;;; sql.lisp
 
 
 (in-package :datapouch.sql)
@@ -30,4 +30,6 @@
 
 
 (defun integrity-check (&key (fast nil))
-  nil) ;; TODO
+  (let* ((check (if fast "integrity_check" "quick_check")))
+    (handler-case (values t (first (first (sqlite:execute-to-list *db* (format nil "PRAGMA ~A;" check)))))
+      (error (e) (values nil e)))))

@@ -1,4 +1,4 @@
-;;;; datapouch-interaction.lisp
+;;;; interaction.lisp
 
 
 (in-package :datapouch.interaction)

@@ -14,16 +14,32 @@
     "* "))
 (defparameter *prompt-fun* #'default-prompt)
 
+(defparameter *custom-readtable* (copy-readtable *readtable*))
+
 
 ;;; Returns two values: form, unused characters
-;;; linedit uses:
-;;;   - separate package for reads
-;;;   - unwind-protect
-;;; What should we use too? Why?
+;;;
+;;; linedit uses separate package for reads
+;;; I don't really know why, and I'm writing this just by the seat of my own pants.
+;;; Maybe because of reader-time shenanigans with sharpsign-dot? Who knows?
+;;;
+;;; It goes like this:
+;;; (let ((*readtable* table)
+;;;       (*package* (make-package "DATAPOUCH-READTIME-TEMPORARY")))
+;;;   (unwind-protect
+;;;     (read-from-string form-string)
+;;;     (delete-package *package*)))
+;;;
+;;; Personally, I like to create special "user" package, where user can have all the fun he wants.
+;;; In particular, user wouldn't need to prefix every function and variable with package name.
+;;; Why is it worse than temporary packages?
+;;;
 ;;; Reference: https://github.com/sharplispers/linedit/blob/master/main.lisp#L76
-(defun try-to-read-form (form-string)
+(defun try-to-read-form (form-string &key ((:readtable table) *custom-readtable*))
   (declare (type string form-string))
-  (handler-case (multiple-value-bind (form last-character) (read-from-string form-string)
+  (handler-case (multiple-value-bind (form last-character)
+                  (let ((*readtable* table))
+                    (read-from-string form-string))
                   (values form (subseq form-string last-character)))
     ;; EOF from read-from-string means that form is not complete
     (end-of-file () (values nil form-string))))
@@ -53,7 +69,6 @@
             when (null line) do (error (make-instance 'end-of-file))
             do (setf new-buffer (string-left-trim +default-space-characters+
                                                   (concatenate 'string new-buffer +default-line-separator+ line +default-line-separator+)))
-            ;; Here linedit, for example, reads to throwaway package. Why? Should it do the same?
             do (multiple-value-setq (form new-buffer) (try-to-read-form new-buffer))
             when form return (values form new-buffer nil)))))
 
@@ -93,41 +108,3 @@
         (sb-ext:quit))
       (setf *buffer* new-buffer)
       form)))
-
-
-;; list of pairs:
-;; (command-regex . command-handler)
-;; Command regex can be an object of either regex or regex-scanner classes
-;; Command handler must be a function and have at least two arguments:
-;;   1. String argument, for full command string
-;;   2. List of conses (string . string), for list of named regex matches
-(defparameter *command-table* nil)
-
-
-(defun command-reader-macro (stream char)
-  (let* ((command (read-line-to-semicolon-or-newline stream))
-         (command-bundle (loop for (command-regex . command-handler) in *command-table*
-                               for match = (scan-named-groups command-regex command)
-                               when match
-                               return (list match command-handler))))
-    (if command-bundle
-      `(funcall ,(second command-bundle) ,command ',(first command-bundle))
-      (progn
-        (loop for command-char across (reverse command)
-              do (unread-char command-char stream))
-        (find-symbol (string char) :cl)))))
-
-
-;;; Use this in reader macro
-;;; Ref: https://stackoverflow.com/questions/18045842/appending-character-to-string-in-common-lisp
-;;; Ref: https://stackoverflow.com/questions/30942815/read-input-into-string-in-lisp-reader-macro
-(defun read-line-to-semicolon-or-newline (stream)
-  (let ((line (make-array 0
-                          :element-type 'character
-                          :fill-pointer 0
-                          :adjustable t)))
-    (loop for char = (peek-char nil stream t nil t)
-          until (or (eql char #\newline)
-                    (eql char #\;))
-          do (vector-push-extend (read-char stream) line))
-    (coerce line 'simple-string)))
