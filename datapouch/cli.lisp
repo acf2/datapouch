@@ -73,8 +73,8 @@
             when form return (values form new-buffer nil)))))
 
 
-;; Piece of shit
-;; https://github.com/hanslub42/rlwrap/issues/108
+;;; Piece of shit
+;;; https://github.com/hanslub42/rlwrap/issues/108
 (let (bracketed-paste)
   (defun disable-bracketed-paste ()
     (unless bracketed-paste
@@ -90,9 +90,9 @@
 (defparameter *buffer* "")
 
 
-;; XXX: This is the bug ridden hell.
-;;      I dunno what to do with this.
-;;      [1] and [2] should be fixed somehow, and then this clusterduck can be eliminated
+;;; XXX: This is the bug ridden hell.
+;;;      I dunno what to do with this.
+;;;      [1] and [2] should be fixed somehow, and then this clusterduck can be eliminated
 (defun get-repl ()
   (lambda (in out)
     (declare (ignore in))
