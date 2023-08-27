@@ -114,6 +114,7 @@
                 #:install-command-reader-macro)
   (:export #:*database-path*
            #:*history-path*
+           #:*preload-hooks*
            #:*init-hooks*
            #:*exit-hooks*
            #:*debugger-hooks*

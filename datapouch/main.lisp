@@ -12,6 +12,7 @@
 (defparameter *history-path* (merge-pathnames #P"history" +config-path+))
 
 
+(defparameter *preload-hooks* nil)
 (defparameter *init-hooks* nil)
 (defparameter *exit-hooks* nil)
 (defparameter *debugger-hooks* nil)
@@ -60,6 +61,7 @@
 
 (defun make-image (&rest args)
   (setf sb-ext:*init-hooks* (remove-duplicates (append sb-ext:*init-hooks*
+                                                       *preload-hooks*
                                                        (list #'config-files-init
                                                              #'init-readline
                                                              #'init-sqlite)
