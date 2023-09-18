@@ -59,12 +59,10 @@
                     row-list))))
 
 
-(defun pretty-print-rows (row-list &key
-                                   ((:max-field-widths max-field-widths) (find-max-field-widths row-list))
-                                   ((:output-stream output-stream) *standard-output*))
-  (format output-stream (format nil *table-metaformat* (map 'list
-                                                            (lambda (x) (+ x *table-pad-width*))
-                                                            max-field-widths))
+(defun pretty-print-rows (row-list &key ((:max-field-widths max-field-widths) (find-max-field-widths row-list)))
+  (format *standard-output* (format nil *table-metaformat* (map 'list
+                                                                (lambda (x) (+ x *table-pad-width*))
+                                                                max-field-widths))
           (map 'list (lambda (row) (map 'list
                                         (lambda (value)
                                           (if (stringp value) (wrap-string value) value))
@@ -72,15 +70,14 @@
                row-list)))
 
 
-(defun pretty-print-table (column-names rows &key ((:output-stream output-stream) *standard-output*))
+(defun pretty-print-table (column-names rows)
   (let ((max-field-widths (find-max-field-widths (cons column-names rows))))
     (pretty-print-rows (cons column-names
                              (cons (map 'list (lambda (length)
                                                 (funcall *get-table-name-delimiter* (min length *max-string-length*)))
                                         max-field-widths)
                                    rows))
-                       :max-field-widths max-field-widths
-                       :output-stream output-stream)))
+                       :max-field-widths max-field-widths)))
 
 
 (defun find-one-row-dialog (column-names rows &key
@@ -88,21 +85,19 @@
                             ((:error-msg error-msg) "Please, try again.~&")
                             ((:id-column-name id-column-name) "Row number")
                             ((:get-index get-index) nil)
-                            ((:prompt-fun prompt-fun) *prompt-fun*)
-                            ((:output-stream output-stream) *standard-output*))
+                            ((:prompt-fun prompt-fun) *prompt-fun*))
   (pretty-print-table (cons id-column-name column-names)
                       (loop for row in rows
                             for i from 1 to (length rows)
-                            collect (cons i row))
-                      :output-stream output-stream)
-  (format output-stream prompt-msg)
-  (finish-output output-stream)
+                            collect (cons i row)))
+  (format *standard-output* prompt-msg)
+  (finish-output *standard-output*)
   (let* ((number (loop for (form _ eof) = (multiple-value-list (read-form "" prompt-fun))
                        if eof return nil
                        else if (and (integerp form) (<= 1 form (length rows))) return form
                        else if error-msg do
-                       (format output-stream error-msg)
-                       (finish-output output-stream))))
+                       (format *standard-output* error-msg)
+                       (finish-output *standard-output*))))
     (when number
       (if get-index
         (1- number)

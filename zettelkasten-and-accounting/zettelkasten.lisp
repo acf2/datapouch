@@ -155,8 +155,7 @@
 
 
 ;;; Show all links of a note
-(defun show-links (&key ((:note note) *current-note*)
-                        ((:output-stream output-stream) *standard-output*))
+(defun show-links (&key ((:note note) *current-note*))
   (if note
     (pretty-print-table
       '("Number" "Note")
@@ -164,9 +163,8 @@
               (from :link)
               (left-join :note :on (:= :link.destination :note.id))
               (where (:= :link.source note))
-              (order-by (:asc :link.number)))
-      :output-stream output-stream)
-    (note-is-not-chosen :output-stream output-stream)))
+              (order-by (:asc :link.number))))
+    (note-is-not-chosen)))
 
 
 ;;; Interactive dialog to choose a note from list
@@ -183,23 +181,21 @@
 
 
 ;;; Go to link of some note and return destination note ID
-(defun choose-link-interactive (&key ((:note note) *current-note*)
-                                     ((:output-stream output-stream) *standard-output*))
+(defun choose-link-interactive (&key ((:note note) *current-note*))
   (if note
     (let ((linked-notes (select (:link.destination :link.number :note.text)
                                 (from :link)
                                 (left-join :note :on (:= :link.destination :note.id))
                                 (order-by (:asc :link.number))
                                 (where (:= :link.source note)))))
-      (cond ((null linked-notes) (format output-stream "No links available."))
+      (cond ((null linked-notes) (format *standard-output* "No links available."))
             ((= (length linked-notes) 1) (setf *current-note* (first (first linked-notes))))
             (:else
               ;(format t "~A~&" linked-notes) ; DEBUG
               ;(format t "~A~&" (map 'list #'cdr linked-notes)) ; DEBUG
               (let ((chosen-link-index (find-one-row-dialog '("Number" "Text")
                                                             (map 'list #'cdr linked-notes)
-                                                            :get-index t
-                                                            :output-stream output-stream)))
+                                                            :get-index t)))
                 (when chosen-link-index (first (nth chosen-link-index linked-notes)))))))
     (note-is-not-chosen)))
 

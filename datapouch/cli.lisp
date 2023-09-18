@@ -36,11 +36,10 @@
 ;;; Why is it worse than temporary packages?
 ;;;
 ;;; Reference: https://github.com/sharplispers/linedit/blob/master/main.lisp#L76
-(defun try-to-read-form (form-string &key ((:readtable table) *custom-readtable*))
+(defun try-to-read-form (form-string)
   (declare (type string form-string))
   (handler-case (multiple-value-bind (form last-character)
-                  (let ((*readtable* table))
-                    (read-from-string form-string))
+                  (read-from-string form-string)
                   (values form (subseq form-string last-character)))
     ;; EOF from read-from-string means that form is not complete
     (end-of-file () (values nil form-string))))
@@ -102,7 +101,9 @@
     (if *there-is-no-fresh-line-now*
       (setf *there-is-no-fresh-line-now* nil)
       (terpri out))
-    (multiple-value-bind (form new-buffer eof) (read-form *buffer* *prompt-fun*)
+    (multiple-value-bind (form new-buffer eof)
+      (let ((*readtable* *custom-readtable*))
+        (read-form *buffer* *prompt-fun*))
       (when eof
         ;; Why fresh-line does not work here? [2]
         (terpri out)

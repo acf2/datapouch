@@ -3,13 +3,13 @@
 
 (in-package :datapouch.main)
 
+;; .config/datapouch works too, but is not accurate (there is more that just configs)
+(defparameter +application-folder+ (merge-pathnames #P".datapouch/" (user-homedir-pathname)))
+(defparameter +working-directory+ (directory-namestring (or *load-truename* *default-pathname-defaults*)))
 
-(defvar +config-path+ (merge-pathnames #P".config/datapouch/" (user-homedir-pathname)))
-(defparameter +work-dir+ (directory-namestring (or *load-truename* *default-pathname-defaults*)))
 
-
-(defparameter *database-path* (merge-pathnames #P"database" +config-path+))
-(defparameter *history-path* (merge-pathnames #P"history" +config-path+))
+(defparameter *database-path* (merge-pathnames #P"current.db" +application-folder+))
+(defparameter *history-path* (merge-pathnames #P"history" +application-folder+))
 
 
 (defparameter *preload-hooks* nil)
