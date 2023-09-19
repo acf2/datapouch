@@ -3,6 +3,7 @@
 
 (in-package :datapouch.main)
 
+
 ;; .config/datapouch works too, but is not accurate (there is more that just configs)
 (defparameter +application-folder+ (merge-pathnames #P".datapouch/" (user-homedir-pathname)))
 (defparameter +working-directory+ (directory-namestring (or *load-truename* *default-pathname-defaults*)))
@@ -41,6 +42,7 @@
 (defun finalize-readline ()
   (when *history-path* (rl:write-history (namestring (truename *history-path*))))
   (restore-bracketed-paste))
+
 
 ;;; SQLite config
 
