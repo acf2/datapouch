@@ -53,8 +53,8 @@
   (sqlite:disconnect *db*))
 
 
-;;; Config files initialization
-(defun config-files-init ()
+;;; App files initialization
+(defun application-files-init ()
   (ensure-file-exists *database-path*)
   (when *history-path* (ensure-file-exists *history-path*)))
 
@@ -62,7 +62,7 @@
 (defun make-image (&rest args)
   (setf sb-ext:*init-hooks* (remove-duplicates (append sb-ext:*init-hooks*
                                                        *preload-hooks*
-                                                       (list #'config-files-init
+                                                       (list #'application-files-init
                                                              #'init-readline
                                                              #'init-sqlite)
                                                        *init-hooks*)))
