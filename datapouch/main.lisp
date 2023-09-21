@@ -4,15 +4,6 @@
 (in-package :datapouch.main)
 
 
-;; .config/datapouch works too, but is not accurate (there is more that just configs)
-(defparameter +application-folder+ (merge-pathnames #P".datapouch/" (user-homedir-pathname)))
-(defparameter +working-directory+ (directory-namestring (or *load-truename* *default-pathname-defaults*)))
-
-
-(defparameter *database-path* (merge-pathnames #P"current.db" +application-folder+))
-(defparameter *history-path* (merge-pathnames #P"history" +application-folder+))
-
-
 (defparameter *preload-hooks* nil)
 (defparameter *init-hooks* nil)
 (defparameter *exit-hooks* nil)
@@ -55,12 +46,7 @@
   (sqlite:disconnect *db*))
 
 
-;;; App files initialization
-(defun application-files-init ()
-  (ensure-file-exists *database-path*)
-  (when *history-path* (ensure-file-exists *history-path*)))
-
-
+;;; TODO add fast resave to some path
 (defun make-image (&rest args)
   (setf sb-ext:*init-hooks* (remove-duplicates (append sb-ext:*init-hooks*
                                                        *preload-hooks*

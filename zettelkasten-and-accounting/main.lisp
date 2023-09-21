@@ -18,7 +18,8 @@
                               when (string= "--db" arg) do (setf next-one t))))
     (when manual-db-path
       (setf *database-path* (pathname manual-db-path))
-      (setf *history-path* nil))))
+      (setf *history-path* nil)
+      (setf *backup-path* nil))))
 
 
 (defun make-zac (&rest args)
@@ -27,6 +28,6 @@
                                        (list #'parse-command-line-arguments)))
   (setf d.main:*init-hooks* (append d.main:*init-hooks*
                                     (list (lambda ()
-                                            (zac.box:create-zettelkasten)
+                                            (zac.box:create-zettelkasten) ; TODO make it only once, and only for user database
                                             (setf *package* (find-package "ZAC.USER"))))))
   (apply #'d.main:make-image args))

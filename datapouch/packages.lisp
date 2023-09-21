@@ -85,7 +85,11 @@
 (defpackage :datapouch.filesystem
   (:use #:cl #:uiop #:ironclad)
   (:nicknames :d.fs)
-  (:export #:ensure-file-exists))
+  (:export #:*database-path*
+           #:*history-path*
+           #:*backup-path*
+           #:ensure-file-exists
+           #:application-files-init))
 
 
 (defpackage :datapouch.editor
@@ -112,9 +116,7 @@
                 #:get-repl)
   (:import-from #:d.rmacro
                 #:install-command-reader-macro)
-  (:export #:*database-path*
-           #:*history-path*
-           #:*preload-hooks*
+  (:export #:*preload-hooks*
            #:*init-hooks*
            #:*exit-hooks*
            #:*debugger-hooks*

@@ -13,4 +13,4 @@
                (:file "filesystem" :depends-on ("packages"))
                (:file "main" :depends-on ("packages" "cli" "reader-macro" "sql" "editor" "filesystem"))
                (:file "interaction" :depends-on ("packages" "cli" "main" "regex-support")))
-  :depends-on (:cl-readline :cl-ppcre :sqlite :sxql :cl-reexport :uiop :ironclad))
+  :depends-on (:cl-readline :cl-ppcre :sqlite :sxql :cl-reexport :local-time :uiop :ironclad))
