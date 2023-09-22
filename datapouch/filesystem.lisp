@@ -1,4 +1,5 @@
 ;;;; filesystem.lisp
+;;; TODO: Probably not a bad idea to make a separate crypto.lisp file, or something
 
 
 (in-package :datapouch.filesystem)
@@ -11,6 +12,33 @@
         (with-open-file (file path :direction :output)
           (when initial-text
             (write initial-text :stream file))))))
+
+
+(defun sha512-for-file (path)
+  (with-open-file (file path
+                        :direction :input
+                        :element-type '(unsigned-byte 8))
+    (ironclad:digest-stream 'ironclad:sha512 file)))
+
+
+(defun write-checksum-to-file (path checksum)
+  (with-open-file (file path
+                        :direction :output
+                        :if-exists :supersede
+                        :if-does-not-exist :create)
+    (format file "~(~{~16,2,'0R~}~)~%" (coerce checksum 'list))))
+
+
+(defun read-checksum-from-file (path)
+  (with-open-file (file path
+                        :direction :input)
+    (let ((byte-array-string (string-trim '(#\Newline #\Space #\Tab) (read-line file))))
+      (coerce (loop for i from 0 to (1- (length byte-array-string)) by 2
+                    collect (parse-integer byte-array-string
+                                           :start i
+                                           :end (+ i 2)
+                                           :radix 16))
+              '(vector (unsigned-byte 8))))))
 
 
 (defun day-start (day-timestamp)
