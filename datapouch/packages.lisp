@@ -87,7 +87,7 @@
   (:nicknames :d.fs)
   (:export #:*database-path*
            #:*history-path*
-           #:*backup-path*
+           #:*backup-tiers*
            #:ensure-file-exists
            #:application-files-init))
 

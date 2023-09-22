@@ -19,7 +19,7 @@
     (when manual-db-path
       (setf *database-path* (pathname manual-db-path))
       (setf *history-path* nil)
-      (setf *backup-path* nil))))
+      (setf *backup-tiers* nil))))
 
 
 (defun make-zac (&rest args)

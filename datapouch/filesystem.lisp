@@ -13,6 +13,19 @@
             (write initial-text :stream file))))))
 
 
+(defun day-start (day-timestamp)
+  (reduce (lambda (timestamp component)
+            (local-time:timestamp-minimize-part timestamp component))
+          '(:nsec :sec :min :hour)
+          :initial-value day-timestamp))
+
+
+;;; Because local-time:today tells you "today" in UTC
+;;; which is not optimal for folks in UTC +- zillion hours zones, lol
+(defun local-today ()
+  (day-start (local-time:now)))
+
+
 (defun timestamp-difference (one-timestamp another-timestamp)
   (- (local-time:timestamp-to-universal one-timestamp)
      (local-time:timestamp-to-universal another-timestamp)))
@@ -28,36 +41,21 @@
     one-timestamp))
 
 
-(defun format-timestamp-1ttf (timestamp)
-  (local-time:format-timestamp nil timestamp :format '(:year "-" (:month 2) "-" (:day 2))))
+(defun format-timestring-1ttf (timestamp)
+  (local-time:format-timestring nil timestamp :format '(:year "-" (:month 2) "-" (:day 2))))
+
+
+(defun parse-timestring-1ttf (timestring)
+  (day-start (local-time:parse-timestring timestring)))
 
 
 (defclass database-file ()
   ((path :initarg :path
          :reader path)
    (checksum-path :initarg :checksum-path
-                  :reader checksum)
+                  :reader checksum-path)
    (date :initarg :date
          :reader date)))
-
-
-(defmethod initialize-instance :around ((file database-file) &rest rest &key path &allow-other-keys)
-  (when (probe-file path)
-    (let ((checksum-path (merge-pathnames +checksum-extension+ path))
-          (date (local-time:parse-timestring (pathname-name path))))
-      (apply #'call-next-method file (append (list :checksum-path (and (probe-file checksum-path) checksum-path)
-                                                   :date date)
-                                             rest)))))
-
-
-(defun discover-all-databases-in-directory (path-to-databases)
-  ;; Probably not the best decision, but it works
-  (when (and (probe-file path-to-databases)
-             (not (pathname-name (probe-file path-to-databases)))) ; directory, not a file
-      (loop for path in (directory (reduce #'merge-pathnames (list +database-extension+
-                                                                   (make-pathname :name :wild)
-                                                                   path-to-databases)))
-            collect (make-instance 'database-file :path path))))
 
 
 ;;; Higher level
@@ -76,14 +74,35 @@
 
 
 (defparameter *backup-tiers* `((:daily :days 1
-                                       :directory (merge-pathnames #P"backups/daily/" +application-folder+)
-                                       :rotation 10)
+                                       :directory ,(merge-pathnames #P"backups/daily/" +application-folder+)
+                                       ;:rotation 10)
+                                       :rotation 2)
                                (:weekly :days 7
-                                        :directory (merge-pathnames #P"backups/weekly/" +application-folder+)
-                                        :rotation 10)
+                                        :directory ,(merge-pathnames #P"backups/weekly/" +application-folder+)
+                                        ;:rotation 10)
+                                        :rotation 3)
                                (:monthly :days 28
-                                         :directory (merge-pathnames #P"backups/monthly/" +application-folder+)
+                                         :directory ,(merge-pathnames #P"backups/monthly/" +application-folder+)
                                          :rotation nil)))
+
+
+(defmethod initialize-instance :around ((file database-file) &rest rest &key path &allow-other-keys)
+  (when (probe-file path)
+    (let ((checksum-path (merge-pathnames +checksum-extension+ path))
+          (date (parse-timestring-1ttf (pathname-name path))))
+      (apply #'call-next-method file (append (list :checksum-path (and (probe-file checksum-path) checksum-path)
+                                                   :date date)
+                                             rest)))))
+
+
+(defun discover-all-databases-in-directory (path-to-databases)
+  ;; Probably not the best decision, but it works
+  (when (and (probe-file path-to-databases)
+             (not (pathname-name (probe-file path-to-databases)))) ; directory, not a file
+      (loop for path in (directory (reduce #'merge-pathnames (list +database-extension+
+                                                                   (make-pathname :name :wild)
+                                                                   path-to-databases)))
+            collect (make-instance 'database-file :path path))))
 
 
 (defun register-backups (backup-tiers)
@@ -93,19 +112,20 @@
     backup-tiers))
 
 
-(defun filter-backups-due (timestamp registered-backups)
+(defun filter-backup-tiers-due (timestamp registered-backup-tiers)
   (let ((seconds-in-day (* 24 60 60)))
     (remove-if-not (lambda (backup-tier)
-                     (>= (timestamp-difference timestamp
-                                               (reduce #'max-timestamp
-                                                       (mapcar #'date (getf backup-tier :databases))))
-                         (* (getf backup-tier :days) seconds-in-day)))
-                   registered-backups)))
+                     (or (null (getf (rest backup-tier) :databases))
+                         (>= (timestamp-difference timestamp
+                                                   (reduce #'max-timestamp
+                                                           (mapcar #'date (getf (rest backup-tier) :databases))))
+                             (* (getf (rest backup-tier) :days) seconds-in-day))))
+                   registered-backup-tiers)))
 
 
 (defun ensure-backup-system-is-inited ()
   (loop for backup-tier in *backup-tiers*
-        do (ensure-directories-exist (getf backup-tier :directory))))
+        do (ensure-directories-exist (getf (rest backup-tier) :directory))))
 
 
 ;;; App files initialization
@@ -129,22 +149,19 @@
 (defun make-backup (backup-directory new-backup-filename)
   (uiop:copy-file *database-path*
                   (merge-pathnames new-backup-filename backup-directory))
-  (uiop:copy-file (make-pathname :type +checksum-extension+
-                                 :defaults *database-path*)
-                  (merge-pathnames (make-pathname :type +checksum-extension+
-                                                  :defaults new-backup-filename)
-                                   backup-directory)))
+  (uiop:copy-file (merge-pathnames +checksum-extension+ *database-path*)
+                  (reduce #'merge-pathnames (list +checksum-extension+ new-backup-filename backup-directory))))
 
 
 (defun process-all-backup-tiers ()
   (let* ((backups (register-backups *backup-tiers*))
-         (now (local-time:now))
-         (new-backup-filename (make-pathname :name (format-timestamp-1ttf now)
-                                             :type +database-extension+)))
-    (loop for backup-tier in (filter-backups-due now backups)
+         (now (local-today))
+         (new-backup-filename (make-pathname :name (format-timestring-1ttf now)
+                                             :defaults +database-extension+)))
+    (loop for backup-tier in (filter-backup-tiers-due now backups)
           do
-          (when (getf backup-tier :rotation)
-            (remove-obsolete-backups (getf backup-tier :databases)
-                                     (1- (getf backup-tier :rotation))))
-          (make-backup (getf backup-tier :directory)
+          (when (getf (rest backup-tier) :rotation)
+            (remove-obsolete-backups (getf (rest backup-tier) :databases)
+                                     (1- (getf (rest backup-tier) :rotation))))
+          (make-backup (getf (rest backup-tier) :directory)
                        new-backup-filename))))
