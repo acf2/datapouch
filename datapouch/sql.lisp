@@ -7,6 +7,16 @@
 (defparameter *db* nil)
 
 
+(defun open-db (path)
+  (when path
+    (setf *db* (sqlite:connect *database-path*))))
+
+
+(defun close-db ()
+  (when *db*
+    (sqlite:disconnect *db*)))
+
+
 (defun sqlite-execute (function statement)
   (multiple-value-bind (query values) (sxql:yield statement)
     (apply function *db* query values)))
@@ -29,7 +39,7 @@
   (sqlite:execute-non-query *db* (format nil "PRAGMA foreign_keys=~A;" (if flag :on :off))))
 
 
-(defun integrity-check (&key (fast nil))
+(defun check-integrity (&key (fast nil))
   (let* ((check (if fast "integrity_check" "quick_check")))
     (handler-case (values t (first (first (sqlite:execute-to-list *db* (format nil "PRAGMA ~A;" check)))))
       (error (e) (values nil e)))))

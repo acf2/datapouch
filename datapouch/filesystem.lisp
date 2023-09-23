@@ -1,5 +1,4 @@
 ;;;; filesystem.lisp
-;;; TODO: Probably not a bad idea to make a separate crypto.lisp file, or something
 
 
 (in-package :datapouch.filesystem)
@@ -12,33 +11,6 @@
         (with-open-file (file path :direction :output)
           (when initial-text
             (write initial-text :stream file))))))
-
-
-(defun sha512-for-file (path)
-  (with-open-file (file path
-                        :direction :input
-                        :element-type '(unsigned-byte 8))
-    (ironclad:digest-stream 'ironclad:sha512 file)))
-
-
-(defun write-checksum-to-file (path checksum)
-  (with-open-file (file path
-                        :direction :output
-                        :if-exists :supersede
-                        :if-does-not-exist :create)
-    (format file "~(~{~16,2,'0R~}~)~%" (coerce checksum 'list))))
-
-
-(defun read-checksum-from-file (path)
-  (with-open-file (file path
-                        :direction :input)
-    (let ((byte-array-string (string-trim '(#\Newline #\Space #\Tab) (read-line file))))
-      (coerce (loop for i from 0 to (1- (length byte-array-string)) by 2
-                    collect (parse-integer byte-array-string
-                                           :start i
-                                           :end (+ i 2)
-                                           :radix 16))
-              '(vector (unsigned-byte 8))))))
 
 
 (defun day-start (day-timestamp)
@@ -103,12 +75,10 @@
 
 (defparameter *backup-tiers* `((:daily :days 1
                                        :directory ,(merge-pathnames #P"backups/daily/" +application-folder+)
-                                       ;:rotation 10)
-                                       :rotation 2)
+                                       :rotation 10)
                                (:weekly :days 7
                                         :directory ,(merge-pathnames #P"backups/weekly/" +application-folder+)
-                                        ;:rotation 10)
-                                        :rotation 3)
+                                        :rotation 10)
                                (:monthly :days 28
                                          :directory ,(merge-pathnames #P"backups/monthly/" +application-folder+)
                                          :rotation nil)))
@@ -157,8 +127,11 @@
 
 
 ;;; App files initialization
-(defun application-files-init ()
-  (ensure-file-exists *database-path*)
+(defun init-database-file ()
+  (ensure-file-exists *database-path*))
+
+
+(defun init-application-files ()
   (when *history-path* (ensure-file-exists *history-path*))
   (when *backup-tiers* (ensure-backup-system-is-inited)))
 

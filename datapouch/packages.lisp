@@ -45,9 +45,27 @@
            #:read-line-to-semicolon-or-newline))
 
 
+(defpackage :datapouch.filesystem
+  (:use #:cl #:uiop)
+  (:nicknames :d.fs)
+  (:export #:+application-folder+
+           #:+working-directory+
+           #:+database-extension+
+           #:+checksum-extension+
+           #:*database-path*
+           #:*history-path*
+           #:*backup-tiers*
+           #:ensure-file-exists
+           #:init-database-file
+           #:init-application-files
+           #:process-all-backup-tiers))
+
+
 (defpackage :datapouch.sql
   (:use #:cl)
   (:nicknames :d.sql)
+  (:import-from :d.fs
+                #:*database-path*)
   (:import-from :sxql
                 ;; For re-export
                 #:fields #:from #:where
@@ -61,13 +79,15 @@
                 ;; double check if they work in sqlite
                 ;#:modify-column #:alter-column #:change-column #:drop-column #:add-primary-key #:drop-primary-key #:rename-to
                 #:on-duplicate-key-update #:on-conflict-do-nothing #:on-conflict-do-update)
-  (:export #:*db*
+  (:export #:*db* ; XXX: but should it?
+           #:open-db
+           #:close-db
            #:select #:union-queries #:union-all-queries
            #:insert-into #:update #:delete-from
            #:create-table #:drop-table #:alter-table
            #:create-index #:drop-index
            #:use-foreign-keys
-           #:integrity-check
+           #:check-integrity
            ;; Re-export from sxql
            #:fields #:from #:where
            #:order-by #:group-by
@@ -82,14 +102,20 @@
            #:on-duplicate-key-update #:on-conflict-do-nothing #:on-conflict-do-update))
 
 
-(defpackage :datapouch.filesystem
+(defpackage :datapouch.crypto
   (:use #:cl #:uiop #:ironclad)
-  (:nicknames :d.fs)
-  (:export #:*database-path*
-           #:*history-path*
-           #:*backup-tiers*
-           #:ensure-file-exists
-           #:application-files-init))
+  (:nicknames :d.crypto)
+  (:import-from :d.fs
+                #:+checksum-extension+
+                #:*database-path*
+                #:*backup-tiers*)
+  (:export #:*control-database-integrity*
+           #:*advise-full-sqlite-integrity-check*
+           #:sha512-for-file
+           #:write-checksum-to-file
+           #:read-checksum-from-file
+           #:check-database-integrity
+           #:rehash-database))
 
 
 (defpackage :datapouch.editor
@@ -105,18 +131,8 @@
 (defpackage :datapouch.main
   (:use #:cl #:uiop #:d.fs #:d.edit)
   (:nicknames :d.main)
-  (:import-from #:d.sql
-                #:*db*
-                #:use-foreign-keys)
-  (:import-from #:d.cli
-                #:*buffer*
-                #:*there-is-no-fresh-line-now*
-                #:disable-bracketed-paste
-                #:restore-bracketed-paste
-                #:get-repl)
-  (:import-from #:d.rmacro
-                #:install-command-reader-macro)
   (:export #:*preload-hooks*
+           #:*post-unload-hooks*
            #:*init-hooks*
            #:*exit-hooks*
            #:*debugger-hooks*
@@ -154,6 +170,7 @@
 (cl-reexport:reexport-from :datapouch.reader-macro)
 (cl-reexport:reexport-from :datapouch.sql)
 (cl-reexport:reexport-from :datapouch.filesystem)
+(cl-reexport:reexport-from :datapouch.crypto)
 (cl-reexport:reexport-from :datapouch.editor)
 (cl-reexport:reexport-from :datapouch.interaction)
 (cl-reexport:reexport-from :datapouch.main)
