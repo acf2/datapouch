@@ -17,8 +17,10 @@
            #:interchange
            #:interchange-three
            #:scan-named-groups
+           #:get-group
            #:regex-scanner #:scanner
-           #:make-scanner))
+           #:make-scanner
+           #:make-command-regex-scanner))
 
 
 (defpackage :datapouch.cli
@@ -39,7 +41,8 @@
 (defpackage :datapouch.reader-macro
   (:use #:cl #:d.cli #:d.regex)
   (:nicknames :d.rmacro)
-  (:export #:*commands*
+  (:export #:command #:command-regex #:command-handler
+           #:*commands*
            #:command-reader-macro
            #:install-command-reader-macro
            #:read-line-to-semicolon-or-newline))

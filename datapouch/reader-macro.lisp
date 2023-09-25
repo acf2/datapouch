@@ -4,25 +4,33 @@
 (in-package :datapouch.reader-macro)
 
 
-;; list of pairs:
-;; (command-regex . command-handler)
 ;; Command regex can be an object of either regex or regex-scanner classes
 ;; Command handler must be a function and have at least two arguments:
 ;;   1. String argument, for full command string
 ;;   2. List of conses (string . string), for list of named regex matches
+(defclass command ()
+  ((command-regex :initarg :regex
+                  :reader command-regex)
+   (command-handler :initarg :handler
+                    :reader command-handler)))
+
+
+;; list of command objects
 (defparameter *commands* nil)
 
 
 (defun command-reader-macro (stream char)
-  (let* ((command (read-line-to-semicolon-or-newline stream))
-         (command-bundle (loop for (command-regex . command-handler) in *commands*
-                               for match = (scan-named-groups command-regex command)
+  (let* ((command-string (read-line-to-semicolon-or-newline stream))
+         (command-bundle (loop for command in *commands*
+                               for (match groups) = (multiple-value-list (scan-named-groups (command-regex command) command-string))
                                when match
-                               return (list match command-handler))))
-    (if command-bundle
-      `(funcall ,(second command-bundle) ,command ',(first command-bundle))
+                               return (list command groups)))
+         (command (when command-bundle (first command-bundle)))
+         (match (when command-bundle (second command-bundle))))
+    (if command
+      `(funcall ,(command-handler command) ,command-string ',match)
       (progn
-        (loop for command-char across (reverse command)
+        (loop for command-char across (reverse command-string)
               do (unread-char command-char stream))
         (find-symbol (string char) :cl)))))
 

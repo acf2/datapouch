@@ -7,6 +7,10 @@
 (in-package :datapouch.regex-support)
 
 
+;;; Allow named registers and make control abstraction
+(setf ppcre:*allow-named-registers* t)
+
+
 (defun allow-named-registers (&optional (flag t))
   (setf ppcre:*allow-named-registers* flag))
 
@@ -51,6 +55,10 @@
     new-regex))
 
 
+(defmethod make-named-group ((name symbol) regex)
+  (make-named-group (string name) regex))
+
+
 (defgeneric concat-two (one-regex another-regex)
   (:documentation "Concatenate two regexes"))
 
@@ -91,7 +99,11 @@
 
 
 (defun concat (&rest regexes)
-  (reduce (lambda (x y) (concat-two x y)) regexes))
+  (reduce (lambda (x y)
+            (cond ((null x) y)
+                  ((null y) x)
+                  (:else (concat-two x y))))
+          regexes))
 
 
 (defun combine (&rest regexes)
@@ -173,11 +185,27 @@
     new-scanner))
 
 
+;;; Returns T if string matches, nil if not
+;;; Returns second value - assoc-list with matches
 (defmethod scan-named-groups ((sc regex-scanner) (str string))
   (multiple-value-bind (match-start match-end group-starts group-ends) (funcall (scanner sc) str 0 (length str))
     (declare (ignore match-end))
-    (when match-start
-      (loop for i from 0 to (1- (length (groups sc)))
-            for group-name in (groups sc)
-            when (aref group-starts i)
-            collect (cons group-name (subseq str (aref group-starts i) (aref group-ends i)))))))
+    (if match-start
+      (values t (loop for i from 0 to (1- (length (groups sc)))
+                      for group-name in (groups sc)
+                      when (aref group-starts i)
+                      collect (cons group-name (subseq str (aref group-starts i) (aref group-ends i)))))
+      (values nil nil))))
+
+
+(defun get-group (name groups)
+  (rest (assoc (string name) groups :test #'string=)))
+
+
+(defun make-command-regex-scanner (command-regex &rest argument-regexes)
+  (make-scanner (apply #'concat (append (list "\\s*"
+                                              command-regex)
+                                        (mapcar (lambda (argument-regex)
+                                                  (concat-two "\\s+" argument-regex))
+                                                argument-regexes)
+                                        (list "\\s*")))))
