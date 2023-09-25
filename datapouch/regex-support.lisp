@@ -138,7 +138,6 @@
     new-regex))
 
 
-;;; TODO Rewrite this simpler with (interchange sep first (interchange sep second third))
 (defun interchange-three (separator-regex first-regex second-regex third-regex)
   "Make regex that matches three separated regexes in any order"
   (combine (concat first-regex separator-regex (interchange separator-regex second-regex third-regex))
