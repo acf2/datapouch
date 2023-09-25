@@ -149,19 +149,21 @@
   (:documentation "Find named groups in string"))
 
 
-;;; NOTE something regarding (ppcre:scan-to-strings) ?
-;;;  If scan fails, it works correctly
-;;;  What if multiple same named groups?
-;;;  What's with the speed? What about scanners?
-
-
+;;; Returns T if string matches, nil if not
+;;; Returns second value - assoc-list with matches
 (defmethod scan-named-groups ((regex regex) (str string))
-  (remove-if #'null
-             (map 'list
-                  (lambda (match key)
-                    (and match (cons key match)))
-                  (nth-value 1 (ppcre:scan-to-strings (expr regex) str))
-                  (groups regex))))
+  (let* ((scan-result (multiple-value-list (ppcre:scan-to-strings (expr regex) str)))
+         (match (first scan-result))
+         (groups (and match (second scan-result))))
+    (if match
+      (values t
+              (remove-if #'null
+                         (map 'list
+                              (lambda (match key)
+                                (and match (cons key match)))
+                              groups
+                              (groups regex))))
+      (values nil nil))))
 
 
 (defclass regex-scanner ()
