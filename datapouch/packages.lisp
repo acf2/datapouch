@@ -32,6 +32,7 @@
            #:*there-is-no-fresh-line-now*
            #:*prompt-fun*
            #:*custom-readtable*
+           #:readline
            #:read-form
            #:disable-bracketed-paste
            #:restore-bracketed-paste
@@ -146,6 +147,7 @@
   (:use #:cl)
   (:nicknames :d.inter)
   (:import-from #:d.cli
+                #:readline
                 #:read-form
                 #:*prompt-fun*)
   (:export #:*max-string-length*
