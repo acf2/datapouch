@@ -4,6 +4,43 @@
 (in-package :datapouch.interaction)
 
 
+;;; Generalized dialog with user
+;;; Args:
+;;;   query-fun is a function with one optional argument, that prints query message for the user
+;;;     At least once this function will be called with no arguments at all
+;;;     Arguments:
+;;;       1) Previous erroneous user input
+;;;   input-handler is a function of one argument, that handles user input
+;;;     Arguments:
+;;;       1) User input
+;;;     Must return two values:
+;;;       1) Is user input accepted, or user must be queried again? (t/nil)
+;;;       2) Filtered user input to be returned from dialog
+;;;   prompt-fun is a function, that is used as prompt for read-form (read read-from docs)
+;;;   raw-input is a flag
+;;;     Essentially, it determines, will lisp reader be used on user input, or not
+;;;     Values:
+;;;       nil, then read-form will be used to read the form
+;;;       t, then pure readline wrapper macro will be used without any kind of reader
+;;;
+;;; NOTE: Wrap whole SBCL in continuation, put it in query-fun and base my whole application on this dialog function? Nah, too difficult. But tempting.
+(defun dialog (&key ((:query-fun query-fun) nil)
+                    ((:input-handler input-handler) nil)
+                    ((:prompt-fun prompt-fun) *prompt-fun*)
+                    ((:raw-input raw-input) nil))
+  (let ((read-fun (if raw-input #'d.cli:readline #'d.cli:read-form)))
+    (when query-fun
+      (funcall query-fun))
+    (finish-output *standard-output*)
+    (loop for (form _ eof) = (multiple-value-list (funcall read-fun "" prompt-fun))
+          for (is-acceptable filtered-input) = (multiple-value-list (funcall input-handler form))
+          if eof return nil
+          else if is-acceptable return filtered-input
+          else if query-fun do
+          (funcall query-fun form)
+          (finish-output *standard-output*))))
+
+
 (defparameter *max-string-length* 50)
 (defparameter *wrap-marker* "...")
 
@@ -86,19 +123,21 @@
                             ((:id-column-name id-column-name) "Row number")
                             ((:get-index get-index) nil)
                             ((:prompt-fun prompt-fun) *prompt-fun*))
-  (pretty-print-table (cons id-column-name column-names)
-                      (loop for row in rows
-                            for i from 1 to (length rows)
-                            collect (cons i row)))
-  (format *standard-output* prompt-msg)
-  (finish-output *standard-output*)
-  (let* ((number (loop for (form _ eof) = (multiple-value-list (read-form "" prompt-fun))
-                       if eof return nil
-                       else if (and (integerp form) (<= 1 form (length rows))) return form
-                       else if error-msg do
-                       (format *standard-output* error-msg)
-                       (finish-output *standard-output*))))
-    (when number
-      (if get-index
-        (1- number)
-        (nth (1- number) rows)))))
+  (dialog :query-fun (lambda (&optional (error-form nil error-form-supplied-p))
+                       (declare (ignore error-form))
+                       (if error-form-supplied-p
+                         (format *standard-output* error-msg)
+                         (progn
+                           (pretty-print-table (cons id-column-name column-names)
+                                               (loop for row in rows
+                                                     for i from 1 to (length rows)
+                                                     collect (cons i row)))
+                           (format *standard-output* prompt-msg))))
+          :input-handler (lambda (input)
+                           (let ((accepted (and (integerp input) (<= 1 input (length rows)))))
+                             (values accepted
+                                     (when accepted
+                                       (if get-index
+                                         (1- input)
+                                         (nth (1- input) rows))))))
+          :prompt-fun prompt-fun))

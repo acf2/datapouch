@@ -18,6 +18,23 @@
 (defparameter *custom-readtable* (copy-readtable *readtable*))
 
 
+;;; Read one line from with rl:readline
+;;; Returns two values:
+;;;   form, read from input
+;;;   is-eof, boolean value
+;;;
+;;; I dunno what to do with output-stream for rl:readline
+;;; More here: https://github.com/vindarel/cl-readline/blob/7653bc094c8f9bf151dde8dbfb3e2d261003047e/cl-readline.lisp#L134
+;;; Especially when it's a synonym stream
+;;; What? (sb-sys:fd-stream-fd (eval (synonym-stream-symbol output-stream)))? Like with naked eval?
+(defun readline (buffer prompt-fun)
+  (let ((line (rl:readline :prompt (funcall prompt-fun buffer)
+                           :erase-empty-line nil
+                           :add-history t)))
+    ;; nil from rl:readline means EOF
+    (values line (and (null line)
+                      (string= buffer "")))))
+
 ;;; Returns two values: form, unused characters
 ;;;
 ;;; linedit uses separate package for reads
@@ -50,22 +67,15 @@
 ;;;   form, read from input
 ;;;   buffer, unused characters
 ;;;   is-eof, boolean value
-;;;
-;;; I dunno what to do with output-stream for rl:readline
-;;; More here: https://github.com/vindarel/cl-readline/blob/7653bc094c8f9bf151dde8dbfb3e2d261003047e/cl-readline.lisp#L134
-;;; Especially when it's a synonym stream
-;;; What? (sb-sys:fd-stream-fd (eval (synonym-stream-symbol output-stream)))? Like with naked eval?
 (defun read-form (buffer prompt-fun)
   (declare (type string buffer)
            (type function prompt-fun))
   (multiple-value-bind (previous-form new-buffer) (try-to-read-form buffer)
     (if previous-form
       (values previous-form new-buffer nil)
-      (loop for line = (rl:readline :prompt (funcall prompt-fun new-buffer)
-                                    :erase-empty-line nil
-                                    :add-history t)
+      (loop for (line is-eof) = (multiple-value-list (readline new-buffer prompt-fun))
             with form
-            when (and (null line) (string= new-buffer "")) return (values nil new-buffer t) ; nil from rl:readline means EOF
+            when is-eof return (values nil new-buffer t)
             when (null line) do (error (make-instance 'end-of-file))
             do (setf new-buffer (string-left-trim +default-space-characters+
                                                   (concatenate 'string new-buffer +default-line-separator+ line +default-line-separator+)))
