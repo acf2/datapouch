@@ -4,6 +4,12 @@
 (in-package :cl-user)
 
 
+(defpackage :zac.command-wrapper
+  (:use #:cl #:datapouch)
+  (:nicknames :zac.cmd)
+  (:export nil))
+
+
 (defpackage :zac.zettelkasten
   (:use #:cl #:datapouch)
   (:nicknames :zac.box)

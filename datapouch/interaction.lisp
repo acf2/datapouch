@@ -21,7 +21,7 @@
 ;;;     Essentially, it determines, will lisp reader be used on user input, or not
 ;;;     Values:
 ;;;       nil, then read-form will be used to read the form
-;;;       t, then pure readline wrapper macro will be used without any kind of reader
+;;;       t, then pure readline wrapper function will be used without any kind of reader
 ;;;
 ;;; NOTE: Wrap whole SBCL in continuation, put it in query-fun and base my whole application on this dialog function? Nah, too difficult. But tempting.
 (defun dialog (&key ((:query-fun query-fun) nil)
@@ -57,6 +57,26 @@
                                         space-position
                                         part-length))
                    *wrap-marker*))))
+
+
+(defun slice-string-for-printing (string &optional (width 79))
+  (let ((string-len (length string)))
+    (loop with last-pos    = 0
+          for search-start = (min last-pos
+                                  string-len)
+          for search-end   = (min (+ last-pos width)
+                                  string-len)
+          for space-pos    = (position #\space string :start search-start :end search-end :from-end t)
+          for newline-pos  = (position #\newline string :start search-start :end search-end)
+          for min-pos      = (min (or space-pos string-len)
+                                  (or newline-pos string-len))
+          for pos          = (if (or (= min-pos string-len)
+                                     (<= (- string-len last-pos) width))
+                               string-len
+                               (1- min-pos))
+          while (< last-pos string-len)
+          collect (subseq a last-pos pos)
+          do (setf last-pos (+ pos 2)))))
 
 
 ;;; Transpose lists
@@ -123,9 +143,9 @@
                             ((:id-column-name id-column-name) "Row number")
                             ((:get-index get-index) nil)
                             ((:prompt-fun prompt-fun) *prompt-fun*))
-  (dialog :query-fun (lambda (&optional (error-form nil error-form-supplied-p))
+  (dialog :query-fun (lambda (&optional (error-form nil error-form-supplied?))
                        (declare (ignore error-form))
-                       (if error-form-supplied-p
+                       (if error-form-supplied?
                          (format *standard-output* error-msg)
                          (progn
                            (pretty-print-table (cons id-column-name column-names)

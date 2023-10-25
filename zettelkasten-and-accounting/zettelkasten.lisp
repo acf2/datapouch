@@ -15,6 +15,10 @@
 (defparameter *current-note* nil)
 (defparameter *note-history* nil) ; TBD
 
+; TBD
+; Backlinks?
+; Closure on links/backlinks?
+
 
 (defparameter *option-show-note-after-jump* t)
 
