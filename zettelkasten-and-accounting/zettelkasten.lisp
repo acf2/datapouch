@@ -4,6 +4,9 @@
 ;;; WARNING! Every and any note interaction must interpret a note as ID number
 ;;; Note lists are lists of IDs (lists of integers)
 ;;; This is the crucial component in maintaining consistency between application and database
+;;;
+;;; All links should be represented by pairs (source . destination)
+
 
 
 (in-package :zac.box)
@@ -11,6 +14,10 @@
 
 (defparameter *current-note* nil)
 (defparameter *note-history* nil) ; TBD
+
+; TBD
+; Backlinks?
+; Closure on links/backlinks?
 
 
 (defparameter *option-show-note-after-jump* t)
@@ -32,6 +39,7 @@
                  (:destination :type 'integer
                                :not-null t)
                  (:number :type 'integer))
+                (unique-key '(:source :destination))
                 (foreign-key :source
                              :references '(:note :id)
                              :on-delete :cascade
@@ -166,6 +174,10 @@
               (order-by (:asc :link.number))))
     (note-is-not-chosen)))
 
+;; TODO
+;(defun add-link
+;(defun remove-link
+
 
 ;;; Interactive dialog to choose a note from list
 (defun choose-note-interactive (notes)
@@ -178,6 +190,50 @@
                                                                     :get-index t
                                                                     :prompt-fun (constantly "note> ")))))
       (when chosen-note-index (first (nth chosen-note-index found-notes))))))
+
+
+;;; TODO
+;;; File an issue or merge request to https://github.com/fukamachi/sxql
+;;; Why tuple syntax is not supported? Maybe I'm missing something? Sqlite3 seems to support it
+;;; Like here https://stackoverflow.com/a/7865437
+;;;
+;;; Very OUCH. Don't do that, kids, or you will code with C++ for the rest of your life.
+;;; I will feel very stupid, if this is supported somehow.
+(defmacro wrap-where-tuple-in (sql-fun sxql-name fields tuple tuple-list &rest clauses)
+  (if (not (and tuple tuple-list))
+    `((find-symbol (string sxql-name) :d.sql) ,fields ,@clauses)
+    (let ((marker "CTHULHU FHTAGN")
+          (tuple-var (gensym)) (tuple-list-var (gensym))
+          (query-string (gensym)) (parameters (gensym))
+          (parameter-position (gensym)) (in-query-postion (gensym))
+          (counter (gensym)) (last-position (gensym)) (new-position (gensym))
+          (element (gensym))
+          (sxql-fun (find-symbol (string sxql-name) :sxql)))
+      `(let ((,tuple-var ,tuple)
+             (,tuple-list-var ,tuple-list))
+         (declare (type list ,tuple-var ,tuple-list-var))
+         (multiple-value-bind (,query-string ,parameters) (sxql:yield (,sxql-fun ,fields ,@clauses (where ,marker)))
+           (let* ((,parameter-position (position ,marker ,parameters :test #'equal))
+                  (,in-query-postion (loop with ,counter = 0
+                                           with ,last-position = 0
+                                           for ,new-position = (position #\? ,query-string :start (1+ ,last-position))
+                                           when (= ,counter ,parameter-position) return ,new-position
+                                           do (setf ,counter (1+ ,counter))
+                                           do (setf ,last-position ,new-position))))
+             (if (every (lambda (,element)
+                          (= (length ,tuple-var)
+                             (length ,element)))
+                        ,tuple-list-var)
+               (apply ,sql-fun *db*
+                     (concatenate 'string
+                                  (subseq ,query-string 0 ,in-query-postion)
+                                  (format nil "((~{~(~#[~;~A~:;~A, ~]~)~}) IN (~{(~{~#[~;?~*~:;?~*, ~]~})~#[~:;, ~]~}))" ,tuple-var ,tuple-list-var)
+                                  (subseq ,query-string (1+ ,in-query-postion)))
+                     (concatenate 'list
+                                  (subseq ,parameters 0 ,parameter-position)
+                                  (reduce #'append ,tuple-list-var) ; flatten argument list
+                                  (subseq ,parameters (1+ ,parameter-position))))
+               (error "wrap-where-tuple-in: not all data tuples are equal in size to parameter tuple"))))))))
 
 
 ;;; Go to link of some note and return destination note ID
@@ -195,9 +251,35 @@
               ;(format t "~A~&" (map 'list #'cdr linked-notes)) ; DEBUG
               (let ((chosen-link-index (find-one-row-dialog '("Number" "Text")
                                                             (map 'list #'cdr linked-notes)
-                                                            :get-index t)))
+                                                            :get-index t
+                                                            :prompt-fun (constantly "link> ")
+                                                            :output-stream output-stream)))
                 (when chosen-link-index (first (nth chosen-link-index linked-notes)))))))
     (note-is-not-chosen)))
 
 
-;;; HIGH LEVEL (To be called from shortcuts)
+;;; HIGH LEVEL (To be called from shortcuts and helpers)
+
+(defun choose-note-wrapper (note &key ((:output-stream output-stream) *standard-output*))
+  (setf *current-note* note)
+  (show-text :output-stream output-stream))
+
+
+(defun search-note (substring &key ((:output-stream output-stream) *standard-output*))
+  (let ((new-note (choose-note-interactive (reduce #'append (goto-text substring)))))
+    (if new-note
+      (setf *current-note* new-note)
+      (format output-stream "No note found."))))
+
+
+;"SELECT * FROM link WHERE (a IN (?, ?))"
+;(3 4)
+
+
+;(defun jump-link (
+
+
+;;; OTHER
+
+(defun add-zettelkasten-commands ()
+  nil)

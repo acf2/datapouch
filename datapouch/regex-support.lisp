@@ -207,6 +207,10 @@
   (make-scanner (apply #'concat (append (list "\\s*"
                                               command-regex)
                                         (mapcar (lambda (argument-regex)
-                                                  (concat-two "\\s+" argument-regex))
+                                                  (let ((result (concat-two "\\s+" argument-regex)))
+                                                    (when (listp argument-regex)
+                                                      (when (member :optional (rest argument-regex))
+                                                        (setf result (concat (wrap-in-noncapturing-group result) "?"))))
+                                                    result))
                                                 argument-regexes)
                                         (list "\\s*")))))

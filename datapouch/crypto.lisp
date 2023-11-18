@@ -48,7 +48,7 @@
                  (setf *database-path* nil))))
             (*database-path*
               (setf *advise-full-sqlite-integrity-check* t)
-              (setf *backup-tiers* nil) ;;; NOTE: It seems pointless, but it is needed. Checksum is created only on exit, but backup will be made right after this hook ends
+              (setf *backup-tiers* nil) ; NOTE: It seems pointless, but it is needed. Checksum is created only on exit, but backup will be made right after this hook ends
               (unless (yes-or-no-p "There is no checksum for the database.~&Are you sure you want to load it?")
                 (setf *database-path* nil)))))))
 

@@ -4,6 +4,12 @@
 (in-package :cl-user)
 
 
+(defpackage :zac.command-wrapper
+  (:use #:cl #:datapouch)
+  (:nicknames :zac.cmd)
+  (:export nil))
+
+
 (defpackage :zac.zettelkasten
   (:use #:cl #:datapouch)
   (:nicknames :zac.box)
@@ -23,7 +29,8 @@
            #:remove-note
            #:show-links
            #:choose-note-interactive
-           #:choose-link-interactive))
+           #:choose-link-interactive
+           #:add-zettelkasten-commands))
 
 
 (defpackage :zac.bookkeeping
