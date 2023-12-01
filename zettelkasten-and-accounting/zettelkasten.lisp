@@ -16,8 +16,12 @@
 (defparameter *note-history* nil) ; TBD
 
 ; TBD
-; Backlinks?
-; Closure on links/backlinks?
+; [ ] Root node with fixed ID?
+; [ ] Backlinks?
+; [ ] Closure on links/backlinks?
+; [ ] history
+; [ ] sequential read (like in normal zettelkasten?)
+; [ ] fetch random note
 
 
 (defparameter *option-show-note-after-jump* t)
@@ -202,7 +206,7 @@
 (defmacro wrap-where-tuple-in (sql-fun sxql-name fields tuple tuple-list &rest clauses)
   (if (not (and tuple tuple-list))
     `((find-symbol (string sxql-name) :d.sql) ,fields ,@clauses)
-    (let ((marker "CTHULHU FHTAGN")
+    (let ((marker "CTHULHU FHTAGN") ; There is chance of collision still. Maybe...
           (tuple-var (gensym)) (tuple-list-var (gensym))
           (query-string (gensym)) (parameters (gensym))
           (parameter-position (gensym)) (in-query-postion (gensym))
@@ -252,8 +256,7 @@
               (let ((chosen-link-index (find-one-row-dialog '("Number" "Text")
                                                             (map 'list #'cdr linked-notes)
                                                             :get-index t
-                                                            :prompt-fun (constantly "link> ")
-                                                            :output-stream output-stream)))
+                                                            :prompt-fun (constantly "link> "))))
                 (when chosen-link-index (first (nth chosen-link-index linked-notes)))))))
     (note-is-not-chosen)))
 
@@ -278,6 +281,32 @@
 
 ;(defun jump-link (
 
+
+;;; /add (/a), /remove (/r) + note (n), link (l)
+;;;   /add note (/an) - adds note, with link from current to new, opens editor for new note body
+;;;   /add link (/al) [/add backlink (/abl)] - adds link (backlink) from (to) this note.
+;;;   /remove note (/rn) - removes current node, jumps back in history
+;;;   /remove link (/rl)
+;;; /note (/n) - open text editor for current note
+;;; goto != jump
+;;;   /goto <substring> (/g) - interactive link choice from current note: possibly filtered by substring
+;;;   /jump <N1> ... <Nm> (/j) - special command for non-interative link choice, can be chained to form "paths" of links
+;;;                              Number - number of a link, if exists (or text inside note)
+;;;                              Text - text inside note
+;;;   /search <substring> (/s) - global goto substring (slow)
+;;; /<linkcommand>[*] <N> - show links from this note in forward/backward/all directions
+;;;                         number after the command shows how much times zt should travel
+;;;                         asterisk shows if closure is needed (all levels deep notes from 1 to N will be shown)
+;;;   /links (/l)
+;;;   /backlinks (/bl)
+;;;   /connections (/al)
+;;;   /goto + /<linkcommand>?
+;;;
+;;; /history (/h) - show history in full (maybe /history short (/hs)?)
+;;; /<history command> <N> - History traverse
+;;;   history traverse does not change history, obviously
+;;;   /back (/b)
+;;;   /forward (/f)
 
 ;;; OTHER
 

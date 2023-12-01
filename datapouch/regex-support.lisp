@@ -203,14 +203,20 @@
   (rest (assoc (string name) groups :test #'string=)))
 
 
+; command-regex    = regex
+; argument-regexes = nil | (argument-regex...)
+; argument-regex   = regex | (regex modifier...)
+; modifier = :optional
+;  Note: Only optional is implemented for now
 (defun make-command-regex-scanner (command-regex &rest argument-regexes)
   (make-scanner (apply #'concat (append (list "\\s*"
                                               command-regex)
                                         (mapcar (lambda (argument-regex)
-                                                  (let ((result (concat-two "\\s+" argument-regex)))
-                                                    (when (listp argument-regex)
-                                                      (when (member :optional (rest argument-regex))
-                                                        (setf result (concat (wrap-in-noncapturing-group result) "?"))))
-                                                    result))
+                                                  (if (listp argument-regex)
+                                                    (let ((result (concat-two "\\s+" (first argument-regex)))
+                                                          (modifiers (rest argument-regex)))
+                                                      (cond ((member :optional modifiers)
+                                                             (setf result (concat (wrap-in-noncapturing-group result) "?")))))
+                                                    (concat-two "\\s+" argument-regex)))
                                                 argument-regexes)
                                         (list "\\s*")))))

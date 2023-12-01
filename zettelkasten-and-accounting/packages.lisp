@@ -7,7 +7,10 @@
 (defpackage :zac.command-wrapper
   (:use #:cl #:datapouch)
   (:nicknames :zac.cmd)
-  (:export nil))
+  (:export #:command-wrapper
+           #:add-command-form
+           #:make-command-wrapper
+           #:make-commands-from-wrappers))
 
 
 (defpackage :zac.zettelkasten
@@ -46,4 +49,4 @@
 
 (defpackage :zac.user
   (:use #:cl #:datapouch
-        #:zac.box #:zac.book #:zac.main))
+        #:zac.cmd #:zac.box #:zac.book #:zac.main))

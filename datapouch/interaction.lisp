@@ -61,7 +61,7 @@
 
 (defun slice-string-for-printing (string &optional (width 79))
   (let ((string-len (length string)))
-    (loop with last-pos    = 0
+    (loop for last-pos     = 0 then (+ pos 2)
           for search-start = (min last-pos
                                   string-len)
           for search-end   = (min (+ last-pos width)
@@ -75,8 +75,7 @@
                                string-len
                                (1- min-pos))
           while (< last-pos string-len)
-          collect (subseq a last-pos pos)
-          do (setf last-pos (+ pos 2)))))
+          collect (subseq string last-pos pos))))
 
 
 ;;; Transpose lists
