@@ -97,10 +97,10 @@
   ;; Probably not the best decision, but it works
   (when (and (probe-file path-to-databases)
              (not (pathname-name (probe-file path-to-databases)))) ; directory, not a file
-      (loop for path in (directory (reduce #'merge-pathnames (list +database-extension+
-                                                                   (make-pathname :name :wild)
-                                                                   path-to-databases)))
-            collect (make-instance 'database-file :path path))))
+      (loop :for path :in (directory (reduce #'merge-pathnames (list +database-extension+
+                                                                     (make-pathname :name :wild)
+                                                                     path-to-databases)))
+            :collect (make-instance 'database-file :path path))))
 
 
 (defun register-backups (backup-tiers)
@@ -122,8 +122,8 @@
 
 
 (defun ensure-backup-system-is-inited ()
-  (loop for backup-tier in *backup-tiers*
-        do (ensure-directories-exist (getf (rest backup-tier) :directory))))
+  (loop :for backup-tier :in *backup-tiers*
+        :do (ensure-directories-exist (getf (rest backup-tier) :directory))))
 
 
 ;;; App files initialization
@@ -137,11 +137,11 @@
 
 
 (defun remove-obsolete-backups (databases amount-to-keep)
-  (loop for obsolete-backup in (nthcdr amount-to-keep
-                                       (sort databases
-                                             #'local-time:timestamp>
-                                             :key #'date))
-        do
+  (loop :for obsolete-backup :in (nthcdr amount-to-keep
+                                         (sort databases
+                                               #'local-time:timestamp>
+                                               :key #'date))
+        :do
         (delete-file (path obsolete-backup))
         (when (checksum-path obsolete-backup)
           (delete-file (checksum-path obsolete-backup)))))
@@ -159,8 +159,8 @@
          (now (local-today))
          (new-backup-filename (make-pathname :name (format-timestring-1ttf now)
                                              :defaults +database-extension+)))
-    (loop for backup-tier in (filter-backup-tiers-due now backups)
-          do
+    (loop :for backup-tier :in (filter-backup-tiers-due now backups)
+          :do
           (when (getf (rest backup-tier) :rotation)
             (remove-obsolete-backups (getf (rest backup-tier) :databases)
                                      (1- (getf (rest backup-tier) :rotation))))

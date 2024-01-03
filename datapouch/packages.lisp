@@ -158,7 +158,7 @@
            #:find-max-field-widths
            #:pretty-print-rows
            #:pretty-print-table
-           #:find-one-row-dialog))
+           #:find-row-dialog))
 
 
 ;;; Parent package, using cl-reexport

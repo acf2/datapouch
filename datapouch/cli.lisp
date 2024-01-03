@@ -73,14 +73,14 @@
   (multiple-value-bind (previous-form new-buffer) (try-to-read-form buffer)
     (if previous-form
       (values previous-form new-buffer nil)
-      (loop for (line is-eof) = (multiple-value-list (readline new-buffer prompt-fun))
-            with form
-            when is-eof return (values nil new-buffer t)
-            when (null line) do (error (make-instance 'end-of-file))
-            do (setf new-buffer (string-left-trim +default-space-characters+
-                                                  (concatenate 'string new-buffer +default-line-separator+ line +default-line-separator+)))
-            do (multiple-value-setq (form new-buffer) (try-to-read-form new-buffer))
-            when form return (values form new-buffer nil)))))
+      (loop :for (line is-eof) = (multiple-value-list (readline new-buffer prompt-fun))
+            :with form
+            :when is-eof :return (values nil new-buffer t)
+            :when (null line) :do (error (make-instance 'end-of-file))
+            :do (setf new-buffer (string-left-trim +default-space-characters+
+                                                   (concatenate 'string new-buffer +default-line-separator+ line +default-line-separator+)))
+            :do (multiple-value-setq (form new-buffer) (try-to-read-form new-buffer))
+            :when form :return (values form new-buffer nil)))))
 
 
 ;;; Piece of shit

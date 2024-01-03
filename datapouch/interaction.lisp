@@ -32,11 +32,11 @@
     (when query-fun
       (funcall query-fun))
     (finish-output *standard-output*)
-    (loop for (form _ eof) = (multiple-value-list (funcall read-fun "" prompt-fun))
-          for (is-acceptable filtered-input) = (multiple-value-list (funcall input-handler form))
-          if eof return nil
-          else if is-acceptable return filtered-input
-          else if query-fun do
+    (loop :for (form _ eof) = (multiple-value-list (funcall read-fun "" prompt-fun))
+          :for (is-acceptable filtered-input) = (multiple-value-list (funcall input-handler form))
+          :if eof :return nil
+          :else :if is-acceptable :return filtered-input
+          :else :if query-fun :do
           (funcall query-fun form)
           (finish-output *standard-output*))))
 
@@ -61,21 +61,21 @@
 
 (defun slice-string-for-printing (string &optional (width 79))
   (let ((string-len (length string)))
-    (loop for last-pos     = 0 then (+ pos 2)
-          for search-start = (min last-pos
-                                  string-len)
-          for search-end   = (min (+ last-pos width)
-                                  string-len)
-          for space-pos    = (position #\space string :start search-start :end search-end :from-end t)
-          for newline-pos  = (position #\newline string :start search-start :end search-end)
-          for min-pos      = (min (or space-pos string-len)
-                                  (or newline-pos string-len))
-          for pos          = (if (or (= min-pos string-len)
-                                     (<= (- string-len last-pos) width))
-                               string-len
-                               (1- min-pos))
-          while (< last-pos string-len)
-          collect (subseq string last-pos pos))))
+    (loop :for last-pos     = 0 :then (+ pos 2)
+          :for search-start = (min last-pos
+                                   string-len)
+          :for search-end   = (min (+ last-pos width)
+                                   string-len)
+          :for space-pos    = (position #\space string :start search-start :end search-end :from-end t)
+          :for newline-pos  = (position #\newline string :start search-start :end search-end)
+          :for min-pos      = (min (or space-pos string-len)
+                                   (or newline-pos string-len))
+          :for pos          = (if (or (= min-pos string-len)
+                                      (<= (- string-len last-pos) width))
+                                string-len
+                                (1- min-pos))
+          :while (< last-pos string-len)
+          :collect (subseq string last-pos pos))))
 
 
 ;;; Transpose lists
@@ -136,27 +136,44 @@
                        :max-field-widths max-field-widths)))
 
 
-(defun find-one-row-dialog (column-names rows &key
-                            ((:prompt-msg prompt-msg) "Enter row number:~&")
-                            ((:error-msg error-msg) "Please, try again.~&")
-                            ((:id-column-name id-column-name) "Row number")
-                            ((:get-index get-index) nil)
-                            ((:prompt-fun prompt-fun) *prompt-fun*))
+(defun find-row-dialog (column-names rows &key ((:choose-many choose-many) nil)
+                                               ((:prompt-msg prompt-msg) (if choose-many "Enter row numbers:~&" "Enter row number:~&"))
+                                               ((:error-msg error-msg) "Please, try again.~&")
+                                               ((:id-column-name id-column-name) "Row number")
+                                               ((:get-index get-index) nil)
+                                               ((:prompt-fun prompt-fun) *prompt-fun*))
   (dialog :query-fun (lambda (&optional (error-form nil error-form-supplied?))
                        (declare (ignore error-form))
                        (if error-form-supplied?
                          (format *standard-output* error-msg)
                          (progn
                            (pretty-print-table (cons id-column-name column-names)
-                                               (loop for row in rows
-                                                     for i from 1 to (length rows)
-                                                     collect (cons i row)))
+                                               (loop :for row :in rows
+                                                     :for i :from 1 :to (length rows)
+                                                     :collect (cons i row)))
                            (format *standard-output* prompt-msg))))
-          :input-handler (lambda (input)
-                           (let ((accepted (and (integerp input) (<= 1 input (length rows)))))
-                             (values accepted
-                                     (when accepted
-                                       (if get-index
-                                         (1- input)
-                                         (nth (1- input) rows))))))
-          :prompt-fun prompt-fun))
+          :input-handler (lambda (unfiltered-input)
+                           (labels ((filter-input (input) (if choose-many
+                                                            (map 'list #'parse-integer (ppcre:split "\\D+" input))
+                                                            input))
+                                    (is-integer-accepted? (int) (and (integerp int) (<= 1 int (length rows))))
+                                    (is-input-accepted? (input) (if choose-many
+                                                                  (and input (every #'is-integer-accepted? input))
+                                                                  (is-integer-accepted? input)))
+                                    (index-fun (numbers) (if choose-many
+                                                           (map 'list #'1- numbers)
+                                                           (1- numbers)))
+                                    (get-rows (numbers) (if choose-many
+                                                          (map 'list (lambda (r)
+                                                                       (nth (1- r) rows))
+                                                               numbers)
+                                                          (nth (1- numbers) rows))))
+                             (let* ((input (filter-input unfiltered-input))
+                                    (accepted (is-input-accepted? input)))
+                               (values accepted
+                                       (when accepted
+                                         (if get-index
+                                           (index-fun input)
+                                           (get-rows input)))))))
+          :prompt-fun prompt-fun
+          :raw-input choose-many))

@@ -192,10 +192,10 @@
   (multiple-value-bind (match-start match-end group-starts group-ends) (funcall (scanner sc) str 0 (length str))
     (declare (ignore match-end))
     (if match-start
-      (values t (loop for i from 0 to (1- (length (groups sc)))
-                      for group-name in (groups sc)
-                      when (aref group-starts i)
-                      collect (cons group-name (subseq str (aref group-starts i) (aref group-ends i)))))
+      (values t (loop :for i :from 0 :to (1- (length (groups sc)))
+                      :for group-name :in (groups sc)
+                      :when (aref group-starts i)
+                      :collect (cons group-name (subseq str (aref group-starts i) (aref group-ends i)))))
       (values nil nil))))
 
 

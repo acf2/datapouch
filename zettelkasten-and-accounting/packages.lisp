@@ -4,13 +4,21 @@
 (in-package :cl-user)
 
 
+(defpackage :zac.auxiliary
+  (:use #:cl #:datapouch)
+  (:nicknames :zac.aux)
+  (:export #:expt-mod
+           #:wrap-where-tuple-in))
+
+
 (defpackage :zac.command-wrapper
   (:use #:cl #:datapouch)
   (:nicknames :zac.cmd)
   (:export #:command-wrapper
            #:add-command-form
            #:make-command-wrapper
-           #:make-commands-from-wrappers))
+           #:make-commands-from-wrappers
+           #:generate-wrappers))
 
 
 (defpackage :zac.zettelkasten
@@ -33,7 +41,8 @@
            #:show-links
            #:choose-note-interactive
            #:choose-link-interactive
-           #:add-zettelkasten-commands))
+           #:get-zettelkasten-command-wrappers
+           #:zettelkasten-init))
 
 
 (defpackage :zac.bookkeeping

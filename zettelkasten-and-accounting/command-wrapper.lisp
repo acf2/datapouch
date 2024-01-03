@@ -65,7 +65,7 @@
 
 (defmethod add-command-form ((command command-wrapper) command-s-form &rest other-command-s-forms)
   (with-slots (s-forms parsers) command
-    (loop for new-s-form in (cons command-s-form other-command-s-forms) do
+    (loop :for new-s-form :in (cons command-s-form other-command-s-forms) :do
           (push new-s-form s-forms)
           (push (apply #'make-simple-command-scanner new-s-form) parsers))
     command))
@@ -87,13 +87,21 @@
 
 
 (defun make-commands-from-wrappers (command-wrappers)
-  (loop for command-wrapper in command-wrappers
-        append (loop for s-forms = (s-forms command-wrapper) then (rest s-forms)
-                     for parsers = (parsers command-wrapper) then (rest parsers)
-                     for current-s-form = (first s-forms)
-                     for current-parser = (first parsers)
-                     while s-forms
-                     while parsers
-                     collect (make-instance 'command
-                                            :regex current-parser
-                                            :handler (handler command-wrapper)))))
+  (loop :for command-wrapper :in command-wrappers
+        :append (loop :for s-forms = (s-forms command-wrapper) :then (rest s-forms)
+                      :for parsers = (parsers command-wrapper) :then (rest parsers)
+                      :for current-s-form = (first s-forms)
+                      :for current-parser = (first parsers)
+                      :while s-forms
+                      :while parsers
+                      :collect (make-instance 'command
+                                              :regex current-parser
+                                              :handler (handler command-wrapper)))))
+
+
+(defmacro generate-wrappers (&rest cmd-defs)
+  `(list ,@(loop :for all-cmds := cmd-defs :then (cddr all-cmds)
+                 :for cmd-rx := (first all-cmds)
+                 :for cmd-handler := (second all-cmds)
+                 :while all-cmds
+                 :collect `(make-command-wrapper ',cmd-rx ,cmd-handler))))

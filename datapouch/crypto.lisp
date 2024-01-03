@@ -23,11 +23,11 @@
   (with-open-file (file path
                         :direction :input)
     (let ((byte-array-string (string-trim '(#\Newline #\Space #\Tab) (read-line file))))
-      (coerce (loop for i from 0 to (1- (length byte-array-string)) by 2
-                    collect (parse-integer byte-array-string
-                                           :start i
-                                           :end (+ i 2)
-                                           :radix 16))
+      (coerce (loop :for i :from 0 :to (1- (length byte-array-string)) :by 2
+                    :collect (parse-integer byte-array-string
+                                            :start i
+                                            :end (+ i 2)
+                                            :radix 16))
               '(vector (unsigned-byte 8))))))
 
 

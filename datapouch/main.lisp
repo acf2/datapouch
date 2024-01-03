@@ -12,7 +12,7 @@
 
 
 (defun debugger-hook (con val)
-  (loop for fun in *debugger-hooks* do
+  (loop :for fun :in *debugger-hooks* :do
         (funcall fun con val)))
 
 
