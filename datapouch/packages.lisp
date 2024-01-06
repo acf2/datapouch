@@ -86,6 +86,7 @@
   (:export #:*db* ; XXX: but should it?
            #:open-db
            #:close-db
+           #:column-tuple
            #:select #:union-queries #:union-all-queries
            #:insert-into #:update #:delete-from
            #:create-table #:drop-table #:alter-table

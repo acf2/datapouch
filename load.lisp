@@ -5,6 +5,8 @@
 (loop for p in '(:cl-readline :cl-ppcre :sqlite :sxql :cl-reexport :local-time :uiop :ironclad) do
       (ql:quickload p :silent t))
 
+(ql:quickload :cl-package-locks :silent t) ;;; VIOLENCE!!1 KLUDGES FOR THE KLUDGE GOD!!1111 >:(
+
 (defparameter work-dir (directory-namestring (or *load-truename* *default-pathname-defaults*)))
 
 (loop for path in (list (truename (make-pathname :directory work-dir
