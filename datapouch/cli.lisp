@@ -35,6 +35,7 @@
     (values line (and (null line)
                       (string= buffer "")))))
 
+
 ;;; Returns two values: form, unused characters
 ;;;
 ;;; linedit uses separate package for reads
@@ -83,6 +84,7 @@
             :when form :return (values form new-buffer nil)))))
 
 
+
 ;;; Piece of shit
 ;;; https://github.com/hanslub42/rlwrap/issues/108
 (let (bracketed-paste)
@@ -111,12 +113,16 @@
     (if *there-is-no-fresh-line-now*
       (setf *there-is-no-fresh-line-now* nil)
       (terpri out))
-    (multiple-value-bind (form new-buffer eof)
-      (let ((*readtable* *custom-readtable*))
-        (read-form *buffer* *prompt-fun*))
-      (when eof
-        ;; Why fresh-line does not work here? [2]
-        (terpri out)
-        (sb-ext:quit))
-      (setf *buffer* new-buffer)
-      form)))
+    (handler-case
+      (multiple-value-bind (form new-buffer eof)
+        (let ((*readtable* *custom-readtable*))
+          (read-form *buffer* *prompt-fun*))
+        (when eof
+          ;; Why fresh-line does not work here? [2]
+          (terpri out)
+          (sb-ext:quit))
+        (setf *buffer* new-buffer)
+        form)
+      (sb-int:simple-reader-error (c)
+                                  (setf *buffer* "")
+                                  (error c)))))
