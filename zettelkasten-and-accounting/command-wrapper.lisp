@@ -25,24 +25,24 @@
                                               (listp (cdr arg)))))
     (if (and (acceptable-regex? command)
              (every (lambda (element)
-                      (or (acceptable-simple-command-term? element) ; Just an argument, like "\\w+" or (:name . "\\w+")
+                      (or (acceptable-simple-command-term? element) ; Just an argument, like "\\w+" or (:name . "\\w+"), or even already an object of regex class
                           (and (argument-with-modifiers? element)   ; ...or argument with modifiers, like ("\\w+" :optional) or ((:name . "\\w+") :optional)
                                (acceptable-simple-command-term? (first element)))))
                     terms))
       (apply #'d.regex:make-command-regex-scanner
-             (cons command
-                   (mapcar (lambda (element)
-                             (flet ((wrap-term (term) (if (argument-with-modifiers? element)
-                                                        (cons term (rest element))
-                                                        term)))
-                               (let ((term (if (argument-with-modifiers? element)
-                                             (first element)
-                                             element)))
-                                 (wrap-term
-                                   (if (consp term)
-                                     (d.regex:make-named-group (car term) (cdr term))
-                                     term)))))
-                           terms)))
+             command
+             (mapcar (lambda (element)
+                       (flet ((wrap-term (term) (if (argument-with-modifiers? element)
+                                                  (cons term (rest element))
+                                                  term)))
+                         (let ((term (if (argument-with-modifiers? element)
+                                       (first element)
+                                       element)))
+                           (wrap-term
+                             (if (consp term)
+                               (d.regex:make-named-group (car term) (cdr term))
+                               term)))))
+                     terms))
       (error (make-instance 'simple-error
                             :format-control +simple-command-fun-errors+
                             :format-arguments 'make-simple-command-scanner)))))
@@ -104,4 +104,4 @@
                  :for cmd-rx := (first all-cmds)
                  :for cmd-handler := (second all-cmds)
                  :while all-cmds
-                 :collect `(make-command-wrapper ',cmd-rx ,cmd-handler))))
+                 :collect `(make-command-wrapper ,cmd-rx ,cmd-handler))))

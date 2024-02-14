@@ -199,24 +199,27 @@
       (values nil nil))))
 
 
-(defun get-group (name groups)
-  (rest (assoc (string name) groups :test #'string=)))
+(defmacro get-group (name groups)
+  `(rest (assoc (string ,name) ,groups :test #'string=)))
 
 
 ; command-regex    = regex
 ; argument-regexes = nil | (argument-regex...)
 ; argument-regex   = regex | (regex modifier...)
-; modifier = :optional
-;  Note: Only optional is implemented for now
+; modifier = :optional | :immediate
+;  :optinal makes this argument optional
+;  :immediate won't separate this argument from previous one with spaces
 (defun make-command-regex-scanner (command-regex &rest argument-regexes)
-  (make-scanner (apply #'concat (append (list "\\s*"
+  (make-scanner (apply #'concat (append (list "^\\s*"
                                               command-regex)
                                         (mapcar (lambda (argument-regex)
                                                   (if (listp argument-regex)
-                                                    (let ((result (concat-two "\\s+" (first argument-regex)))
+                                                    (let ((result (first argument-regex))
                                                           (modifiers (rest argument-regex)))
-                                                      (cond ((member :optional modifiers)
-                                                             (setf result (concat (wrap-in-noncapturing-group result) "?")))))
+                                                      (unless (member :immediate modifiers)
+                                                        (setf result (concat-two "\\s+" result)))
+                                                      (when (member :optional modifiers)
+                                                        (setf result (concat (wrap-in-noncapturing-group result) "?"))))
                                                     (concat-two "\\s+" argument-regex)))
                                                 argument-regexes)
-                                        (list "\\s*")))))
+                                        (list "\\s*$")))))

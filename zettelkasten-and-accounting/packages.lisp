@@ -8,7 +8,9 @@
   (:use #:cl #:datapouch)
   (:nicknames :zac.aux)
   (:export #:expt-mod
-           #:wrap-where-tuple-in))
+           #:list-existing
+           #:build-select
+           #:make-name))
 
 
 (defpackage :zac.command-wrapper
@@ -41,8 +43,8 @@
            #:show-links
            #:choose-note-interactive
            #:choose-link-interactive
-           #:get-zettelkasten-command-wrappers
-           #:zettelkasten-init))
+           #:get-zettelkasten-commands
+           #:zettelkasten-init-hook))
 
 
 (defpackage :zac.bookkeeping

@@ -32,8 +32,8 @@
 
 (defun add-all-commands ()
   (setf *commands*
-        (zac.cmd:make-commands-from-wrappers
-          (append
+        (append
+          (zac.cmd:make-commands-from-wrappers
             (list (zac.cmd:make-command-wrapper '("init")
                                                 (lambda (str match)
                                                   (declare (ignore str match))
@@ -43,9 +43,9 @@
                                                 (lambda (str groups)
                                                   (declare (ignore str))
                                                   (format t "Hello, ~:(~A~)!~&"
-                                                          (d.regex:get-group :name groups)))))
-            (zac.box:get-zettelkasten-command-wrappers)))))
-                                     
+                                                          (d.regex:get-group :name groups))))))
+            (zac.box:get-zettelkasten-commands))))
+
 
 (defun make-zac (&rest args)
   (setf d.cli:*prompt-fun* #'custom-prompt-fun)

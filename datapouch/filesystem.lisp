@@ -88,9 +88,10 @@
   (when (probe-file path)
     (let ((checksum-path (merge-pathnames +checksum-extension+ path))
           (date (parse-timestring-1ttf (pathname-name path))))
-      (apply #'call-next-method file (append (list :checksum-path (and (probe-file checksum-path) checksum-path)
-                                                   :date date)
-                                             rest)))))
+      (apply #'call-next-method file
+             :checksum-path (and (probe-file checksum-path) checksum-path)
+             :date date
+             rest))))
 
 
 (defun discover-all-databases-in-directory (path-to-databases)

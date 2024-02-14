@@ -87,6 +87,7 @@
            #:open-db
            #:close-db
            #:column-tuple
+           #:execute #:run #:query
            #:select #:union-queries #:union-all-queries
            #:insert-into #:update #:delete-from
            #:create-table #:drop-table #:alter-table
@@ -156,6 +157,7 @@
            #:*table-metaformat*
            #:*table-pad-width*
            #:*get-table-name-delimiter*
+           #:rotate
            #:find-max-field-widths
            #:pretty-print-rows
            #:pretty-print-table

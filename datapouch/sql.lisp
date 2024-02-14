@@ -17,9 +17,13 @@
     (sqlite:disconnect *db*)))
 
 
-(defun sqlite-execute (function statement)
+(defun execute (function statement)
   (multiple-value-bind (query values) (sxql:yield statement)
     (apply function *db* query values)))
+
+
+(defmacro query (statement)
+  `(execute #'sqlite:execute-to-list ,statement))
 
 
 ;;; File an issue or merge request to https://github.com/fukamachi/sxql
@@ -27,8 +31,8 @@
 ;;; Like here https://stackoverflow.com/a/7865437
 ;;;
 ;;; Very EZ, very kludgy
-(defmacro column-tuple (&rest column-names)
-  `(:splicing-raw (sxql:yield (sxql:fields ,@column-names))))
+(defun column-tuple (column-names)
+  (list :raw (sxql:yield (apply #'sxql:make-clause :fields column-names))))
 
 
 ;; Union does not work for sqlite3, i dunno why
@@ -67,11 +71,11 @@
 
 (macrolet ((define-sxql-wrapper (name sqlite-function)
                                 `(defmacro ,name (fields &body clauses)
-                                   `(sqlite-execute #',',sqlite-function
+                                   `(execute #',',sqlite-function
                                                     (,',(find-symbol (string name) :sxql) ,fields ,@clauses))))
            (define-sxql-union-wrapper (name sqlite-function)
                                       `(defmacro ,name (&body queries)
-                                         `(sqlite-execute #',',sqlite-function
+                                         `(execute #',',sqlite-function
                                                           (,',(find-symbol (string name) :sxql)
                                                             ,@(loop :for query :in queries
                                                                     :collect `(,(find-symbol (string (first query)) :sxql) ,@(rest query)))))))

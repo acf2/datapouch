@@ -13,6 +13,8 @@
 
 
 (defparameter *current-note* nil)
+
+;; History
 (defparameter *note-history* nil) ; TBD
 (defparameter *note-future* nil) ; TBD
 
@@ -24,9 +26,12 @@
 ;;; [ ] history
 ;;; [ ] sequential read (like in normal zettelkasten?)
 ;;; [ ] fetch random note
-
+;;; [ ] Make implicit tags mechanic (alt - workspace defined by tags)
+;;;     Or should I? Maybe it's not that bright of an idea
 
 (defparameter *option-show-note-after-jump* t)
+
+(defparameter *order-by-text* nil)
 
 
 ;;; Table creation
@@ -237,24 +242,37 @@
 
 
 ;;; Go to link of some note and return destination note ID
-(defun choose-link-interactive (&key ((:note note) *current-note*))
-  (if note
-    (let ((linked-notes (select '(:link.destination :link.number :note.text)
-                                (from :link)
-                                (left-join :note :on (:= :link.destination :note.id))
-                                (order-by (:asc :link.number))
-                                (where (:= :link.source note)))))
-      (cond ((null linked-notes) (format *standard-output* "No links available."))
-            ((= (length linked-notes) 1) (set-current-note (first (first linked-notes))))
+;;; I wanted order-by-text to be an argument. Yes, I know about dynamic binding
+(defun choose-link-interactive (links &key ((:show-number show-number) t) ((:order-by-text order-by-text) *order-by-text*))
+  (declare (type list links))
+  (if (= (length links) 1)
+    (first links)
+    (let* ((fields (zac.aux:list-existing
+                     :link.source
+                     :link.destination
+                     (when show-number :link.number)
+                     :note.text))
+           (clauses (zac.aux:list-existing
+                      (from :link)
+                      (inner-join :note :on (:= :link.destination :note.id))
+                      (where (:in (d.sql:column-tuple (list :link.source :link.destination)) links))
+                      (when (or show-number order-by-text)
+                        (apply #'sxql:make-clause :order-by 
+                          (zac.aux:list-existing
+                            (when show-number (list :asc :link.number))
+                            (when order-by-text (list :asc :note.text)))))))
+           (chosen-links (zac.aux:build-select fields clauses)))
+      (cond ((null chosen-links) nil)
+            ((= (length chosen-links) 1) (first chosen-links))
             (:else
               ;(format t "~A~&" linked-notes) ; DEBUG
               ;(format t "~A~&" (map 'list #'cdr linked-notes)) ; DEBUG
-              (let ((chosen-link-index (find-row-dialog '("Number" "Text")
-                                                            (mapcar #'cdr linked-notes)
-                                                            :get-index t
-                                                            :prompt-fun *choose-link-prompt*)))
-                (when chosen-link-index (first (nth chosen-link-index linked-notes)))))))
-    (note-is-not-chosen)))
+              (let ((chosen-link-index (find-row-dialog (zac.aux:list-existing (when show-number "Number")
+                                                                               "Text")
+                                                        (mapcar #'cddr chosen-links)
+                                                        :get-index t
+                                                        :prompt-fun *choose-link-prompt*)))
+                (when chosen-link-index (subseq (nth chosen-link-index chosen-links) 0 2))))))))
 
 
 ;(defun choose-link-interactive-2 (links &optional (target-field :destination))
@@ -287,12 +305,12 @@
 
 ;;; /note (/n) - open text editor for current note +
 ;;; goto != jump
-;;;   /goto forward/back/any:N* <substring> (/gfN*, /gbN*, /gaN*) - interactive link choice from current note: possibly filtered by substring
+;;;   /goto forward/back/any:N* [+tags] [-tags] <substring> (/gfN* +-, /gbN* +-, /gaN* +-) - interactive link choice from current note: possibly filtered by substring
 ;;;   /jump <N1> ... <Nm> (/j) - special command for non-interative link choice, can be chained to form "paths" of links
 ;;;                              Only forward. Somewhat service value for big Zettelkastens.
 ;;;                              Number - number of a link, if exists (or text inside note)
 ;;;                              Text - text inside note
-;;;   /search <substring> (/s) - global goto substring (slow)
+;;;   /search [+tags] [-tags] <substring> (/s) - global goto substring (slow)
 ;;; /<linkcommand>[*] <N> - show links from this note in forward/backward/all directions
 ;;;                         number after the command shows how much times zt should travel
 ;;;                         asterisk shows if closure is needed (all levels deep notes from 1 to N will be shown)
@@ -350,7 +368,53 @@
 
 
 (defun command-goto (string match)
-  nil)
+  (let* ((goto-type (if (and (get-group :type match)
+                             (or (string= (get-group :type match) "back")
+                                 (string= (get-group :type match) "b")))
+                      'back
+                      'forward))
+         (exponent (if (get-group :exponent match)
+                     (parse-integer (get-group :exponent match))
+                     1))
+         (closure (not (null (get-group :closure match))))
+         (source (if (eq goto-type 'forward) :source :destination))
+         (destination (if (eq goto-type 'forward) :destination :source)))
+    ;; TODO
+    ;; NOTE: exponent >= 1 (exponent is natural)
+    (cond ((= exponent 1) (select '(:destination-note.id :destination-note.text)
+                                  (from (:as :note :source-note))
+                                  (inner-join :link :on (:= :source-note.id (zac.aux:make-name :table :link
+                                                                                               :column source)))
+                                  (inner-join (:as :note :destination-note) :on (zac.aux:make-name :table :link
+                                                                                                   :column destination))
+                                  (where (:= :source-note.id *current-note*))))
+          ((not closure) nil)
+          (:else nil))
+    (format t "STRING: ~A~&MATCH: ~S~&TYPE: ~A~&EXPONENT: ~A~&CLOSURE: ~A~&" string match goto-type exponent closure)))
+
+
+;;; Alternative definition of goto commands
+;;; For reference
+(defun get-goto-commands ()
+  ;; Goto
+  ;; /goto (forward|back)?(:\\d+)?(\\*)?
+  ;; /g(f|b)?(\\d+)?(\\*)?
+  (list (make-instance 'command
+                       :regex (concat "^\\s*"
+                                      "goto"
+                                      (wrap-in-noncapturing-group (concat "\\s+" (make-named-group :type "forward|back"))) "?"
+                                      (wrap-in-noncapturing-group (concat ":" (make-named-group :exponent "\\d+"))) "?"
+                                      (make-named-group :closure "\\*") "?"
+                                      "\\s*$")
+                       :handler #'command-goto)
+        (make-instance 'command
+                       :regex (concat "^\\s*"
+                                      "g"
+                                      (make-named-group :type "f|b") "?"
+                                      (make-named-group :exponent "\\d+") "?"
+                                      (make-named-group :closure "\\*") "?"
+                                      "\\s*$")
+                       :handler #'command-goto)))
 
 
 ;  (list (zac.cmd:make-command-wrapper '(("add" "note")
@@ -370,10 +434,23 @@
 ;                                        (format t "Hello, ~:(~A~)!~&"
 ;                                                (d.regex:get-group :name groups))))))))
 
-(defun get-zettelkasten-command-wrappers ()
-  (zac.cmd:generate-wrappers (("add" "note") ("an")) #'command-add-note
-                             (("note") ("n")) #'command-note
-                             ("home") #'command-home))
+(defun get-zettelkasten-commands ()
+  (let ((goto-rxs `(("goto"                                                                    ; /goto (forward|back)?(:\\d+)?(\\*)?
+                     ((:type . "forward|back") :optional)
+                     (,(concat ":" (make-named-group :exponent "[1-9]\\d*")) :optional :immediate)
+                     ((:closure . "\\*") :optional :immediate)
+                     ((:substring . ".*") :optional))
+                    ("g"
+                     ((:type . "f|b") :optional :immediate)                                    ; /g(f|b)?(\\d+)?(\\*)?
+                     ((:exponent . "[1-9]\\d*") :optional :immediate)
+                     ((:closure . "\\*") :optional :immediate)
+                     ((:substring . ".*") :optional)))))
+    ;; Simple commands
+    (zac.cmd:make-commands-from-wrappers
+      (zac.cmd:generate-wrappers '(("add" "note") ("an")) #'command-add-note
+                                 '(("note") ("n")) #'command-note
+                                 '("home") #'command-home
+                                 goto-rxs #'command-goto))))
 
 
 ;;; SERVICE
