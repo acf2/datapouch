@@ -78,20 +78,6 @@
           :collect (subseq string last-pos pos))))
 
 
-;;; Transpose lists
-;;; https://stackoverflow.com/a/3513158
-(defun rotate (list-of-lists)
-  (if (or (null list-of-lists)
-          (and (null (car list-of-lists))
-               (null (cdr list-of-lists))))
-    list-of-lists
-    (apply #'map 'list #'list list-of-lists)))
-
-
-(defmacro repeat-string (times str)
-  `(format nil "~V@{~A~:*~}" ,times ,str))
-
-
 ;;; Usage:
 ;;; (format nil *table-metaformat* desired-field-widths) to get format string
 ;;; (format t format-string table) to pretty print table

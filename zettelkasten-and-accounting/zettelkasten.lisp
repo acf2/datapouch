@@ -247,21 +247,20 @@
   (declare (type list links))
   (if (= (length links) 1)
     (first links)
-    (let* ((fields (zac.aux:list-existing
-                     :link.source
-                     :link.destination
-                     (when show-number :link.number)
-                     :note.text))
-           (clauses (zac.aux:list-existing
-                      (from :link)
-                      (inner-join :note :on (:= :link.destination :note.id))
-                      (where (:in (d.sql:column-tuple (list :link.source :link.destination)) links))
-                      (when (or show-number order-by-text)
-                        (apply #'sxql:make-clause :order-by 
-                          (zac.aux:list-existing
-                            (when show-number (list :asc :link.number))
-                            (when order-by-text (list :asc :note.text)))))))
-           (chosen-links (zac.aux:build-select fields clauses)))
+    (let* ((sorting-clause (when (or show-number order-by-text)
+                             (d.sql:build :order-by
+                                          (when show-number (list :asc :link.number))
+                                          (when order-by-text (list :asc :note.text)))))
+           (chosen-links (d.sql:build-and-query
+                           :select
+                           (list :link.source
+                                 :link.destination
+                                 (when show-number :link.number)
+                                 :note.text)
+                           (from :link)
+                           (inner-join :note :on (:= :link.destination :note.id))
+                           (where (:in (d.sql:column-tuple (list :link.source :link.destination)) links))
+                           sorting-clause)))
       (cond ((null chosen-links) nil)
             ((= (length chosen-links) 1) (first chosen-links))
             (:else

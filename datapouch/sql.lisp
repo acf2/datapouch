@@ -22,8 +22,34 @@
     (apply function *db* query values)))
 
 
-(defmacro query (statement)
-  `(execute #'sqlite:execute-to-list ,statement))
+(defparameter +statements+ (list :select
+                                 :union-queries
+                                 :union-all-queries
+                                 :insert-into
+                                 :update
+                                 :delete-from
+                                 :create-table
+                                 :drop-table
+                                 :alter-table
+                                 :create-index
+                                 :drop-index))
+
+
+(defun build (entity &rest arguments)
+  (if (member entity +statements+)
+    (let ((fields (first arguments))
+          (clauses (rest arguments)))
+      (apply #'sxql:make-statement
+             entity
+             (apply #'sxql:make-clause :fields (list-existing* fields))
+             (list-existing* clauses)))
+    (apply #'sxql:make-clause
+           entity
+           (list-existing* arguments))))
+
+
+(defmacro build-and-query (statement &rest arguments)
+  `(execute #'sqlite:execute-to-list (build ,statement ,@arguments)))
 
 
 ;;; File an issue or merge request to https://github.com/fukamachi/sxql

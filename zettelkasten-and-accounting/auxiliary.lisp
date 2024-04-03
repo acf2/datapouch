@@ -8,10 +8,6 @@
   (remove nil rest))
 
 
-(defun build-select (fields clauses)
-  (d.sql:query (apply #'sxql:make-statement :select (apply #'sxql:make-clause :fields fields) clauses)))
-
-
 ;;; Got from here https://www.cliki.net/expt-mod
 (defun expt-mod (n exponent modulus)
   "As (mod (expt n exponent) modulus), but more efficient."

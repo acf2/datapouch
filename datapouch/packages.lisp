@@ -4,6 +4,15 @@
 (in-package :cl-user)
 
 
+(defpackage :datapouch.auxiliary
+  (:use #:cl)
+  (:nicknames :d.aux)
+  (:export #:list-existing
+           #:list-existing*
+           #:rotate
+           #:repeat-string))
+
+
 (defpackage :datapouch.regex-support
   (:use #:cl #:cl-ppcre)
   (:nicknames :d.regex)
@@ -68,6 +77,8 @@
 (defpackage :datapouch.sql
   (:use #:cl)
   (:nicknames :d.sql)
+  (:import-from :d.aux
+                #:list-existing*)
   (:import-from :d.fs
                 #:*database-path*)
   (:import-from :sxql
@@ -87,7 +98,7 @@
            #:open-db
            #:close-db
            #:column-tuple
-           #:execute #:run #:query
+           #:execute #:run #:+statements+ #:build #:build-and-query
            #:select #:union-queries #:union-all-queries
            #:insert-into #:update #:delete-from
            #:create-table #:drop-table #:alter-table
@@ -148,7 +159,10 @@
 (defpackage :datapouch.interaction
   (:use #:cl)
   (:nicknames :d.inter)
-  (:import-from #:d.cli
+  (:import-from :d.aux
+                #:rotate
+                #:repeat-string)
+  (:import-from :d.cli
                 #:readline
                 #:read-form
                 #:*prompt-fun*)
@@ -173,6 +187,7 @@
   (:export #:quit))
 
 (in-package :datapouch)
+(cl-reexport:reexport-from :datapouch.auxiliary)
 (cl-reexport:reexport-from :datapouch.regex-support)
 (cl-reexport:reexport-from :datapouch.cli)
 (cl-reexport:reexport-from :datapouch.reader-macro)
