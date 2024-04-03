@@ -274,27 +274,6 @@
                 (when chosen-link-index (subseq (nth chosen-link-index chosen-links) 0 2))))))))
 
 
-;(defun choose-link-interactive-2 (links &optional (target-field :destination))
-;  (declare (type list links))
-;  (cond ((null links) nil)
-;        ((= (length links) 1) (first links))
-;        (:else
-;          (let* ((found-links (wrap-where-tuple-in sqlite:execute-to-list
-;                                                   sxql:select
-;                                                   '(:source :destination :number)
-;                                                   ; where
-;                                                   '(:source :destination)
-;                                                   ; in
-;                                                   links))
-;                 (chosen-link-index (find-row-dialog '("Number" "Text")
-;                                                         (select '(:number :text)
-;                                                                 (from :links)
-;                                                                 (join :note :on (:= target-field :id)))
-;                                                         :get-index t
-;                                                         :prompt-fun (constantly "link diag> "))))
-;            (when chosen-link-index (subseq 0 2 (nth chosen-link-index found-links)))
-
-
 ;"SELECT * FROM link WHERE (a IN (?, ?))"
 ;(3 4)
 

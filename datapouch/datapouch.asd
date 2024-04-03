@@ -2,7 +2,7 @@
 
 (defsystem datapouch
   :description "The most neat pile of info mess this side of insanity."
-  :version "0.3"
+  :version "0.4"
   :author "Dmitry Kiselev"
   :components ((:file "packages")
                (:file "auxiliary" :depends-on ("packages"))
