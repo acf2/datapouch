@@ -355,17 +355,17 @@
                      (parse-integer (get-group :exponent match))
                      1))
          (closure (not (null (get-group :closure match))))
-         (source (if (eq goto-type 'forward) :source :destination))
-         (destination (if (eq goto-type 'forward) :destination :source)))
+         (from (if (eq goto-type 'forward) :source :destination))
+         (to (if (eq goto-type 'forward) :destination :source)))
     ;; TODO
     ;; NOTE: exponent >= 1 (exponent is natural)
-    (cond ((= exponent 1) (select '(:destination-note.id :destination-note.text)
-                                  (from (:as :note :source-note))
-                                  (inner-join :link :on (:= :source-note.id (zac.aux:make-name :table :link
-                                                                                               :column source)))
-                                  (inner-join (:as :note :destination-note) :on (zac.aux:make-name :table :link
-                                                                                                   :column destination))
-                                  (where (:= :source-note.id *current-note*))))
+    (cond ((= exponent 1) (select '(:destination.id :destination.text)
+                                  (from (:as :note :source))
+                                  (inner-join :link :on (:= :source.id (zac.aux:make-name :table :link
+                                                                                          :column from)))
+                                  (inner-join (:as :note :destination) :on (zac.aux:make-name :table :link
+                                                                                              :column to))
+                                  (where (:= :source.id *current-note*))))
           ((not closure) nil)
           (:else nil))
     (format t "STRING: ~A~&MATCH: ~S~&TYPE: ~A~&EXPONENT: ~A~&CLOSURE: ~A~&" string match goto-type exponent closure)))

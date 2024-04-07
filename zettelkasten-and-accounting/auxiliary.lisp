@@ -4,10 +4,6 @@
 (in-package :zac.auxiliary)
 
 
-(defun list-existing (&rest rest)
-  (remove nil rest))
-
-
 ;;; Got from here https://www.cliki.net/expt-mod
 (defun expt-mod (n exponent modulus)
   "As (mod (expt n exponent) modulus), but more efficient."
