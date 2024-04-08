@@ -10,7 +10,9 @@
   (:export #:expt-mod
            #:list-existing
            #:build-select
-           #:make-name))
+           #:make-name
+           #:get-chained-table-expression
+           #:get-table-power-expression))
 
 
 (defpackage :zac.command-wrapper

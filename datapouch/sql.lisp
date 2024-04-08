@@ -22,9 +22,16 @@
     (apply function *db* query values)))
 
 
+(defun query (statement)
+  (execute #'sqlite:execute-to-list statement))
+
+
+;;; XXX: Why have you used <fun-name>-queries for API, and yet just <fun-name> for make-op?
+;;;      Insanity.
+(defparameter +unions+ (list (cons :union-queries :union)
+                             (cons :union-all-queries :union-all)))
+
 (defparameter +statements+ (list :select
-                                 :union-queries
-                                 :union-all-queries
                                  :insert-into
                                  :update
                                  :delete-from
@@ -36,20 +43,25 @@
 
 
 (defun build (entity &rest arguments)
-  (if (member entity +statements+)
-    (let ((fields (first arguments))
-          (clauses (rest arguments)))
-      (apply #'sxql:make-statement
-             entity
-             (apply #'sxql:make-clause :fields (list-existing* fields))
-             (list-existing* clauses)))
-    (apply #'sxql:make-clause
-           entity
-           (list-existing* arguments))))
+  (let ((union-fun (rest (assoc entity +unions+))))
+    (cond (union-fun
+            (apply #'sxql:make-op
+                   union-fun
+                   (list-existing* arguments)))
+          ((member entity +statements+)
+           (let ((fields (first arguments))
+                 (clauses (rest arguments)))
+             (apply #'sxql:make-statement
+                    entity
+                    (apply #'sxql:make-clause :fields (list-existing* fields))
+                    (list-existing* clauses))))
+          (:else (apply #'sxql:make-clause
+                        entity
+                        (list-existing* arguments))))))
 
 
-(defmacro build-and-query (statement &rest arguments)
-  `(execute #'sqlite:execute-to-list (build ,statement ,@arguments)))
+(defun build-and-query (statement &rest arguments)
+  (execute #'sqlite:execute-to-list (apply #'build statement arguments)))
 
 
 ;;; File an issue or merge request to https://github.com/fukamachi/sxql

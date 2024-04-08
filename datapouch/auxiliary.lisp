@@ -11,6 +11,10 @@
   `(remove nil (list* ,@rest)))
 
 
+(defmacro append-lists (list-of-lists)
+  `(reduce #'append ,list-of-lists))
+
+
 ;;; Transpose lists
 ;;; https://stackoverflow.com/a/3513158
 (defun rotate (list-of-lists)

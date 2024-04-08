@@ -64,6 +64,7 @@
 
 
 (defparameter +msg-note-is-not-chosen+ "Note is not chosen.")
+(defparameter +msg-no-notes+ "There is no notes meeting this criteria.")
 
 
 (defparameter +errmsg-cannot-find-id+ "INTERNAL: No note with such ID")
@@ -346,29 +347,40 @@
 
 
 (defun command-goto (string match)
+  (declare (ignore string))
   (let* ((goto-type (if (and (get-group :type match)
                              (or (string= (get-group :type match) "back")
                                  (string= (get-group :type match) "b")))
-                      'back
-                      'forward))
+                      :back
+                      :forward))
          (exponent (if (get-group :exponent match)
                      (parse-integer (get-group :exponent match))
                      1))
          (closure (not (null (get-group :closure match))))
-         (from (if (eq goto-type 'forward) :source :destination))
-         (to (if (eq goto-type 'forward) :destination :source)))
-    ;; TODO
-    ;; NOTE: exponent >= 1 (exponent is natural)
-    (cond ((= exponent 1) (select '(:destination.id :destination.text)
-                                  (from (:as :note :source))
-                                  (inner-join :link :on (:= :source.id (zac.aux:make-name :table :link
-                                                                                          :column from)))
-                                  (inner-join (:as :note :destination) :on (zac.aux:make-name :table :link
-                                                                                              :column to))
-                                  (where (:= :source.id *current-note*))))
-          ((not closure) nil)
-          (:else nil))
-    (format t "STRING: ~A~&MATCH: ~S~&TYPE: ~A~&EXPONENT: ~A~&CLOSURE: ~A~&" string match goto-type exponent closure)))
+         (source-column (if (eq goto-type :forward) :source :destination))
+         (destination-column (if (eq goto-type :forward) :destination :source)))
+    (labels ((build-select (chain-length) (apply #'build :select
+                                                 (list :destination.id)
+                                                 (append
+                                                   (zac.aux:get-chained-table-expression chain-length
+                                                                                         :note :id
+                                                                                         :link source-column destination-column
+                                                                                         :note :id
+                                                                                         :starting-table-alias :source
+                                                                                         :ending-table-alias :destination)
+                                                   (list (where (:= :source.id *current-note*))
+                                                         ))))
+             (build-union (max-chain-length) (apply #'build :union-queries
+                                                    (loop :for i :from 0 :to max-chain-length
+                                                          :collect (build-select i)))))
+      (let* ((fetched-notes (remove *current-note* (append-lists (query (funcall (if closure #'build-union #'build-select) exponent)))))
+             (chosen-note (choose-note-interactive fetched-notes)))
+        ;(format t "STRING: ~A~&MATCH: ~S~&TYPE: ~A~&EXPONENT: ~A~&CLOSURE: ~A~&" string match goto-type exponent closure)
+        ;(format t "QUERY: ~A~&" (funcall (if closure #'build-union #'build-select) exponent))
+        ;(format t "FETCHED LINKS: ~A~&" fetched-notes)
+        (if (null chosen-note)
+          (format *standard-output* +msg-no-notes+)
+          (set-current-note chosen-note))))))
 
 
 ;;; Alternative definition of goto commands

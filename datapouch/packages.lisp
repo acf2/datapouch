@@ -9,6 +9,7 @@
   (:nicknames :d.aux)
   (:export #:list-existing
            #:list-existing*
+           #:append-lists
            #:rotate
            #:repeat-string))
 
@@ -98,7 +99,7 @@
            #:open-db
            #:close-db
            #:column-tuple
-           #:execute #:run #:+statements+ #:build #:build-and-query
+           #:execute #:query #:+statements+ #:build #:build-and-query
            #:select #:union-queries #:union-all-queries
            #:insert-into #:update #:delete-from
            #:create-table #:drop-table #:alter-table
