@@ -368,12 +368,13 @@
                                                                                          :note :id
                                                                                          :starting-table-alias :source
                                                                                          :ending-table-alias :destination)
-                                                   (list (where (:= :source.id *current-note*))
-                                                         ))))
+                                                   (list (where (:= :source.id *current-note*))))))
              (build-union (max-chain-length) (apply #'build :union-queries
                                                     (loop :for i :from 0 :to max-chain-length
                                                           :collect (build-select i)))))
-      (let* ((fetched-notes (remove *current-note* (append-lists (query (funcall (if closure #'build-union #'build-select) exponent)))))
+      (let* ((fetched-notes (remove *current-note*
+                                    (append-lists (query (funcall (if closure #'build-union #'build-select)
+                                                                  exponent)))))
              (chosen-note (choose-note-interactive fetched-notes)))
         ;(format t "STRING: ~A~&MATCH: ~S~&TYPE: ~A~&EXPONENT: ~A~&CLOSURE: ~A~&" string match goto-type exponent closure)
         ;(format t "QUERY: ~A~&" (funcall (if closure #'build-union #'build-select) exponent))
