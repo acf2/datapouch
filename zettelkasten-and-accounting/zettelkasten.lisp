@@ -212,21 +212,22 @@
 
 
 ;;; Call editor to edit one or more notes
-(defun edit-notes (notes)
-  (declare (type list notes))
-  (and notes
-       (let* ((old-notes (select '(:id :text)
-                                 (from :note)
-                                 (where (:in :id notes))))
-              (new-notes (map 'list (lambda (note new-text) (list (first note) new-text))
-                              old-notes
-                              (apply #'edit-strings (map 'list #'second old-notes)))))
-         (update :note
-                 (set= :text `(:case :id
-                                     ,@(loop :for new-note :in new-notes
-                                             :collect (cons :when new-note))
-                                     (:else :text)))
-                 (where (:in :id notes))))))
+(defun edit-notes (&rest clauses)
+  (let* ((old-notes (apply #'d.sql:build-and-query
+                           :select '(:id :text)
+                           (from :note)
+                           clauses))
+         (new-notes (map 'list (lambda (note new-text) (list (first note) new-text))
+                         old-notes
+                         (apply #'edit-strings (map 'list #'second old-notes)))))
+    (when old-notes
+      (apply #'d.sql:build-and-query
+             :update :note
+             (set= :text `(:case :id
+                                 ,@(loop :for new-note :in new-notes
+                                         :collect (cons :when new-note))
+                                 (:else :text)))
+             clauses))))
 
 
 (defparameter +errmsg-no-note-found+ "No such note found.")
@@ -280,6 +281,7 @@
                                        (list* '(:id) fields)
                                        *choose-note-prompt*
                                        clauses)))
+
 
 ;;; legacy
 (defun choose-note-interactive (notes)
@@ -376,7 +378,7 @@
 (defun command-note (string match)
   (declare (ignore string match))
   (when *current-note*
-    (edit-notes (list *current-note*))))
+    (edit-notes (where (:= :id *current-note*)))))
 
 
 (defun command-home (string match)
