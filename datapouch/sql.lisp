@@ -31,8 +31,7 @@
 (defparameter +unions+ (list (cons :union-queries :union)
                              (cons :union-all-queries :union-all)))
 
-(defparameter +statements+ (list :select
-                                 :insert-into
+(defparameter +statements+ (list :insert-into
                                  :update
                                  :delete-from
                                  :create-table
@@ -48,13 +47,17 @@
             (apply #'sxql:make-op
                    union-fun
                    (list-existing* arguments)))
-          ((member entity +statements+)
+          ((eq entity :select)
            (let ((fields (first arguments))
                  (clauses (rest arguments)))
              (apply #'sxql:make-statement
                     entity
                     (apply #'sxql:make-clause :fields (list-existing* fields))
                     (list-existing* clauses))))
+          ((member entity +statements+)
+             (apply #'sxql:make-statement
+                    entity
+                    (list-existing* arguments)))
           (:else (apply #'sxql:make-clause
                         entity
                         (list-existing* arguments))))))
