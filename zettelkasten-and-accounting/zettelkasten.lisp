@@ -6,7 +6,10 @@
 ;;; This is the crucial component in maintaining consistency between application and database
 ;;;
 ;;; All links should be represented by pairs (source . destination)
-
+;;;
+;;; When there is a fields argument in any function, it's an assoc list
+;;; ((:field_symbol "Column name for output") (:field_symbol2) ...)
+;;; Fields without column name for output will not be printed
 
 
 (in-package :zac.box)
@@ -138,6 +141,17 @@
             (from :note)
             (where where-clause))))
 
+
+;;; Create where clause for notes with ids from list
+(defun where-note-id-in-list (note-list)
+  (where (:in :id note-list)))
+
+
+;;; Create where clause for searching note by substring
+(defun where-note-has-substring (substring)
+  (where (:instr :text substring)))
+
+
 ; TODO
 ;(defun goto-history
 ;(defun goto-link
@@ -229,50 +243,75 @@
 (defparameter *choose-link-prompt* (constantly "link> "))
 
 
-;;; Interactive dialog to choose a note from list
+(defun get-field-names (fields)
+  (map 'list #'first fields))
+
+
+(defun get-field-dialog-texts (fields)
+  (remove nil (map 'list #'second fields)))
+
+
+(defun get-field-mapping-for-rows (fields)
+  (let ((indices (loop :for element :in (map 'list #'second fields)
+                       :for i :from 0 :to (length fields)
+                       :when element :collect i)))
+    (lambda (row)
+      (map 'list (lambda (i) (nth i row)) indices))))
+
+
+(defun choose-row-from-table-dialog (table-clauses fields prompt &rest clauses)
+  (declare (type list table-clauses fields)
+           (type function prompt))
+  (let* ((found-rows (apply #'d.sql:build-and-query
+                            :select (get-field-names fields)
+                            (append table-clauses
+                                    clauses)))
+         (chosen-row-index (and found-rows (find-row-dialog (get-field-dialog-texts fields)
+                                                            (map 'list (get-field-mapping-for-rows fields) found-rows)
+                                                            :get-index t
+                                                            :prompt-fun prompt))))
+    (when chosen-row-index (nth chosen-row-index found-rows))))
+
+
+;;; Interactive dialog to choose a note
+;;; Returns note id
+(defun choose-note-dialog (fields &rest clauses)
+  (first (choose-row-from-table-dialog (from :note)
+                                       (list* '(:id) fields)
+                                       *choose-note-prompt*
+                                       clauses)))
+
+;;; legacy
 (defun choose-note-interactive (notes)
-  (declare (type list notes))
-  (if (= (length notes) 1)
-    (first notes)
-    (let* ((found-notes (select '(:id :text) (from :note) (where (:in :id notes))))
-           (chosen-note-index (and found-notes (find-row-dialog '("Text")
-                                                                    (map 'list #'cdr found-notes)
-                                                                    :get-index t
-                                                                    :prompt-fun *choose-note-prompt*))))
-      (when chosen-note-index (first (nth chosen-note-index found-notes))))))
+  (choose-note-dialog '((:text "Text")) (where (:in :id notes))))
+
+
+;;; Interactive dialog to choose a link
+;;; Returns list (link.source link.destination)
+(defun choose-link-dialog (fields &rest clauses)
+  (subseq (choose-row-from-table-dialog (list (from :link)
+                                              (inner-join :note :on (:= :link.destination :note.id)))
+                                        (list* '(:link.source) '(:link.destination) fields)
+                                        *choose-link-prompt*
+                                        clauses)
+          0 2))
 
 
 ;;; Go to link of some note and return destination note ID
 ;;; I wanted order-by-text to be an argument. Yes, I know about dynamic binding
+;;; legacy
 (defun choose-link-interactive (links &key ((:show-number show-number) t) ((:order-by-text order-by-text) *order-by-text*))
   (declare (type list links))
-  (if (= (length links) 1)
-    (first links)
-    (let* ((sorting-clause (when (or show-number order-by-text)
-                             (d.sql:build :order-by
-                                          (when show-number (list :asc :link.number))
-                                          (when order-by-text (list :asc :note.text)))))
-           (chosen-links (d.sql:build-and-query
-                           :select
-                           (list :link.source
-                                 :link.destination
-                                 (when show-number :link.number)
-                                 :note.text)
-                           (from :link)
-                           (inner-join :note :on (:= :link.destination :note.id))
-                           (where (:in (d.sql:column-tuple (list :link.source :link.destination)) links))
-                           sorting-clause)))
-      (cond ((null chosen-links) nil)
-            ((= (length chosen-links) 1) (first chosen-links))
-            (:else
-              ;(format t "~A~&" linked-notes) ; DEBUG
-              ;(format t "~A~&" (map 'list #'cdr linked-notes)) ; DEBUG
-              (let ((chosen-link-index (find-row-dialog (zac.aux:list-existing (when show-number "Number")
-                                                                               "Text")
-                                                        (mapcar #'cddr chosen-links)
-                                                        :get-index t
-                                                        :prompt-fun *choose-link-prompt*)))
-                (when chosen-link-index (subseq (nth chosen-link-index chosen-links) 0 2))))))))
+  (let* ((sorting-clause (when (or show-number order-by-text)
+                           (d.sql:build :order-by
+                                        (when show-number (list :asc :link.number))
+                                        (when order-by-text (list :asc :note.text)))))
+         (fields (zac.aux:list-existing (when show-number
+                                          (list :link.number "Number"))
+                                        :note.text)))
+    (choose-link-dialog fields
+                        (where (:in (d.sql:column-tuple (list :link.source :link.destination)) links))
+                        sorting-clause)))
 
 
 ;"SELECT * FROM link WHERE (a IN (?, ?))"
@@ -346,21 +385,23 @@
     (set-current-note 0)))
 
 
-(defun command-goto (string match)
-  (declare (ignore string))
-  (let* ((goto-type (if (and (get-group :type match)
-                             (or (string= (get-group :type match) "back")
-                                 (string= (get-group :type match) "b")))
-                      :back
-                      :forward))
-         (exponent (if (get-group :exponent match)
-                     (parse-integer (get-group :exponent match))
-                     1))
-         (closure (not (null (get-group :closure match))))
-         (source-column (if (eq goto-type :forward) :source :destination))
-         (destination-column (if (eq goto-type :forward) :destination :source)))
+;;; TODO: Maybe add an ability to choose table aliases?
+;;;       Too much additional complexity for now
+(defun build-select-notes-through-links (&key ((:backward backward?) nil)
+                                              ((:depth exponent) 1)
+                                              ((:closure closure?) nil)
+                                              ((:fields fields) (list :id))
+                                              ((:clauses clauses) nil)
+                                              ((:union-clauses union-clauses) nil))
+  (declare (type boolean backward? closure?)
+           (type integer exponent))
+  (let* ((source-column (if (not backward?) :source :destination))
+         (destination-column (if (not backward?) :destination :source)))
     (labels ((build-select (chain-length) (apply #'build :select
-                                                 (list :destination.id)
+                                                 (map 'list (lambda (column)
+                                                              (zac.aux:make-name :table :destination
+                                                                                 :column column))
+                                                      fields)
                                                  (append
                                                    (zac.aux:get-chained-table-expression chain-length
                                                                                          :note :id
@@ -368,20 +409,40 @@
                                                                                          :note :id
                                                                                          :starting-table-alias :source
                                                                                          :ending-table-alias :destination)
-                                                   (list (where (:= :source.id *current-note*))))))
+                                                   clauses)))
              (build-union (max-chain-length) (apply #'build :union-queries
-                                                    (loop :for i :from 0 :to max-chain-length
-                                                          :collect (build-select i)))))
-      (let* ((fetched-notes (remove *current-note*
-                                    (append-lists (query (funcall (if closure #'build-union #'build-select)
-                                                                  exponent)))))
-             (chosen-note (choose-note-interactive fetched-notes)))
-        ;(format t "STRING: ~A~&MATCH: ~S~&TYPE: ~A~&EXPONENT: ~A~&CLOSURE: ~A~&" string match goto-type exponent closure)
-        ;(format t "QUERY: ~A~&" (funcall (if closure #'build-union #'build-select) exponent))
-        ;(format t "FETCHED LINKS: ~A~&" fetched-notes)
-        (if (null chosen-note)
-          (format *standard-output* +msg-no-notes+)
-          (set-current-note chosen-note))))))
+                                                    (append
+                                                      (loop :for i :from 0 :to max-chain-length
+                                                            :collect (build-select i))
+                                                      union-clauses))))
+      (funcall (if closure? #'build-union #'build-select) exponent))))
+
+
+(defun command-goto (string match)
+  (declare (ignore string))
+  (let* ((backward? (and (get-group :type match)
+                         (or (string= (get-group :type match) "back")
+                             (string= (get-group :type match) "b"))))
+         (exponent (if (get-group :exponent match)
+                     (parse-integer (get-group :exponent match))
+                     1))
+         (closure? (not (null (get-group :closure match))))
+         (selected (build-select-notes-through-links :backward backward?
+                                                     :depth exponent
+                                                     :fields (list :id :text)
+                                                     :closure closure?
+                                                     :clauses (list-existing (where (:= :source.id *current-note*))
+                                                                             (unless closure?
+                                                                               (order-by :destination.id)))
+                                                     :union-clauses (list-existing (when closure?
+                                                                                     (order-by :destination.id)))))
+         (chosen-note (choose-row-from-table-dialog (list (from selected))
+                                                    '((:id) (:text "Text"))
+                                                    *choose-note-prompt*
+                                                    (where (:!= :id *current-note*)))))
+    (if (null chosen-note)
+      (format *standard-output* +msg-no-notes+)
+      (set-current-note (first chosen-note)))))
 
 
 ;;; Alternative definition of goto commands

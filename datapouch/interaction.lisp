@@ -123,43 +123,45 @@
 
 
 (defun find-row-dialog (column-names rows &key ((:choose-many choose-many) nil)
-                                               ((:prompt-msg prompt-msg) (if choose-many "Enter row numbers:~&" "Enter row number:~&"))
-                                               ((:error-msg error-msg) "Please, try again.~&")
-                                               ((:id-column-name id-column-name) "Row number")
-                                               ((:get-index get-index) nil)
-                                               ((:prompt-fun prompt-fun) *prompt-fun*))
-  (dialog :query-fun (lambda (&optional (error-form nil error-form-supplied?))
-                       (declare (ignore error-form))
-                       (if error-form-supplied?
-                         (format *standard-output* error-msg)
-                         (progn
-                           (pretty-print-table (cons id-column-name column-names)
-                                               (loop :for row :in rows
-                                                     :for i :from 1 :to (length rows)
-                                                     :collect (cons i row)))
-                           (format *standard-output* prompt-msg))))
-          :input-handler (lambda (unfiltered-input)
-                           (labels ((filter-input (input) (if choose-many
-                                                            (map 'list #'parse-integer (ppcre:split "\\D+" input))
-                                                            input))
-                                    (is-integer-accepted? (int) (and (integerp int) (<= 1 int (length rows))))
-                                    (is-input-accepted? (input) (if choose-many
-                                                                  (and input (every #'is-integer-accepted? input))
-                                                                  (is-integer-accepted? input)))
-                                    (index-fun (numbers) (if choose-many
-                                                           (map 'list #'1- numbers)
-                                                           (1- numbers)))
-                                    (get-rows (numbers) (if choose-many
-                                                          (map 'list (lambda (r)
-                                                                       (nth (1- r) rows))
-                                                               numbers)
-                                                          (nth (1- numbers) rows))))
-                             (let* ((input (filter-input unfiltered-input))
-                                    (accepted (is-input-accepted? input)))
-                               (values accepted
-                                       (when accepted
-                                         (if get-index
-                                           (index-fun input)
-                                           (get-rows input)))))))
-          :prompt-fun prompt-fun
-          :raw-input choose-many))
+                                     ((:prompt-msg prompt-msg) (if choose-many "Enter row numbers:~&" "Enter row number:~&"))
+                                     ((:error-msg error-msg) "Please, try again.~&")
+                                     ((:id-column-name id-column-name) "Row number")
+                                     ((:get-index get-index) nil)
+                                     ((:prompt-fun prompt-fun) *prompt-fun*))
+  (cond ((= (length rows) 0) nil)
+        ((= (length rows) 1) (if get-index 0 (first rows)))
+        (:else (dialog :query-fun (lambda (&optional (error-form nil error-form-supplied?))
+                                    (declare (ignore error-form))
+                                    (if error-form-supplied?
+                                      (format *standard-output* error-msg)
+                                      (progn
+                                        (pretty-print-table (cons id-column-name column-names)
+                                                            (loop :for row :in rows
+                                                                  :for i :from 1 :to (length rows)
+                                                                  :collect (cons i row)))
+                                        (format *standard-output* prompt-msg))))
+                       :input-handler (lambda (unfiltered-input)
+                                        (labels ((filter-input (input) (if choose-many
+                                                                         (map 'list #'parse-integer (ppcre:split "\\D+" input))
+                                                                         input))
+                                                 (is-integer-accepted? (int) (and (integerp int) (<= 1 int (length rows))))
+                                                 (is-input-accepted? (input) (if choose-many
+                                                                               (and input (every #'is-integer-accepted? input))
+                                                                               (is-integer-accepted? input)))
+                                                 (index-fun (numbers) (if choose-many
+                                                                        (map 'list #'1- numbers)
+                                                                        (1- numbers)))
+                                                 (get-rows (numbers) (if choose-many
+                                                                       (map 'list (lambda (r)
+                                                                                    (nth (1- r) rows))
+                                                                            numbers)
+                                                                       (nth (1- numbers) rows))))
+                                          (let* ((input (filter-input unfiltered-input))
+                                                 (accepted (is-input-accepted? input)))
+                                            (values accepted
+                                                    (when accepted
+                                                      (if get-index
+                                                        (index-fun input)
+                                                        (get-rows input)))))))
+                       :prompt-fun prompt-fun
+                       :raw-input choose-many))))
