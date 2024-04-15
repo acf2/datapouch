@@ -57,4 +57,4 @@
 
 
 (defun install-command-reader-macro (&key ((:character character) #\/) ((:readtable table) *custom-readtable*))
-  (set-macro-character character #'command-reader-macro nil table))
+  (set-macro-character character #'command-reader-macro t table))
