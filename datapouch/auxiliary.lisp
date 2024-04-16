@@ -11,6 +11,12 @@
   `(remove nil (list* ,@rest)))
 
 
+(defun ensure-list (entity)
+  (if (listp entity)
+    entity
+    (list entity)))
+
+
 (defmacro append-lists (list-of-lists)
   `(reduce #'append ,list-of-lists))
 

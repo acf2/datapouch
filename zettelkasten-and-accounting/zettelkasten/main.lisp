@@ -15,91 +15,15 @@
 (in-package :zac.box)
 
 
-(defparameter *current-note* nil)
-
-;; History
-(defparameter *note-history* nil) ; TBD
-(defparameter *note-future* nil) ; TBD
-
-
 ;;; TBD
 ;;; [x] Root node with fixed ID?
-;;; [ ] Backlinks?
-;;; [ ] Closure (kleene star) on links/backlinks?
+;;; [x] Backlinks?
+;;; [x] Closure (kleene star) on links/backlinks?
 ;;; [ ] history
 ;;; [ ] sequential read (like in normal zettelkasten?)
 ;;; [ ] fetch random note
 ;;; [ ] Make implicit tags mechanic (alt - workspace defined by tags)
 ;;;     Or should I? Maybe it's not that bright of an idea
-
-(defparameter *option-show-note-after-jump* t)
-
-(defparameter *order-by-text* nil)
-
-
-;;; Table creation
-;;; note: id [int] PK, text [text] NN
-;;; link: source (id) NN, destination (id) NN, number [int]
-(defun create-zettelkasten ()
-  (create-table (:note :if-not-exists t)
-                ((:id :type 'integer
-                      :primary-key t
-                      :autoincrement t)
-                 (:text :type 'text
-                        :not-null t)))
-  (create-table (:link :if-not-exists t)
-                ((:source :type 'integer
-                          :not-null t)
-                 (:destination :type 'integer
-                               :not-null t)
-                 (:number :type 'integer))
-                (unique-key '(:source :destination))
-                (foreign-key :source
-                             :references '(:note :id)
-                             :on-delete :cascade
-                             :on-update :cascade)
-                (foreign-key :destination
-                             :references '(:note :id)
-                             :on-delete :cascade
-                             :on-update :cascade))
-  (unless (select :* (from :note) (where (:= :id 0)))
-    (insert-into :note (set= :id 0 :text "A stub: Root node")))) ; add root node
-
-
-(defparameter +msg-note-is-not-chosen+ "Note is not chosen.")
-(defparameter +msg-no-notes+ "There is no notes meeting this criteria.")
-
-
-(defparameter +errmsg-cannot-find-id+ "INTERNAL: No note with such ID")
-
-
-(defun show-note (note)
-  (let ((answer (when note (get-note-by-id note))))
-    (if answer
-      (format *standard-output* "~A~&" (second (first answer)))
-      (error +errmsg-cannot-find-id+))))
-
-
-;;; Wrapper for setting a note
-;;; Every note change should be going through this function
-;;; Unless you what to add some low-level stuff
-(defun set-current-note (note &key ((:update-history update-history) t))
-  (setf *current-note* note)
-  (when note
-    (when update-history
-      nil) ; TODO
-    (when *option-show-note-after-jump*
-      (show-note note))))
-
-
-;;; Returns maximum ID in note table
-(defmacro max-note-id ()
-  `(caar (select :id (from :note) (order-by (:desc :id)) (limit 1))))
-
-
-;;; Returns list of notes with one note (unified format for queries)
-(defun get-note-by-id (id)
-  (select '(:id :text) (from :note) (where (:= :id id))))
 
 
 ;;; Returns list of all notes without parents (no links with destination == note.id)
@@ -111,27 +35,9 @@
 ;    (where (:is-null :link.source))))
 
 
-;;; Four alphanumeric characters is enough for 36 ^ 4 = 1679616 IDs. Which is quite large number.
-(defparameter *zettelkasten-prompt-character-count* 4)
-(defparameter *zettelkasten-prompt-ceiling* (expt 36 *zettelkasten-prompt-character-count*))
-(defparameter *zettelkasten-prompt-prime* 1679609) ; First prime less than ceiling
-(defparameter *zettelkasten-prompt-primitive-root* 839888) ; "Pretty" primitive root, handpicked
-
-
-;;; Try to make some permament ID for notes, but do not show their true number
-;;; (for these perfectionists, who cannot stand automatic sequential ID numbering, like me)
-(defun get-prompt ()
-  ;(when *current-note* (format nil "~36,V,'0R" (1+ (floor (log (max-note-id) 36))) *current-note*)))
-  (when *current-note* (format nil
-                               "~36,V,'0R"
-                               *zettelkasten-prompt-character-count*
-                               (zac.aux:expt-mod *zettelkasten-prompt-primitive-root*
-                                                 *current-note*
-                                                 *zettelkasten-prompt-prime*))))
-
-
 ;;; Find notes from db, using substring
 ;;; Subset of notes can be limited by choosing specific list of IDs
+;;; deprecated
 (defun filter-notes-by-substring (substring &key ((:in note-list) nil))
   (declare (type list note-list))
   (let ((where-clause (list :instr :text substring)))
@@ -140,16 +46,6 @@
     (select :id
             (from :note)
             (where where-clause))))
-
-
-;;; Create where clause for notes with ids from list
-(defun where-note-id-in-list (note-list)
-  (where (:in :id note-list)))
-
-
-;;; Create where clause for searching note by substring
-(defun where-note-has-substring (substring)
-  (where (:instr :text substring)))
 
 
 ; TODO
@@ -209,69 +105,6 @@
 
 
 ;;; HIGH LEVEL (Includes some measure of user interaction)
-
-
-;;; Call editor to edit one or more notes
-(defun edit-notes (&rest clauses)
-  (let* ((old-notes (apply #'d.sql:build-and-query
-                           :select '(:id :text)
-                           (from :note)
-                           clauses))
-         (new-notes (map 'list (lambda (note new-text) (list (first note) new-text))
-                         old-notes
-                         (apply #'edit-strings (map 'list #'second old-notes)))))
-    (when old-notes
-      (apply #'d.sql:build-and-query
-             :update :note
-             (set= :text `(:case :id
-                                 ,@(loop :for new-note :in new-notes
-                                         :collect (cons :when new-note))
-                                 (:else :text)))
-             clauses))))
-
-
-(defparameter +errmsg-no-note-found+ "No such note found.")
-
-
-(defun search-note (substring)
-  (let ((new-note (choose-note-interactive (reduce #'append (filter-notes-by-substring substring)))))
-    (if new-note
-      (set-current-note new-note)
-      (format *standard-output* +errmsg-no-note-found+))))
-
-
-(defparameter *choose-note-prompt* (constantly "note> "))
-(defparameter *choose-link-prompt* (constantly "link> "))
-
-
-(defun get-field-names (fields)
-  (map 'list #'first fields))
-
-
-(defun get-field-dialog-texts (fields)
-  (remove nil (map 'list #'second fields)))
-
-
-(defun get-field-mapping-for-rows (fields)
-  (let ((indices (loop :for element :in (map 'list #'second fields)
-                       :for i :from 0 :to (length fields)
-                       :when element :collect i)))
-    (lambda (row)
-      (map 'list (lambda (i) (nth i row)) indices))))
-
-
-(defun choose-row-from-table-dialog (table-clauses fields prompt &rest clauses)
-  (declare (type list table-clauses fields)
-           (type function prompt))
-  (let* ((found-rows (apply #'d.sql:build-and-query
-                            :select (get-field-names fields)
-                            (append table-clauses
-                                    clauses)))
-         (chosen-row-index (and found-rows (find-row-dialog (get-field-dialog-texts fields)
-                                                            (map 'list (get-field-mapping-for-rows fields) found-rows)
-                                                            :get-index t
-                                                            :prompt-fun prompt))))
-    (when chosen-row-index (nth chosen-row-index found-rows))))
 
 
 ;;; Interactive dialog to choose a note
@@ -364,9 +197,6 @@
 ;;; COMMANDS
 
 
-(defparameter +msg-abort-note-creation+ "Aborted.~&")
-
-
 (defun command-add-note (string match)
   (declare (ignore string match))
   (let ((new-note (first (edit-strings ""))))
@@ -437,14 +267,14 @@
                                                                              (unless closure?
                                                                                (order-by :destination.id)))
                                                      :union-clauses (list-existing (when closure?
-                                                                                     (order-by :destination.id)))))
-         (chosen-note (choose-row-from-table-dialog (list (from selected))
-                                                    '((:id) (:text "Text"))
-                                                    *choose-note-prompt*
-                                                    (where (:!= :id *current-note*)))))
-    (if (null chosen-note)
-      (format *standard-output* +msg-no-notes+)
-      (set-current-note (first chosen-note)))))
+                                                                                     (order-by :destination.id))))))
+    (multiple-value-bind (chosen-note message) (choose-row-from-table-dialog (from selected)
+                                                                             +table-note-fields+
+                                                                             *choose-note-prompt*
+                                                                             (where (:!= :id *current-note*)))
+      (if (null chosen-note)
+        (format *standard-output* message)
+        (set-current-note (first chosen-note))))))
 
 
 ;;; Alternative definition of goto commands
@@ -489,21 +319,28 @@
 ;                                                (d.regex:get-group :name groups))))))))
 
 (defun get-zettelkasten-commands ()
-  (let ((goto-rxs `(("goto"                                                                    ; /goto (forward|back)?(:\\d+)?(\\*)?
-                     ((:type . "forward|back") :optional)
-                     (,(concat ":" (make-named-group :exponent "[1-9]\\d*")) :optional :immediate)
-                     ((:closure . "\\*") :optional :immediate)
-                     ((:substring . ".*") :optional))
-                    ("g"
-                     ((:type . "f|b") :optional :immediate)                                    ; /g(f|b)?(\\d+)?(\\*)?
-                     ((:exponent . "[1-9]\\d*") :optional :immediate)
-                     ((:closure . "\\*") :optional :immediate)
-                     ((:substring . ".*") :optional)))))
+  (let* ((substring-rx ".*")
+         (tags-rx "(?:\\w+,)*\\w+")
+         (goto-rxs `(("goto"                                                                    ; /goto [forward][:<N>][*] [<substring>] | /goto back[:<N>][*] [<substring>]
+                      ((:type . "forward|back") :optional)
+                      (,(concat ":" (make-named-group :exponent "[1-9]\\d*")) :optional :immediate)
+                      ((:closure . "\\*") :optional :immediate)
+                      ((:substring . ,substring-rx) :optional))
+                     ("g"
+                      ((:type . "f|b") :optional :immediate)                                    ; /g[f][<N>][*] [<substring>] | /gb[<N>][*] [<substring>]
+                      ((:exponent . "[1-9]\\d*") :optional :immediate)
+                      ((:closure . "\\*") :optional :immediate)
+                      ((:substring . ,substring-rx) :optional))))
+         (search-rx `("s(?:earch)?"                                                             ; /s[earch] [+tag,tag,...] [-tag,tag,...] <substring>
+                      (,(concat "\\+" (make-named-group :ptags tags-rx)) :optional)
+                      (,(concat "-" (make-named-group :ntags tags-rx)) :optional)
+                      (:substring . ,substring-rx))))
     ;; Simple commands
     (zac.cmd:make-commands-from-wrappers
       (zac.cmd:generate-wrappers '(("add" "note") ("an")) #'command-add-note
                                  '(("note") ("n")) #'command-note
                                  '("home") #'command-home
+                                 search-rx #'command-search-note
                                  goto-rxs #'command-goto))))
 
 

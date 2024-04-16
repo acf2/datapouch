@@ -203,6 +203,12 @@
   `(rest (assoc (string ,name) ,groups :test #'string=)))
 
 
+(defun is-group (name groups &rest options)
+  (some (lambda (option)
+          (string= (get-group name groups) option))
+        options))
+
+
 ; command-regex    = regex
 ; argument-regexes = nil | (argument-regex...)
 ; argument-regex   = regex | (regex modifier...)

@@ -66,22 +66,22 @@
 ;;; Read one form from interactive-input
 ;;; Returns three values:
 ;;;   form, read from input
-;;;   buffer, unused characters
 ;;;   is-eof, boolean value
+;;;   buffer, unused characters
 (defun read-form (buffer prompt-fun)
   (declare (type string buffer)
            (type function prompt-fun))
   (multiple-value-bind (previous-form new-buffer) (try-to-read-form buffer)
     (if previous-form
-      (values previous-form new-buffer nil)
+      (values previous-form nil new-buffer)
       (loop :for (line is-eof) = (multiple-value-list (readline new-buffer prompt-fun))
             :with form
-            :when is-eof :return (values nil new-buffer t)
+            :when is-eof :return (values nil t new-buffer)
             :when (null line) :do (error (make-instance 'end-of-file))
             :do (setf new-buffer (string-left-trim +default-space-characters+
                                                    (concatenate 'string new-buffer +default-line-separator+ line +default-line-separator+)))
             :do (multiple-value-setq (form new-buffer) (try-to-read-form new-buffer))
-            :when form :return (values form new-buffer nil)))))
+            :when form :return (values form nil new-buffer)))))
 
 
 
@@ -114,12 +114,14 @@
       (setf *there-is-no-fresh-line-now* nil)
       (terpri out))
     (handler-case
-      (multiple-value-bind (form new-buffer eof)
+      (multiple-value-bind (form eof new-buffer)
         (let ((*readtable* *custom-readtable*))
           (read-form *buffer* *prompt-fun*))
-        (when eof
+        (when (or eof *there-is-no-fresh-line-now*)
           ;; Why fresh-line does not work here? [2]
           (terpri out)
+          (setf *there-is-no-fresh-line-now* nil))
+        (when eof
           (sb-ext:quit))
         (setf *buffer* new-buffer)
         form)

@@ -32,7 +32,7 @@
     (when query-fun
       (funcall query-fun))
     (finish-output *standard-output*)
-    (loop :for (form _ eof) = (multiple-value-list (funcall read-fun "" prompt-fun))
+    (loop :for (form eof) = (multiple-value-list (funcall read-fun "" prompt-fun))
           :for (is-acceptable filtered-input) = (multiple-value-list (funcall input-handler form))
           :if eof :return nil
           :else :if is-acceptable :return filtered-input
@@ -123,11 +123,11 @@
 
 
 (defun find-row-dialog (column-names rows &key ((:choose-many choose-many) nil)
-                                     ((:prompt-msg prompt-msg) (if choose-many "Enter row numbers:~&" "Enter row number:~&"))
-                                     ((:error-msg error-msg) "Please, try again.~&")
-                                     ((:id-column-name id-column-name) "Row number")
-                                     ((:get-index get-index) nil)
-                                     ((:prompt-fun prompt-fun) *prompt-fun*))
+                                               ((:prompt-msg prompt-msg) (if choose-many "Enter row numbers:~&" "Enter row number:~&"))
+                                               ((:error-msg error-msg) "Please, try again.~&")
+                                               ((:id-column-name id-column-name) "Row number")
+                                               ((:get-index get-index) nil)
+                                               ((:prompt-fun prompt-fun) *prompt-fun*))
   (cond ((= (length rows) 0) nil)
         ((= (length rows) 1) (if get-index 0 (first rows)))
         (:else (dialog :query-fun (lambda (&optional (error-form nil error-form-supplied?))
@@ -152,10 +152,10 @@
                                                                         (map 'list #'1- numbers)
                                                                         (1- numbers)))
                                                  (get-rows (numbers) (if choose-many
-                                                                       (map 'list (lambda (r)
-                                                                                    (nth (1- r) rows))
-                                                                            numbers)
-                                                                       (nth (1- numbers) rows))))
+                                                                       (map 'list
+                                                                            (lambda (i) (nth i rows))
+                                                                            (index-fun numbers))
+                                                                       (nth (index-fun numbers) rows))))
                                           (let* ((input (filter-input unfiltered-input))
                                                  (accepted (is-input-accepted? input)))
                                             (values accepted

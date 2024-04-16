@@ -9,6 +9,7 @@
   (:nicknames :d.aux)
   (:export #:list-existing
            #:list-existing*
+           #:ensure-list
            #:append-lists
            #:rotate
            #:repeat-string))
@@ -27,7 +28,7 @@
            #:interchange
            #:interchange-three
            #:scan-named-groups
-           #:get-group
+           #:get-group #:is-group
            #:regex-scanner #:scanner
            #:make-scanner
            #:make-command-regex-scanner))
@@ -172,6 +173,7 @@
            #:*table-metaformat*
            #:*table-pad-width*
            #:*get-table-name-delimiter*
+           #:dialog
            #:rotate
            #:find-max-field-widths
            #:pretty-print-rows
