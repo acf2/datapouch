@@ -244,6 +244,11 @@
 (defun build-select-notes-through-links (&key ((:backward backward?) nil)
                                               ((:depth exponent) 1)
                                               ((:closure closure?) nil)
+                                              ((:link-name-generator link-name-generator) (lambda (&optional index)
+                                                                                            (zac.aux:make-name :table :link
+                                                                                                               :index index)))
+                                              ((:starting-table-alias starting-table-alias) :source)
+                                              ((:ending-table-alias ending-table-alias) :destination)
                                               ((:fields fields) (list :id))
                                               ((:clauses clauses) nil)
                                               ((:union-clauses union-clauses) nil))
@@ -252,17 +257,14 @@
   (let* ((source-column (if (not backward?) :source :destination))
          (destination-column (if (not backward?) :destination :source)))
     (labels ((build-select (chain-length) (apply #'build :select
-                                                 (map 'list (lambda (column)
-                                                              (zac.aux:make-name :table :destination
-                                                                                 :column column))
-                                                      fields)
+                                                 fields
                                                  (append
                                                    (zac.aux:get-chained-table-expression chain-length
                                                                                          :note :id
-                                                                                         :link source-column destination-column
+                                                                                         link-name-generator source-column destination-column
                                                                                          :note :id
-                                                                                         :starting-table-alias :source
-                                                                                         :ending-table-alias :destination)
+                                                                                         :starting-table-alias starting-table-alias
+                                                                                         :ending-table-alias ending-table-alias)
                                                    clauses)))
              (build-union (max-chain-length) (apply #'build :union-queries
                                                     (append
@@ -283,7 +285,7 @@
          (closure? (not (null (get-group :closure match))))
          (selected (build-select-notes-through-links :backward backward?
                                                      :depth exponent
-                                                     :fields (list :id :text)
+                                                     :fields (list :destination.id :destination.text)
                                                      :closure closure?
                                                      :clauses (list-existing (where (:= :source.id *current-note*))
                                                                              (unless closure?
