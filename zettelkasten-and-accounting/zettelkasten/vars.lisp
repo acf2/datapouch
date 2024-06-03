@@ -4,6 +4,10 @@
 (in-package :zac.box)
 
 
+(defparameter *choose-note-prompt* (constantly "note> "))
+(defparameter *choose-link-prompt* (constantly "link> "))
+
+
 (defparameter *current-note* nil)
 
 ;; History

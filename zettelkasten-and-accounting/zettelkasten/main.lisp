@@ -15,17 +15,6 @@
 (in-package :zac.box)
 
 
-;;; TBD
-;;; [x] Root node with fixed ID?
-;;; [x] Backlinks?
-;;; [x] Closure (kleene star) on links/backlinks?
-;;; [ ] history
-;;; [ ] sequential read (like in normal zettelkasten?)
-;;; [ ] fetch random note
-;;; [ ] Make implicit tags mechanic (alt - workspace defined by tags)
-;;;     Or should I? Maybe it's not that bright of an idea
-
-
 ;;; Returns list of all notes without parents (no links with destination == note.id)
 ;;; There should be only one such a note in normal zettelkasten
 ;(defun get-orphans ()
@@ -156,6 +145,39 @@
 ;(defun jump-link (
 
 
+;;; TBD
+;;; [ ] Core functions
+;;;   [x] Root node with fixed ID?
+;;;   [ ] add note
+;;;     [x] just add
+;;;     [ ] add and go
+;;;         A la "continue"; like it's just another part of a whole document/sequence?
+;;;         Use number 0 for it?
+;;;         Then:
+;;;       [ ] sequential read (like in normal zettelkasten?)
+;;;   [ ] remove note
+;;;     [ ] Using links as a means of direction? Search?
+;;;       [ ] backlinks?
+;;;   [ ] add links
+;;;     [ ] backlinks?
+;;;   [ ] remove links
+;;;     [ ] from backlinks only?
+;;;   [x] goto / search
+;;;     [x] Backlinks?
+;;;     [x] Closure (kleene star) on links/backlinks?
+;;; [ ] History
+;;;   [ ] History support
+;;;   [ ] History traversal
+;;; [ ] Tags ???
+;;;   [ ] Tags tables + add / remove / list
+;;;   [ ] Tagging notes
+;;;   [ ] Goto / Search with tags
+;;;   [ ] Tag workspaces
+;;;       Implicit tags mechanic (alt - workspace defined by tags)
+;;;       Or should I? Maybe it's not that bright of an idea
+;;; [ ] Goto random note?
+
+;;; COMMAND HELP / TODO
 ;;; /note (/n) - open text editor for current note +
 ;;; goto != jump
 ;;;   /goto forward/back/any:N* [+tags] [-tags] <substring> (/gfN* +-, /gbN* +-, /gaN* +-) - interactive link choice from current note: possibly filtered by substring
@@ -336,12 +358,12 @@
                       (,(concat "-" (make-named-group :ntags tags-rx)) :optional)
                       (:substring . ,substring-rx))))
     ;; Simple commands
-    (zac.cmd:make-commands-from-wrappers
-      (zac.cmd:generate-wrappers '(("add" "note") ("an")) #'command-add-note
-                                 '(("note") ("n")) #'command-note
-                                 '("home") #'command-home
-                                 search-rx #'command-search-note
-                                 goto-rxs #'command-goto))))
+    (generate-commands
+      (create-shell-commands '(("add" "note") ("an")) #'command-add-note "Adding note"
+                             '(("note") ("n")) #'command-note "Edit current note"
+                             '("home") #'command-home "Go to root note"
+                             search-rx #'command-search-note "Search by substring across all zettelkasten"
+                             goto-rxs #'command-goto "Go to specific note using links, starting from current one"))))
 
 
 ;;; SERVICE

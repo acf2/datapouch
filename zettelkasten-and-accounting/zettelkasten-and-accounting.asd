@@ -6,7 +6,6 @@
   :author "Dmitry Kiselev"
   :components ((:file "packages")
                (:file "auxiliary" :depends-on ("packages"))
-               (:file "command-wrapper" :depends-on ("packages"))
 
                (:file "zettelkasten/vars" :depends-on ("packages"))
                (:file "zettelkasten/schema" :depends-on ("packages"))
@@ -14,8 +13,8 @@
                (:file "zettelkasten/basic-interface" :depends-on ("zettelkasten/vars" "zettelkasten/schema" "zettelkasten/prompt" "auxiliary"))
                (:file "zettelkasten/search" :depends-on ("zettelkasten/basic-interface"))
 
-               (:file "zettelkasten/main" :depends-on ("command-wrapper" "zettelkasten/basic-interface" "zettelkasten/search"))
+               (:file "zettelkasten/main" :depends-on ("zettelkasten/basic-interface" "zettelkasten/search"))
 
-               (:file "bookkeeping" :depends-on ("packages" "command-wrapper" "auxiliary"))
-               (:file "main" :depends-on ("packages" "zettelkasten/main" "bookkeeping" "command-wrapper")))
+               (:file "bookkeeping" :depends-on ("packages" "auxiliary"))
+               (:file "main" :depends-on ("packages" "zettelkasten/main" "bookkeeping")))
   :depends-on (:datapouch))

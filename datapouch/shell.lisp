@@ -1,7 +1,7 @@
-;;;; command-wrapper.lisp
+;;;; shell.lisp
 
 
-(in-package :zac.command-wrapper)
+(in-package :datapouch.shell)
 
 
 (defun acceptable-regex? (arg)
@@ -48,7 +48,7 @@
                             :format-arguments 'make-simple-command-scanner)))))
 
 
-(defclass command-wrapper ()
+(defclass shell-command ()
   ((s-forms :initarg :s-forms
             :reader s-forms)
    (parsers :initarg :parsers
@@ -59,11 +59,11 @@
          :reader :docs)))
 
 
-(defgeneric add-command-form (command-wrapper command-s-form &rest other-command-forms)
-  (:documentation "Add another s-form for this command-wrapper handler to handle"))
+(defgeneric add-shell-command-form (shell-command command-s-form &rest other-command-forms)
+  (:documentation "Add another s-form for this shell-command handler to handle"))
 
 
-(defmethod add-command-form ((command command-wrapper) command-s-form &rest other-command-s-forms)
+(defmethod add-shell-command-form ((command shell-command) command-s-form &rest other-command-s-forms)
   (with-slots (s-forms parsers) command
     (loop :for new-s-form :in (cons command-s-form other-command-s-forms) :do
           (push new-s-form s-forms)
@@ -71,9 +71,9 @@
     command))
 
 
-(defun make-command-wrapper (command-s-form handler &optional docs)
+(defun make-shell-command (command-s-form handler &optional docs)
   (let ((multiple-command-forms? (listp (first command-s-form))))
-    (make-instance 'command-wrapper
+    (make-instance 'shell-command
                    :s-forms (if multiple-command-forms?
                               command-s-form
                               (list command-s-form))
@@ -86,22 +86,23 @@
                    :docs docs)))
 
 
-(defun make-commands-from-wrappers (command-wrappers)
-  (loop :for command-wrapper :in command-wrappers
-        :append (loop :for s-forms = (s-forms command-wrapper) :then (rest s-forms)
-                      :for parsers = (parsers command-wrapper) :then (rest parsers)
+(defun generate-commands (shell-commands)
+  (loop :for shell-command :in shell-commands
+        :append (loop :for s-forms = (s-forms shell-command) :then (rest s-forms)
+                      :for parsers = (parsers shell-command) :then (rest parsers)
                       :for current-s-form = (first s-forms)
                       :for current-parser = (first parsers)
                       :while s-forms
                       :while parsers
                       :collect (make-instance 'command
                                               :regex current-parser
-                                              :handler (handler command-wrapper)))))
+                                              :handler (handler shell-command)))))
 
 
-(defmacro generate-wrappers (&rest cmd-defs)
-  `(list ,@(loop :for all-cmds := cmd-defs :then (cddr all-cmds)
+(defmacro create-shell-commands (&rest cmd-defs)
+  `(list ,@(loop :for all-cmds := cmd-defs :then (cdddr all-cmds)
                  :for cmd-rx := (first all-cmds)
                  :for cmd-handler := (second all-cmds)
+                 :for cmd-docs := (third all-cmds)
                  :while all-cmds
-                 :collect `(make-command-wrapper ,cmd-rx ,cmd-handler))))
+                 :collect `(make-shell-command ,cmd-rx ,cmd-handler ,cmd-docs))))

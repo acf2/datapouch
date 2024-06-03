@@ -15,16 +15,6 @@
            #:get-table-power-expression))
 
 
-(defpackage :zac.command-wrapper
-  (:use #:cl #:datapouch)
-  (:nicknames :zac.cmd)
-  (:export #:command-wrapper
-           #:add-command-form
-           #:make-command-wrapper
-           #:make-commands-from-wrappers
-           #:generate-wrappers))
-
-
 (defpackage :zac.zettelkasten
   (:use #:cl #:datapouch)
   (:nicknames :zac.box)
@@ -62,4 +52,4 @@
 
 (defpackage :zac.user
   (:use #:cl #:datapouch
-        #:zac.cmd #:zac.box #:zac.book #:zac.main))
+        #:zac.box #:zac.book #:zac.main))

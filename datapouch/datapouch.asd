@@ -14,5 +14,6 @@
                (:file "sql" :depends-on ("packages" "auxiliary" "filesystem"))
                (:file "crypto" :depends-on ("packages" "filesystem"))
                (:file "interaction" :depends-on ("packages" "auxiliary" "cli" "regex-support"))
-               (:file "main" :depends-on ("packages" "cli" "reader-macro" "sql" "editor" "filesystem" "crypto")))
+               (:file "shell" :depends-on ("packages" "regex-support" "reader-macro"))
+               (:file "main" :depends-on ("packages" "cli" "shell" "sql" "editor" "filesystem" "crypto")))
   :depends-on (:cl-readline :cl-ppcre :sqlite :sxql :cl-reexport :local-time :uiop :ironclad))

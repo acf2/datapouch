@@ -52,10 +52,6 @@
              clauses))))
 
 
-(defparameter *choose-note-prompt* (constantly "note> "))
-(defparameter *choose-link-prompt* (constantly "link> "))
-
-
 (defun get-field-names (fields)
   (map 'list #'first fields))
 

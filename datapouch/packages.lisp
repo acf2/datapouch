@@ -147,6 +147,16 @@
            #:edit-strings))
 
 
+(defpackage :datapouch.shell
+  (:use #:cl #:d.rmacro)
+  (:nicknames :d.shell)
+  (:export #:shell-command
+           #:add-shell-command-form
+           #:make-shell-command
+           #:generate-commands
+           #:create-shell-commands))
+
+
 (defpackage :datapouch.main
   (:use #:cl #:uiop #:d.fs #:d.edit)
   (:nicknames :d.main)
@@ -199,5 +209,6 @@
 (cl-reexport:reexport-from :datapouch.crypto)
 (cl-reexport:reexport-from :datapouch.editor)
 (cl-reexport:reexport-from :datapouch.interaction)
+(cl-reexport:reexport-from :datapouch.shell)
 (cl-reexport:reexport-from :datapouch.main)
 (in-package :cl-user)
