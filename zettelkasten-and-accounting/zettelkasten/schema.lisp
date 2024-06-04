@@ -34,3 +34,4 @@
 
 
 (defparameter +table-note-fields+ (list (list :id) (list :text "Text")))
+(defparameter +table-link-fields+ (list (list :source) (list :destination) (list :number "Number")))

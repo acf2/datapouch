@@ -148,6 +148,7 @@
 ;;; TBD
 ;;; [ ] Core functions
 ;;;   [ ] Pretty print links/notes from current one -> goto, links
+;;;     [ ] show numbering?
 ;;;   [x] Root node with fixed ID?
 ;;;   [ ] add note
 ;;;     [x] just add
@@ -159,16 +160,23 @@
 ;;;   [ ] remove note
 ;;;     [ ] Using links as a means of direction? Search?
 ;;;       [ ] backlinks?
+;;;   [x] show link/backlinks
 ;;;   [ ] add links
 ;;;     [ ] backlinks?
+;;;     [ ] Type of additions?
+;;;       [ ] Through search
+;;;       [ ] Through history
+;;;       [ ] Freeform?
+;;;     [ ] Link two other notes?
+;;;       [ ] Through links? 
 ;;;   [ ] remove links
 ;;;     [ ] from backlinks only?
 ;;;   [x] goto / search
 ;;;     [x] Backlinks?
 ;;;     [x] Closure (kleene star) on links/backlinks?
-;;; [ ] History
-;;;   [ ] History support
-;;;   [ ] History traversal
+;;;   [ ] History
+;;;     [ ] History support
+;;;     [ ] History traversal
 ;;; [ ] Tags ???
 ;;;   [ ] Tags tables + add / remove / list
 ;;;   [ ] Tagging notes
@@ -181,18 +189,18 @@
 ;;; COMMAND HELP / TODO
 ;;; /note (/n) - open text editor for current note +
 ;;; goto != jump
-;;;   /goto forward/back/any:N* [+tags] [-tags] <substring> (/gfN* +-, /gbN* +-, /gaN* +-) - interactive link choice from current note: possibly filtered by substring
+;;;   /goto forward/back/any N* [+tags] [-tags] <substring> (/gfN* +-, /gbN* +-, /gaN* +-) - interactive link choice from current note: possibly filtered by substring
 ;;;   /jump <N1> ... <Nm> (/j) - special command for non-interative link choice, can be chained to form "paths" of links
 ;;;                              Only forward. Somewhat service value for big Zettelkastens.
 ;;;                              Number - number of a link, if exists (or text inside note)
 ;;;                              Text - text inside note
 ;;;   /search [+tags] [-tags] <substring> (/s) - global goto substring (slow)
-;;; /<linkcommand>[*] <N> - show links from this note in forward/backward/all directions
-;;;                         number after the command shows how much times zt should travel
-;;;                         asterisk shows if closure is needed (all levels deep notes from 1 to N will be shown)
+;;; /<linkcommand> N* - show links from this note in forward/backward/all directions
+;;;                     number after the command shows how much times zt should travel
+;;;                     asterisk shows if closure is needed (all levels deep notes from 1 to N will be shown)
 ;;;   /links (/l)
-;;;   /backlinks (/bl)
-;;;   /connections (/al)
+;;;   /links back (/lb)
+;;;   /connections (/la) - kinda too complex for now, if accounting for closure option
 ;;;   /goto + /<linkcommand>?
 ;;;
 ;;; /add (/a), /remove (/r) + note (n), link (l)
@@ -289,44 +297,119 @@
                                         path)))
 
 
-(defun row-transformation-for-goto (rows &key ((:backward backward?) nil))
+(defun row-transformation-without-pathing (rows &key ((:number-stub number-stub) "") ((:continue-stub continue-stub) "->"))
+  (map 'list (lambda (row)
+               (let* ((index (first row))
+                      (transformed-row (rest row))
+                      (number (getf transformed-row :number)))
+                 (list-existing index
+                                (getf transformed-row :text)
+                                (if number (if (= number 0)
+                                             continue-stub
+                                             number)
+                                  number-stub))))
+       rows))
+
+
+(defun row-transformation-for-pathing (rows &key ((:backward backward?) nil))
   ;(format t "ROWS: ~A~&" rows)
   (let ((id-mapping (map 'list (lambda (row)
-                                 (list (third row) (first row)))
+                                 (let ((index (first row))
+                                       (transformed-row (rest row)))
+                                   (list (getf transformed-row :id) index)))
                          rows)))
     ;(format t "ID MAP: ~A~&" id-mapping)
     (map 'list (lambda (row)
-                 (let ((path (map 'list (lambda (note-id)
-                                          (second (assoc note-id id-mapping)))
-                                  (list-existing* (cdddr row)))))
-                   (list (first row)
-                         (note-path-to-string (if backward? (reverse path) path))
-                         (second row))))
+                 (let* ((index (first row))
+                        (transformed-row (rest row))
+                        (pretty-path (map 'list (lambda (note-id)
+                                                  (second (assoc note-id id-mapping)))
+                                          (getf transformed-row :path))))
+                   (list index
+                         (note-path-to-string (if backward? (reverse pretty-path) pretty-path))
+                         (getf transformed-row :text))))
          rows)))
 
 
-(defun command-goto (string match)
-  (declare (ignore string))
+(defun parse-link-parameters (match)
   (let* ((backward? (and (get-group :type match)
                          (or (string= (get-group :type match) "back")
                              (string= (get-group :type match) "b"))))
          (exponent (if (get-group :exponent match)
                      (parse-integer (get-group :exponent match))
                      1))
-         (closure? (not (null (get-group :closure match))))
-         (target-column (if (not backward?) :destination :source)))
-    (labels ((get-fields-for-join-chain (chain-length) (loop :for index :from 0 :to (1- chain-length)
-                                                             :collect (make-name :table :link
-                                                                                 :index index
-                                                                                 :column target-column)))
-             (fields-generator (chain-length) (list* :destination.text
-                                                     :destination.id
-                                                     (when closure? (get-fields-for-join-chain chain-length)))))
-      (let* ((selected (build-select-notes-through-links :backward backward?
+         (closure? (not (null (get-group :closure match)))))
+    (values backward? exponent closure?)))
+
+
+(defun command-goto (string match)
+  (declare (ignore string))
+  (multiple-value-bind (backward? exponent closure?) (parse-link-parameters match)
+    (let* ((target-column (if (not backward?) :destination :source))
+           (show-numbers? (and (not closure?)
+                               (= exponent 1))))
+      (labels ((link-name-gen (&optional index column) (make-name :table :link
+                                                                  :index index
+                                                                  :column column))
+               (get-fields-for-join-chain (chain-length) (loop :for index :from 0 :to (1- chain-length)
+                                                               :collect (link-name-gen index target-column)))
+               (fields-generator (chain-length) (list-existing* :destination.text
+                                                                :destination.id
+                                                                (when show-numbers? (link-name-gen 0 :number))
+                                                                (when closure? (get-fields-for-join-chain chain-length)))))
+        (let* ((found-rows (query (build-select-notes-through-links :backward backward?
+                                                                    :depth exponent
+                                                                    :link-name-generator #'link-name-gen
+                                                                    :fields #'fields-generator
+                                                                    :closure closure?
+                                                                    :clauses (list-existing (where (:= :source.id *current-note*))
+                                                                                            (unless closure?
+                                                                                              (apply #'build :order-by (list-existing (when show-numbers?
+                                                                                                                                        (link-name-gen 0 :number))
+                                                                                                                                      :destination.id))))
+                                                                    :union-clauses (list-existing (when closure?
+                                                                                                    (apply #'build :order-by
+                                                                                                           (reverse (get-fields-for-join-chain exponent))))))))
+               (transformed-rows (map 'list (lambda (row)
+                                              (append (list :text (first row))
+                                                      (list :id (second row))
+                                                      (when show-numbers? (list :number (third row)))
+                                                      (when closure? (list :path (list-existing* (cddr row))))))
+                                      found-rows))
+               (column-names (list-existing (when closure? "Path")
+                                            (second (assoc :text +table-note-fields+))
+                                            (when show-numbers? (second (assoc :number +table-link-fields+)))))
+               (chosen-row-index (and transformed-rows (find-row-dialog column-names
+                                                                        transformed-rows
+                                                                        :row-transformation-function (if closure?
+                                                                                                       (lambda (rows)
+                                                                                                         (row-transformation-for-pathing rows :backward backward?))
+                                                                                                       #'row-transformation-without-pathing)
+                                                                        :get-index t
+                                                                        :prompt-fun *choose-note-prompt*))))
+          (cond ((null found-rows)
+                 (format *standard-output* +msg-no-notes+))
+                ((null chosen-row-index)
+                 (format *standard-output* +msg-note-is-not-chosen+))
+                (:else
+                  (set-current-note (getf (nth chosen-row-index transformed-rows) :id)))))))))
+
+
+(defun command-links (string match)
+  (declare (ignore string))
+  (multiple-value-bind (backward? exponent closure?) (parse-link-parameters match)
+    (let* ((target-column (if (not backward?) :destination :source)))
+      (labels ((link-name-gen (&optional index column) (make-name :table :link
+                                                                  :index index
+                                                                  :column column))
+               (get-fields-for-join-chain (chain-length) (loop :for index :from 0 :to (1- chain-length)
+                                                               :collect (link-name-gen index target-column)))
+               (fields-generator (chain-length) (list* :destination.text
+                                                       :destination.id
+                                                       (when closure? (get-fields-for-join-chain chain-length)))))
+      (let* ((found-rows (query (build-select-notes-through-links :backward backward?
                                                          :depth exponent
-                                                         :link-name-generator (lambda (&optional index)
-                                                                                (make-name :table :link
-                                                                                           :index index))
+                                                         :link-name-generator #'link-name-gen
                                                          :fields #'fields-generator
                                                          :closure closure?
                                                          :clauses (list-existing (where (:= :source.id *current-note*))
@@ -334,25 +417,15 @@
                                                                                    (order-by :destination.id)))
                                                          :union-clauses (list-existing (when closure?
                                                                                          (apply #'build :order-by
-                                                                                                (get-fields-for-join-chain exponent))))))
-             (found-rows (d.sql:build-and-query :select :*
-                                                (from selected)
-                                                (where (:!= :id *current-note*))))
+                                                                                                (get-fields-for-join-chain exponent)))))))
              (column-names (list-existing (when closure? "Path") (second (assoc :text +table-note-fields+))))
-             (chosen-row-index (and found-rows (find-row-dialog column-names
-                                                                found-rows
-                                                                :row-transformation-function (if closure?
-                                                                                               (lambda (rows)
-                                                                                                 (row-transformation-for-goto rows :backward backward?))
-                                                                                               #'identity)
-                                                                :get-index t
-                                                                :prompt-fun *choose-note-prompt*))))
-        (cond ((null found-rows)
-               (format *standard-output* +msg-no-notes+))
-              ((null chosen-row-index)
-               (format *standard-output* +msg-note-is-not-chosen+))
-              (:else
-                (set-current-note (second (nth chosen-row-index found-rows)))))))))
+             (transformed-rows (if closure?
+                                 (map 'list #'cdr (row-transformation-for-pathing (loop :for row :in found-rows
+                                                                                     :for i :from 1 to (length found-rows)
+                                                                                     :collect (cons i row))
+                                                                               :backward backward?))
+                                 found-rows)))
+        (pretty-print-table column-names transformed-rows))))))
 
 
 ;;; Alternative definition of goto commands
@@ -398,28 +471,36 @@
 
 (defun get-zettelkasten-commands ()
   (let* ((substring-rx ".*")
+         (substring-arguments `(((:substring . ,substring-rx) :optional)))
          (tags-rx "(?:\\w+,)*\\w+")
-         (goto-rxs `(("goto"                                                                    ; /goto [forward][:<N>][*] [<substring>] | /goto back[:<N>][*] [<substring>]
-                      ((:type . "forward|back") :optional)
-                      (,(concat ":" (make-named-group :exponent "[1-9]\\d*")) :optional :immediate)
-                      ((:closure . "\\*") :optional :immediate)
-                      ((:substring . ,substring-rx) :optional))
-                     ("g"
-                      ((:type . "f|b") :optional :immediate)                                    ; /g[f][<N>][*] [<substring>] | /gb[<N>][*] [<substring>]
-                      ((:exponent . "[1-9]\\d*") :optional :immediate)
-                      ((:closure . "\\*") :optional :immediate)
-                      ((:substring . ,substring-rx) :optional))))
-         (search-rx `("s(?:earch)?"                                                             ; /s[earch] [+tag,tag,...] [-tag,tag,...] <substring>
-                      (,(concat "\\+" (make-named-group :ptags tags-rx)) :optional)
-                      (,(concat "-" (make-named-group :ntags tags-rx)) :optional)
-                      (:substring . ,substring-rx))))
+         (tag-arguments `((,(concat "\\+" (make-named-group :ptags tags-rx)) :optional)
+                          (,(concat "-" (make-named-group :ntags tags-rx)) :optional)))
+         (link-arguments `(((:type . "forward|back") :optional)
+                           ((:exponent . "[1-9]\\d*") :optional)
+                           ((:closure . "\\*") :optional :immediate)
+                           ,@tag-arguments
+                           ,@substring-arguments))
+         (short-link-arguments `(((:type . "f|b") :optional :immediate)
+                                 ((:exponent . "[1-9]\\d*") :optional :immediate)
+                                 ((:closure . "\\*") :optional :immediate)
+                                 ,@tag-arguments
+                                 ,@substring-arguments))
+         (goto-rxs `(("goto" ,@link-arguments)       ; /goto [forward][:<N>][*] [<substring>] | /goto back[:<N>][*] [<substring>]
+                     ("g" ,@short-link-arguments)))  ; /g[f][<N>][*] [<substring>] | /gb[<N>][*] [<substring>]
+         (search-rxs `("s(?:earch)?"                                                             ; /s[earch] [+tag,tag,...] [-tag,tag,...] <substring>
+                       ,@tag-arguments
+                       ,@substring-arguments))
+         (links-rxs `(("links" ,@link-arguments)
+                      ("l" ,@short-link-arguments))))
     ;; Simple commands
     (generate-commands
       (create-shell-commands '(("add" "note") ("an")) #'command-add-note "Adding note"
                              '(("note") ("n")) #'command-note "Edit current note"
                              '("home") #'command-home "Go to root note"
-                             search-rx #'command-search-note "Search by substring across all zettelkasten"
-                             goto-rxs #'command-goto "Go to specific note using links, starting from current one"))))
+                             search-rxs #'command-search-note "Search by substring across all zettelkasten"
+                             goto-rxs #'command-goto "Go to specific note using links, starting from current one"
+                             links-rxs #'command-links "Show links from this note with specified parameters"))))
+
 
 
 ;;; SERVICE
