@@ -147,6 +147,7 @@
 
 ;;; TBD
 ;;; [ ] Core functions
+;;;   [ ] Pretty print links/notes from current one -> goto, links
 ;;;   [x] Root node with fixed ID?
 ;;;   [ ] add note
 ;;;     [x] just add
@@ -239,25 +240,31 @@
     (set-current-note 0)))
 
 
-;;; TODO: Maybe add an ability to choose table aliases?
-;;;       Too much additional complexity for now
+;;; fields is a function of one argument - how long join-chain is supposed to be in this select
 (defun build-select-notes-through-links (&key ((:backward backward?) nil)
                                               ((:depth exponent) 1)
                                               ((:closure closure?) nil)
                                               ((:link-name-generator link-name-generator) (lambda (&optional index)
-                                                                                            (zac.aux:make-name :table :link
-                                                                                                               :index index)))
+                                                                                            (make-name :table :link
+                                                                                                       :index index)))
                                               ((:starting-table-alias starting-table-alias) :source)
                                               ((:ending-table-alias ending-table-alias) :destination)
-                                              ((:fields fields) (list :id))
+                                              ((:fields fields) (lambda (chain-length)
+                                                                  (declare (ignore chain-length))
+                                                                  :id))
                                               ((:clauses clauses) nil)
                                               ((:union-clauses union-clauses) nil))
   (declare (type boolean backward? closure?)
            (type integer exponent))
   (let* ((source-column (if (not backward?) :source :destination))
-         (destination-column (if (not backward?) :destination :source)))
-    (labels ((build-select (chain-length) (apply #'build :select
-                                                 fields
+         (destination-column (if (not backward?) :destination :source))
+         (max-fields-length (length (funcall fields exponent))))
+    (labels ((get-padded-fields (chain-length) (let ((current-fields (funcall fields chain-length)))
+                                                 (append current-fields
+                                                         (loop :for i :from (1+ (length current-fields)) :to max-fields-length
+                                                               :collect :null))))
+             (build-select (chain-length) (apply #'build :select
+                                                 (get-padded-fields chain-length)
                                                  (append
                                                    (zac.aux:get-chained-table-expression chain-length
                                                                                          :note :id
@@ -268,10 +275,34 @@
                                                    clauses)))
              (build-union (max-chain-length) (apply #'build :union-queries
                                                     (append
-                                                      (loop :for i :from 0 :to max-chain-length
+                                                      (loop :for i :from 1 :to max-chain-length
                                                             :collect (build-select i))
                                                       union-clauses))))
       (funcall (if closure? #'build-union #'build-select) exponent))))
+
+
+(defun note-path-to-string (path &optional (nil-string "N"))
+  (format nil "~{~#[~;~A~:;~A->~]~}" (map 'list (lambda (x)
+                                                (if (null x)
+                                                  nil-string
+                                                  x))
+                                        path)))
+
+
+(defun row-transformation-for-goto (rows &key ((:backward backward?) nil))
+  ;(format t "ROWS: ~A~&" rows)
+  (let ((id-mapping (map 'list (lambda (row)
+                                 (list (third row) (first row)))
+                         rows)))
+    ;(format t "ID MAP: ~A~&" id-mapping)
+    (map 'list (lambda (row)
+                 (let ((path (map 'list (lambda (note-id)
+                                          (second (assoc note-id id-mapping)))
+                                  (list-existing* (cdddr row)))))
+                   (list (first row)
+                         (note-path-to-string (if backward? (reverse path) path))
+                         (second row))))
+         rows)))
 
 
 (defun command-goto (string match)
@@ -283,22 +314,45 @@
                      (parse-integer (get-group :exponent match))
                      1))
          (closure? (not (null (get-group :closure match))))
-         (selected (build-select-notes-through-links :backward backward?
-                                                     :depth exponent
-                                                     :fields (list :destination.id :destination.text)
-                                                     :closure closure?
-                                                     :clauses (list-existing (where (:= :source.id *current-note*))
-                                                                             (unless closure?
-                                                                               (order-by :destination.id)))
-                                                     :union-clauses (list-existing (when closure?
-                                                                                     (order-by :destination.id))))))
-    (multiple-value-bind (chosen-note message) (choose-row-from-table-dialog (from selected)
-                                                                             +table-note-fields+
-                                                                             *choose-note-prompt*
-                                                                             (where (:!= :id *current-note*)))
-      (if (null chosen-note)
-        (format *standard-output* message)
-        (set-current-note (first chosen-note))))))
+         (target-column (if (not backward?) :destination :source)))
+    (labels ((get-fields-for-join-chain (chain-length) (loop :for index :from 0 :to (1- chain-length)
+                                                             :collect (make-name :table :link
+                                                                                 :index index
+                                                                                 :column target-column)))
+             (fields-generator (chain-length) (list* :destination.text
+                                                     :destination.id
+                                                     (when closure? (get-fields-for-join-chain chain-length)))))
+      (let* ((selected (build-select-notes-through-links :backward backward?
+                                                         :depth exponent
+                                                         :link-name-generator (lambda (&optional index)
+                                                                                (make-name :table :link
+                                                                                           :index index))
+                                                         :fields #'fields-generator
+                                                         :closure closure?
+                                                         :clauses (list-existing (where (:= :source.id *current-note*))
+                                                                                 (unless closure?
+                                                                                   (order-by :destination.id)))
+                                                         :union-clauses (list-existing (when closure?
+                                                                                         (apply #'build :order-by
+                                                                                                (get-fields-for-join-chain exponent))))))
+             (found-rows (d.sql:build-and-query :select :*
+                                                (from selected)
+                                                (where (:!= :id *current-note*))))
+             (column-names (list-existing (when closure? "Path") (second (assoc :text +table-note-fields+))))
+             (chosen-row-index (and found-rows (find-row-dialog column-names
+                                                                found-rows
+                                                                :row-transformation-function (if closure?
+                                                                                               (lambda (rows)
+                                                                                                 (row-transformation-for-goto rows :backward backward?))
+                                                                                               #'identity)
+                                                                :get-index t
+                                                                :prompt-fun *choose-note-prompt*))))
+        (cond ((null found-rows)
+               (format *standard-output* +msg-no-notes+))
+              ((null chosen-row-index)
+               (format *standard-output* +msg-note-is-not-chosen+))
+              (:else
+                (set-current-note (second (nth chosen-row-index found-rows)))))))))
 
 
 ;;; Alternative definition of goto commands

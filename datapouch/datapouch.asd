@@ -12,6 +12,7 @@
                (:file "editor" :depends-on ("packages"))
                (:file "filesystem" :depends-on ("packages"))
                (:file "sql" :depends-on ("packages" "auxiliary" "filesystem"))
+               (:file "sql-auxiliary" :depends-on ("packages" "sql"))
                (:file "crypto" :depends-on ("packages" "filesystem"))
                (:file "interaction" :depends-on ("packages" "auxiliary" "cli" "regex-support"))
                (:file "shell" :depends-on ("packages" "regex-support" "reader-macro"))

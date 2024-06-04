@@ -52,7 +52,9 @@
                  (clauses (rest arguments)))
              (apply #'sxql:make-statement
                     entity
-                    (apply #'sxql:make-clause :fields (list-existing* fields))
+                    (if (eq fields :*)
+                      (sxql:make-clause :fields :*)
+                      (apply #'sxql:make-clause :fields (list-existing* fields)))
                     (list-existing* clauses))))
           ((member entity +statements+)
              (apply #'sxql:make-statement

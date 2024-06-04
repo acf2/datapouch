@@ -125,7 +125,11 @@
 (defun find-row-dialog (column-names rows &key ((:choose-many choose-many) nil)
                                                ((:prompt-msg prompt-msg) (if choose-many "Enter row numbers:~&" "Enter row number:~&"))
                                                ((:error-msg error-msg) "Please, try again.~&")
-                                               ((:id-column-name id-column-name) "Row number")
+                                               ((:id-column-name-map id-map) (lambda (column-names)
+                                                                               (cons "Row number" column-names)))
+                                               ((:row-mapping-function row-map) (lambda (row-number row)
+                                                                                  (cons row-number row)))
+                                               ((:row-transformation-function row-transform) #'identity)
                                                ((:get-index get-index) nil)
                                                ((:prompt-fun prompt-fun) *prompt-fun*))
   (cond ((= (length rows) 0) nil)
@@ -135,10 +139,10 @@
                                     (if error-form-supplied?
                                       (format *standard-output* error-msg)
                                       (progn
-                                        (pretty-print-table (cons id-column-name column-names)
-                                                            (loop :for row :in rows
-                                                                  :for i :from 1 :to (length rows)
-                                                                  :collect (cons i row)))
+                                        (pretty-print-table (funcall id-map column-names)
+                                                            (funcall row-transform (loop :for row :in rows
+                                                                                         :for i :from 1 :to (length rows)
+                                                                                         :collect (funcall row-map i row))))
                                         (format *standard-output* prompt-msg))))
                        :input-handler (lambda (unfiltered-input)
                                         (labels ((filter-input (input) (if choose-many

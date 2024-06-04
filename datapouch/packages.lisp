@@ -121,6 +121,17 @@
            #:on-duplicate-key-update #:on-conflict-do-nothing #:on-conflict-do-update))
 
 
+(defpackage :datapouch.sql.auxiliary
+  (:use #:cl #:d.sql)
+  (:nicknames :d.sql.aux)
+  (:export #:make-name
+           #:get-repeated-join-clause
+           #:get-chained-table-expression
+           #:get-table-power-expression))
+
+
+
+
 (defpackage :datapouch.crypto
   (:use #:cl #:uiop #:ironclad)
   (:nicknames :d.crypto)
@@ -199,12 +210,14 @@
                 #:quit)
   (:export #:quit))
 
+
 (in-package :datapouch)
 (cl-reexport:reexport-from :datapouch.auxiliary)
 (cl-reexport:reexport-from :datapouch.regex-support)
 (cl-reexport:reexport-from :datapouch.cli)
 (cl-reexport:reexport-from :datapouch.reader-macro)
 (cl-reexport:reexport-from :datapouch.sql)
+(cl-reexport:reexport-from :datapouch.sql.auxiliary)
 (cl-reexport:reexport-from :datapouch.filesystem)
 (cl-reexport:reexport-from :datapouch.crypto)
 (cl-reexport:reexport-from :datapouch.editor)
