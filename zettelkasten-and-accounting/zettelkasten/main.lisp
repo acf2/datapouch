@@ -259,7 +259,7 @@
     (values backward? exponent closure?)))
 
 
-(defun command-goto (string match)
+(defun from-note-through-links-choosing-command (command string match)
   (declare (ignore string))
   (let* ((parameters (multiple-value-list (parse-link-parameters match)))
          (transformed-rows (apply #'zac.box.travel:select-notes-through-links *current-note* parameters))
@@ -269,7 +269,14 @@
           ((null chosen-row)
            (format *standard-output* +msg-note-is-not-chosen+))
           (:else
-            (set-current-note (getf chosen-row :id))))))
+            (funcall command chosen-row)))))
+
+
+(defun command-goto (string match)
+  (from-note-through-links-choosing-command (lambda (row)
+                                              (set-current-note (getf row :id)))
+                                            string
+                                            match))
 
 
 (defun command-links (string match)
