@@ -27,7 +27,7 @@
 ;;; this is needed only once, at the very beginning
 ;;; and if db is damaged, it will generate errors
 (defun init-everything ()
-  (zac.box:create-zettelkasten))
+  (zac.box.db:create-zettelkasten))
 
 
 (defun add-all-commands ()

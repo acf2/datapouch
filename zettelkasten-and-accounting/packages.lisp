@@ -15,6 +15,27 @@
            #:get-table-power-expression))
 
 
+(defpackage :zac.zettelkasten.schema
+  (:use #:cl #:datapouch)
+  (:nicknames :zac.box.db)
+  (:export #:create-zettelkasten
+           #:+table-note-fields+
+           #:+table-link-fields+))
+
+
+(defpackage :zac.zettelkasten.pretty-traversal
+  (:use #:cl #:datapouch)
+  (:nicknames :zac.box.travel)
+  (:export #:build-select-notes-through-links
+           #:select-notes-through-links
+           #:column-names-for-notes-through-links
+           #:note-path-to-string
+           #:row-transformation-without-pathing
+           #:row-transformation-for-pathing
+           #:choose-row-from-note-through-links
+           #:pretty-print-note-through-links))
+
+
 (defpackage :zac.zettelkasten
   (:use #:cl #:datapouch)
   (:nicknames :zac.box)

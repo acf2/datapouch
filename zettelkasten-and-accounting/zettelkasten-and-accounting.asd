@@ -12,8 +12,9 @@
                (:file "zettelkasten/prompt" :depends-on ("packages" "auxiliary" "zettelkasten/vars"))
                (:file "zettelkasten/basic-interface" :depends-on ("zettelkasten/vars" "zettelkasten/schema" "zettelkasten/prompt" "auxiliary"))
                (:file "zettelkasten/search" :depends-on ("zettelkasten/basic-interface"))
+               (:file "zettelkasten/pretty-traversal" :depends-on ("zettelkasten/schema" "zettelkasten/basic-interface"))
 
-               (:file "zettelkasten/main" :depends-on ("zettelkasten/basic-interface" "zettelkasten/search"))
+               (:file "zettelkasten/main" :depends-on ("zettelkasten/pretty-traversal" "zettelkasten/basic-interface" "zettelkasten/search"))
 
                (:file "bookkeeping" :depends-on ("packages" "auxiliary"))
                (:file "main" :depends-on ("packages" "zettelkasten/main" "bookkeeping")))

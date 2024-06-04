@@ -1,7 +1,7 @@
 ;;;; zettelkasten/schema.lisp
 
 
-(in-package :zac.box)
+(in-package :zac.zettelkasten.schema)
 
 
 ;;; Table creation
