@@ -131,7 +131,8 @@
                                                                                   (cons row-number row)))
                                                ((:row-transformation-function row-transform) #'identity)
                                                ((:get-index get-index) nil)
-                                               ((:prompt-fun prompt-fun) *prompt-fun*))
+                                               ((:prompt-fun prompt-fun) *prompt-fun*)
+                                               ((:pretty-print-table-function pretty-print-table) #'pretty-print-table))
   (cond ((= (length rows) 0) nil)
         ((= (length rows) 1) (if get-index 0 (first rows)))
         (:else (dialog :query-fun (lambda (&optional (error-form nil error-form-supplied?))
@@ -139,10 +140,11 @@
                                     (if error-form-supplied?
                                       (format *standard-output* error-msg)
                                       (progn
-                                        (pretty-print-table (funcall id-map column-names)
-                                                            (funcall row-transform (loop :for row :in rows
-                                                                                         :for i :from 1 :to (length rows)
-                                                                                         :collect (funcall row-map i row))))
+                                        (funcall pretty-print-table
+                                                 (funcall id-map column-names)
+                                                 (funcall row-transform (loop :for row :in rows
+                                                                              :for i :from 1 :to (length rows)
+                                                                              :collect (funcall row-map i row))))
                                         (format *standard-output* prompt-msg))))
                        :input-handler (lambda (unfiltered-input)
                                         (labels ((filter-input (input) (if choose-many

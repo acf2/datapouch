@@ -30,12 +30,12 @@
              (build-select (chain-length) (apply #'build :select
                                                  (get-padded-fields chain-length)
                                                  (append
-                                                   (zac.aux:get-chained-table-expression chain-length
-                                                                                         :note :id
-                                                                                         link-name-generator source-column destination-column
-                                                                                         :note :id
-                                                                                         :starting-table-alias starting-table-alias
-                                                                                         :ending-table-alias ending-table-alias)
+                                                   (get-chained-table-expression chain-length
+                                                                                 :note :id
+                                                                                 link-name-generator source-column destination-column
+                                                                                 :note :id
+                                                                                 :starting-table-alias starting-table-alias
+                                                                                 :ending-table-alias ending-table-alias)
                                                    clauses)))
              (build-union (max-chain-length) (apply #'build :union-queries
                                                     (append
@@ -54,8 +54,9 @@
     (labels ((link-name-gen (&optional index column) (make-name :table :link
                                                                 :index index
                                                                 :column column))
-             (get-fields-for-join-chain (chain-length) (loop :for index :from 0 :to (1- chain-length)
-                                                             :collect (link-name-gen index target-column)))
+             (get-fields-for-join-chain (chain-length) (cons :source.id
+                                                             (loop :for index :from 0 :to (1- chain-length)
+                                                                   :collect (link-name-gen index target-column))))
              (fields-generator (chain-length) (list-existing* :destination.text
                                                               :destination.id
                                                               (when show-numbers? (link-name-gen 0 :number))
@@ -65,14 +66,19 @@
                                                                   :link-name-generator #'link-name-gen
                                                                   :fields #'fields-generator
                                                                   :closure closure?
-                                                                  :clauses (list-existing (where (:= :source.id note-id))
+                                                                  :clauses (list-existing (where (:and (:= :source.id note-id)
+                                                                                                       (:!= :destination.id note-id)))
+                                                                                          (unless closure?
+                                                                                            (apply #'build :group-by (fields-generator exponent)))
                                                                                           (unless closure?
                                                                                             (apply #'build :order-by (list-existing (when show-numbers?
                                                                                                                                       (link-name-gen 0 :number))
-                                                                                                                                    :destination.id))))
+                                                                                                                                    :destination.id
+                                                                                                                                    :destination.text))))
                                                                   :union-clauses (list-existing (when closure?
                                                                                                   (apply #'build :order-by
-                                                                                                         (reverse (get-fields-for-join-chain exponent))))))))
+                                                                                                         (reverse (cons :destination.text
+                                                                                                                        (get-fields-for-join-chain exponent)))))))))
              (transformed-rows (map 'list (lambda (row)
                                             (append (list :text (first row))
                                                     (list :id (second row))
@@ -86,7 +92,7 @@
   (declare (ignore backward?))
   (let ((show-numbers? (and (not closure?)
                             (= exponent 1))))
-    (list-existing (when closure? "Path")
+    (list-existing (when closure? "Referrers")
                    (second (assoc :text zac.box.db:+table-note-fields+))
                    (when show-numbers? (second (assoc :number zac.box.db:+table-link-fields+))))))
 
@@ -113,45 +119,122 @@
        rows))
 
 
-(defun row-transformation-for-pathing (rows &key ((:backward backward?) nil))
-  ;(format t "ROWS: ~A~&" rows)
+(defun prettify-rows (rows &key ((:number-stub number-stub) "") ((:continue-stub continue-stub) "->"))
+  (map 'list (lambda (row)
+               (let ((number (getf row :number)))
+                 (list-existing (getf row :text)
+                                (if number
+                                  (if (= number 0)
+                                    continue-stub
+                                    number)
+                                  number-stub))))
+       rows))
+
+
+(defun clear-cycles-from-path (path)
+  (loop :for current-list   = path :then (rest current-list)
+        :for current-id     = (first current-list)
+        :for previous-list  = (cons current-id previous-list)
+        :for pos            = (position current-id previous-list :start 1)
+        :unless current-list :return (nreverse (rest previous-list))
+        :when pos
+        :do (setf previous-list (subseq previous-list pos))))
+
+
+;; Get referrers (second to last in paths (just second in backward path))
+;; Sort rows by path length
+;; Sort referrers for every id by order of rows in sorted row list
+;; Place sorted referrers in p-list by :referrers key
+(defun get-referrers (rows)
+  (let* ((rows-with-clear-paths (map 'list (lambda (row)
+                                             (append row (list :clear-path
+                                                               (clear-cycles-from-path (getf row :path)))))
+                                     rows))
+         (sorted-rows (sort rows-with-clear-paths #'< :key (lambda (row)
+                                                             (length (getf row :clear-path)))))
+         (referrers (make-hash-table :test #'eql)))
+    (labels ((row-id-key (row) (getf row :id))
+             ;; When len == 2, the path is current-note -> target-note,
+             ;;  in this case, referrer is current-note (i.e. root of this subtree)
+             ;; Second to last, because the last one is target-note id, but we need referrer id
+             (get-referrer-from-path (path) (if (> (length path) 2)
+                                              (first (last path 2))
+                                              'root))
+             ;; generate-referrer-list with sorted referrers
+             ;; sorted rows already established some sort of sorting
+             ;; just hard copy it, using positions of ids inside sorted-rows for comparison
+             ;; subtree root is always on top
+             ;; NILs are ids of notes, that were filtered due to some circumstances
+             ;; they are always at the bottom
+             (generate-referrer-list (row) (sort (remove-duplicates (gethash (row-id-key row) referrers))
+                                                 (lambda (one another)
+                                                   (if (eq one 'root)
+                                                     t
+                                                     (let ((one-pos (position one sorted-rows :key #'row-id-key))
+                                                           (another-pos (position another sorted-rows :key #'row-id-key)))
+                                                       (cond ((and (null one-pos) (null another-pos)) nil)
+                                                             ((and (null one-pos) another-pos) nil)
+                                                             ((and one-pos (null another-pos)) t)
+                                                             (:else (< one-pos another-pos)))))))))
+      (loop :for row :in sorted-rows
+            :do (pushnew (get-referrer-from-path (getf row :clear-path))
+                         (gethash (row-id-key row) referrers)))
+      (map 'list (lambda (row)
+                   (append row
+                           (list :referrers
+                                 (generate-referrer-list row))))
+           (remove-duplicates sorted-rows :key #'row-id-key)))))
+
+
+(defun referrers-to-string (referrer-list &key
+                                          ((:source-stub source-stub) ">")
+                                          ((:nonexistent-referrer-stub nonexistent-referrer-stub) "."))
+  (format nil "~{~#[~;~A~:;~A ~]~}" (map 'list (lambda (referrer)
+                                                 (cond ((eq referrer 'root) source-stub)
+                                                       ((null referrer) nonexistent-referrer-stub)
+                                                       (:else referrer)))
+                                         referrer-list)))
+
+
+(defun row-transformations-for-referrers (rows)
   (let ((id-mapping (map 'list (lambda (row)
                                  (let ((index (first row))
                                        (transformed-row (rest row)))
                                    (list (getf transformed-row :id) index)))
                          rows)))
-    ;(format t "ID MAP: ~A~&" id-mapping)
     (map 'list (lambda (row)
                  (let* ((index (first row))
                         (transformed-row (rest row))
-                        (pretty-path (map 'list (lambda (note-id)
-                                                  (second (assoc note-id id-mapping)))
-                                          (getf transformed-row :path))))
+                        (pretty-referrers (map 'list (lambda (referrer)
+                                                       (if (eq referrer 'root)
+                                                         referrer
+                                                         (second (assoc referrer id-mapping))))
+                                               (getf transformed-row :referrers))))
                    (list index
-                         (note-path-to-string (if backward? (reverse pretty-path) pretty-path))
+                         (referrers-to-string pretty-referrers)
                          (getf transformed-row :text))))
          rows)))
 
 
 (defun choose-row-from-note-through-links (transformed-rows prompt backward? exponent closure?)
   (let* ((column-names (column-names-for-notes-through-links backward? exponent closure?))
-         (chosen-row-index (and transformed-rows (find-row-dialog column-names
-                                                                  transformed-rows
-                                                                  :row-transformation-function (if closure?
-                                                                                                 (lambda (rows)
-                                                                                                   (row-transformation-for-pathing rows :backward backward?))
-                                                                                                 #'row-transformation-without-pathing)
-                                                                  :get-index t
-                                                                  :prompt-fun prompt))))
-    (and chosen-row-index (nth chosen-row-index transformed-rows))))
+         (sorted-rows (funcall (if closure? #'get-referrers #'prettify-rows) transformed-rows))
+         (chosen-row-index (and sorted-rows (find-row-dialog column-names
+                                                             sorted-rows
+                                                             :row-transformation-function (if closure?
+                                                                                            #'row-transformations-for-referrers
+                                                                                            #'identity)
+                                                             :get-index t
+                                                             :prompt-fun prompt))))
+    (and chosen-row-index (nth chosen-row-index sorted-rows))))
 
 
 (defun pretty-print-note-through-links (transformed-rows backward? exponent closure?)
   (let* ((column-names (column-names-for-notes-through-links backward? exponent closure?))
-         (row-transformation (if closure?
-                               (lambda (rows) (row-transformation-for-pathing rows :backward backward?))
-                               #'row-transformation-without-pathing))
-         (prettified-rows (map 'list #'cdr (funcall row-transformation (loop :for row :in transformed-rows
-                                                                             :for i :from 1 to (length transformed-rows)
-                                                                             :collect (cons i row))))))
-    (pretty-print-table column-names prettified-rows)))
+         (sorted-rows (funcall (if closure? #'get-referrers #'prettify-rows) transformed-rows))
+         (prettified-rows (if closure?
+                            (row-transformations-for-referrers (loop :for row :in sorted-rows
+                                                                                       :for i :from 1 to (length sorted-rows)
+                                                                                       :collect (cons i row)))
+                            sorted-rows)))
+    (pretty-print-table (cons "Number" column-names) prettified-rows)))

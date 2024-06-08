@@ -63,7 +63,9 @@
     (when source-note
       (insert-into :link (set= :source source-note
                                :destination new-note
-                               :number number)))))
+                               :number number)))
+    new-note))
+
 
 
 ;;; Remove note by ID (or current note if ID is not supplied)
@@ -229,14 +231,23 @@
 
 
 (defun command-add-note (string match)
-  (declare (ignore string match))
-  (let ((new-note (first (edit-strings ""))))
+  (declare (ignore string))
+  (let ((new-note (first (edit-strings "")))
+        (next-in-sequence? (or (string= (get-group :next match) "next")
+                               (string= (get-group :next match) "n")))
+        (link-number (and (get-group :number match)
+                          (parse-integer (get-group :number match)))))
     (if (string= new-note "")
       (format *standard-output* +msg-abort-note-creation+)
-      (add-note new-note *current-note*))))
+      (let ((new-note (add-note new-note
+                                *current-note*
+                                (cond (next-in-sequence? 0)
+                                      (link-number link-number)))))
+        (when next-in-sequence?
+          (set-current-note new-note))))))
 
 
-(defun command-note (string match)
+(defun command-edit (string match)
   (declare (ignore string match))
   (when *current-note*
     (edit-notes (where (:= :id *current-note*)))))
@@ -246,6 +257,17 @@
   (declare (ignore string match))
   (when (select :* (from :note) (where (:= :id 0)))
     (set-current-note 0)))
+
+
+(defun command-next (string match)
+  (declare (ignore string match))
+  (let ((next-note-id (caar (select :destination
+                                    (from :link)
+                                    (where (:and (:= :source *current-note*)
+                                                 (:= :number 0)))))))
+    (if next-note-id
+      (set-current-note next-note-id)
+      (format *standard-output* +msg-no-notes+))))
 
 
 (defun parse-link-parameters (match)
@@ -349,12 +371,18 @@
                        ,@tag-arguments
                        ,@substring-arguments))
          (links-rxs `(("links" ,@link-arguments)
-                      ("l" ,@short-link-arguments))))
+                      ("l" ,@short-link-arguments)))
+         (add-note-rxs `(("add" "note" ((:number . "\\d+") :optional))
+                         ("add" "note" ((:next . "next") :optional))
+                         ("an" ((:number . "\\d+") :optional :immediate))
+                         ("an" ((:next . "n") :optional :immediate)))))
+
     ;; Simple commands
     (generate-commands
-      (create-shell-commands '(("add" "note") ("an")) #'command-add-note "Adding note"
-                             '(("note") ("n")) #'command-note "Edit current note"
+      (create-shell-commands '(("edit") ("e")) #'command-edit "Edit current note"
                              '("home") #'command-home "Go to root note"
+                             '(("next") ("n")) #'command-next "Goto next note in sequence"
+                             add-note-rxs #'command-add-note "Adding note"
                              search-rxs #'command-search-note "Search by substring across all zettelkasten"
                              goto-rxs #'command-goto "Go to specific note using links, starting from current one"
                              links-rxs #'command-links "Show links from this note with specified parameters"))))
