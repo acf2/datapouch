@@ -141,7 +141,7 @@
         :do (setf previous-list (subseq previous-list pos))))
 
 
-;; Get referrers (second to last in paths (just second in backward path))
+;; Get referrers (second to last in paths)
 ;; Sort rows by path length
 ;; Sort referrers for every id by order of rows in sorted row list
 ;; Place sorted referrers in p-list by :referrers key
@@ -168,14 +168,16 @@
              ;; they are always at the bottom
              (generate-referrer-list (row) (sort (remove-duplicates (gethash (row-id-key row) referrers))
                                                  (lambda (one another)
-                                                   (if (eq one 'root)
-                                                     t
-                                                     (let ((one-pos (position one sorted-rows :key #'row-id-key))
-                                                           (another-pos (position another sorted-rows :key #'row-id-key)))
-                                                       (cond ((and (null one-pos) (null another-pos)) nil)
-                                                             ((and (null one-pos) another-pos) nil)
-                                                             ((and one-pos (null another-pos)) t)
-                                                             (:else (< one-pos another-pos)))))))))
+                                                   (if (eq another 'root)
+                                                     nil
+                                                     (if (eq one 'root)
+                                                       t
+                                                       (let ((one-pos (position one sorted-rows :key #'row-id-key))
+                                                             (another-pos (position another sorted-rows :key #'row-id-key)))
+                                                         (cond ((and (null one-pos) (null another-pos)) nil)
+                                                               ((and (null one-pos) another-pos) nil)
+                                                               ((and one-pos (null another-pos)) t)
+                                                               (:else (< one-pos another-pos))))))))))
       (loop :for row :in sorted-rows
             :do (pushnew (get-referrer-from-path (getf row :clear-path))
                          (gethash (row-id-key row) referrers)))
