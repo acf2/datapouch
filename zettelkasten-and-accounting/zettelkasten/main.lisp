@@ -270,6 +270,16 @@
       (format *standard-output* +msg-no-notes+))))
 
 
+(defun command-memorize (string match)
+  (declare (ignore string match))
+  (setf *memorized-note* *current-note*))
+
+
+(defun command-clear-memory (string match)
+  (declare (ignore string match))
+  (setf *memorized-note* nil))
+
+
 (defun parse-link-parameters (match)
   (let* ((backward? (and (get-group :type match)
                          (or (string= (get-group :type match) "back")
@@ -384,6 +394,8 @@
       (create-shell-commands '(("edit") ("e")) #'command-edit "Edit current note"
                              '("home") #'command-home "Go to root note"
                              '(("next") ("n")) #'command-next "Goto next note in sequence"
+                             '(("memorize") ("memo") ("m")) #'command-memorize "Memorize current note for future use"
+                             '(("clear\\s+memory") ("clear\\s+memo") ("cm")) #'command-clear-memory "Forget memorized note"
                              add-note-rxs #'command-add-note "Adding note"
                              search-rxs #'command-search-note "Search by substring across all zettelkasten"
                              goto-rxs #'command-goto "Go to specific note using links, starting from current one"

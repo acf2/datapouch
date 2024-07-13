@@ -9,6 +9,7 @@
 
 
 (defparameter *current-note* nil)
+(defparameter *memorized-note* nil)
 
 ;; History
 (defparameter *note-history* nil) ; TBD

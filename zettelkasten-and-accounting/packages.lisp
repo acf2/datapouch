@@ -40,7 +40,7 @@
   (:use #:cl #:datapouch)
   (:nicknames :zac.box)
   (:export #:+errmsg-note-is-not-chosen+
-           #:*current-note*
+           #:*current-note* #:*memorized-note*
            #:*note-history*
            #:*option-show-note-after-jump*
            #:create-zettelkasten
