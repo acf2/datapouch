@@ -355,12 +355,14 @@
          (tags-rx "(?:\\w+,)*\\w+")
          (tag-arguments `((,(concat "\\+" (make-named-group :ptags tags-rx)) :optional)
                           (,(concat "-" (make-named-group :ntags tags-rx)) :optional)))
-         (link-arguments `(((:type . "forward|back") :optional)
+         (link-type-arguments `(((:type . "forward|back") :optional)))
+         (short-link-type-arguments `(((:type . "f|b") :optional :immediate)))
+         (link-arguments `(,@link-type-arguments
                            ((:exponent . "[1-9]\\d*") :optional)
                            ((:closure . "\\*") :optional :immediate)
                            ,@tag-arguments
                            ,@substring-arguments))
-         (short-link-arguments `(((:type . "f|b") :optional :immediate)
+         (short-link-arguments `(,@short-link-type-arguments
                                  ((:exponent . "[1-9]\\d*") :optional :immediate)
                                  ((:closure . "\\*") :optional :immediate)
                                  ,@tag-arguments
