@@ -219,16 +219,22 @@
 
 
 (defun choose-row-from-note-through-links (transformed-rows prompt backward? exponent closure?)
-  (let* ((column-names (column-names-for-notes-through-links backward? exponent closure?))
-         (sorted-rows (funcall (if closure? #'get-referrers #'prettify-rows) transformed-rows))
-         (chosen-row-index (and sorted-rows (find-row-dialog column-names
-                                                             sorted-rows
-                                                             :row-transformation-function (if closure?
-                                                                                            #'row-transformations-for-referrers
-                                                                                            #'identity)
-                                                             :get-index t
-                                                             :prompt-fun prompt))))
-    (and chosen-row-index (nth chosen-row-index sorted-rows))))
+  (cond (closure?
+          (let* ((column-names (column-names-for-notes-through-links backward? exponent closure?))
+                 (sorted-rows (get-referrers transformed-rows))
+                 (chosen-row-index (and sorted-rows (find-row-dialog column-names
+                                                                     sorted-rows
+                                                                     :row-transformation-function #'row-transformations-for-referrers
+                                                                     :get-index t
+                                                                     :prompt-fun prompt))))
+            (and chosen-row-index (nth chosen-row-index sorted-rows))))
+        (:else
+          (let* ((column-names (column-names-for-notes-through-links backward? exponent closure?))
+                 (chosen-row-index (and transformed-rows (find-row-dialog column-names
+                                                                          (prettify-rows transformed-rows)
+                                                                          :get-index t
+                                                                          :prompt-fun prompt))))
+            (and chosen-row-index (nth chosen-row-index transformed-rows))))))
 
 
 (defun pretty-print-note-through-links (transformed-rows backward? exponent closure?)

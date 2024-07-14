@@ -18,7 +18,7 @@
   (let ((answer (when note (get-note-by-id note))))
     (if answer
       (format *standard-output* "~A~&" (second (first answer)))
-      (error +interrmsg-cannot-find-id+))))
+      (error +intermsg-cannot-find-id+))))
 
 
 ;;; Wrapper for setting a note

@@ -46,17 +46,20 @@
 
 
 (defun wrap-string (string)
-  (let* ((part-length (min (length string) (- *max-string-length* (length *wrap-marker*))))
-         (space-position (position #\space string :end part-length :from-end t))
-         (newline-position (position #\newline string :end part-length)))
-    (if (and (null (find #\newline string :end (min (length string) *max-string-length*)))
-             (<= (length string) *max-string-length*))
-      string
-      (concatenate 'string
-                   (subseq string 0 (or newline-position
-                                        space-position
-                                        part-length))
-                   *wrap-marker*))))
+  (let* ((first-newline-position (position #\newline string))
+         (single-line? (and (or (null first-newline-position)
+                                (= first-newline-position (1- (length string))))
+                            (<= (length string) *max-string-length*))))
+    (if single-line?
+      (subseq string 0 first-newline-position)
+      (let* ((part-length (min (length string) (- *max-string-length* (length *wrap-marker*))))
+             (space-position (position #\space string :end part-length :from-end t))
+             (newline-position (position #\newline string :end part-length)))
+        (concatenate 'string
+                     (subseq string 0 (or newline-position
+                                          space-position
+                                          part-length))
+                     *wrap-marker*)))))
 
 
 (defun slice-string-for-printing (string &optional (width 79))

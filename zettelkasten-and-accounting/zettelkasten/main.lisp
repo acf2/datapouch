@@ -149,28 +149,28 @@
 
 ;;; TBD
 ;;; [ ] Core functions
-;;;   [ ] Pretty print links/notes from current one -> goto, links
-;;;     [ ] show numbering?
+;;;   [x] Pretty print links/notes from current one -> goto, links
+;;;     [x] show numbering?
 ;;;   [x] Root node with fixed ID?
-;;;   [ ] add note
+;;;   [x] add note
 ;;;     [x] just add
-;;;     [ ] add and go
+;;;     [h] add and go
 ;;;         A la "continue"; like it's just another part of a whole document/sequence?
 ;;;         Use number 0 for it?
 ;;;         Then:
-;;;       [ ] sequential read (like in normal zettelkasten?)
+;;;       [h] sequential read (like in normal zettelkasten?)
 ;;;   [ ] remove note
 ;;;     [ ] Using links as a means of direction? Search?
 ;;;       [ ] backlinks?
 ;;;   [x] show link/backlinks
-;;;   [ ] add links
-;;;     [ ] backlinks?
-;;;     [ ] Type of additions?
-;;;       [ ] Through search
-;;;       [ ] Through history
-;;;       [ ] Freeform?
-;;;     [ ] Link two other notes?
-;;;       [ ] Through links? 
+;;;   [h] add links
+;;;     [x] backlinks?
+;;;     [h] Type of additions?
+;;;       [\] Through search
+;;;       [\] Through history
+;;;       [x] Freeform?
+;;;     [\] Link two other notes?
+;;;       [\] Through links?
 ;;;   [ ] remove links
 ;;;     [ ] from backlinks only?
 ;;;   [x] goto / search
@@ -230,21 +230,10 @@
 ;;; COMMANDS
 
 
-(defun command-add-note (string match)
-  (declare (ignore string))
-  (let ((new-note (first (edit-strings "")))
-        (next-in-sequence? (or (string= (get-group :next match) "next")
-                               (string= (get-group :next match) "n")))
-        (link-number (and (get-group :number match)
-                          (parse-integer (get-group :number match)))))
-    (if (string= new-note "")
-      (format *standard-output* +msg-abort-note-creation+)
-      (let ((new-note (add-note new-note
-                                *current-note*
-                                (cond (next-in-sequence? 0)
-                                      (link-number link-number)))))
-        (when next-in-sequence?
-          (set-current-note new-note))))))
+;(defun wrap-catch-sqlite-errors (fun)
+;  (lambda (string match)
+;    (handler-case (funcall fun string match)
+;      (sqlite:sqlite-error (err) (format *standard-output* +errmsg-generic-sqlite-error+ err)))))
 
 
 (defun command-edit (string match)
@@ -278,6 +267,13 @@
 (defun command-clear-memory (string match)
   (declare (ignore string match))
   (setf *memorized-note* nil))
+
+
+(defun command-goto-memory (string match)
+  (declare (ignore string match))
+  (if *memorized-note*
+    (set-current-note *memorized-note*)
+    (format *standard-output* +msg-note-is-not-chosen+)))
 
 
 (defun parse-link-parameters (match)
@@ -316,6 +312,78 @@
   (let* ((parameters (multiple-value-list (parse-link-parameters match)))
          (transformed-rows (apply #'zac.box.travel:select-notes-through-links *current-note* parameters)))
     (apply #'zac.box.travel:pretty-print-note-through-links transformed-rows parameters)))
+
+
+(defun parse-new-link-parameters (match)
+  (let* ((next-in-sequence? (or (string= (get-group :number match) "next")
+                                (string= (get-group :number match) "n")))
+         (link-number (if next-in-sequence?
+                        0
+                        (and (get-group :number match)
+                             (parse-integer (get-group :number match)))))
+         (notes-with-number (and link-number
+                                 (car (select '(:source :destination)
+                                              (from :link)
+                                              (where (:and (:= :source *current-note*)
+                                                           (:= :number link-number))))))))
+    (values next-in-sequence? link-number notes-with-number)))
+
+
+(defun command-add-note (string match)
+  (declare (ignore string))
+  (multiple-value-bind (next-in-sequence? link-number notes-with-number) (parse-new-link-parameters match)
+    (let* ((override-note-number? (and notes-with-number (yes-or-no-p +question-note-with-number-exists+)))
+           (new-note (first (edit-strings ""))))
+      (cond ((string= new-note "")
+             (format *standard-output* +msg-abort-note-creation+))
+            (:else
+              (when override-note-number?
+                (update :link
+                        (set= :number nil)
+                        (where (:and (:= :source (first notes-with-number))
+                                     (:= :destination (second notes-with-number))))))
+              (let ((new-note (add-note new-note
+                                        *current-note*
+                                        (if (and notes-with-number
+                                                 (not override-note-number?))
+                                          nil
+                                          link-number))))
+                (when next-in-sequence?
+                  (set-current-note new-note))))))))
+
+
+(defun command-add-link (string match)
+  (declare (ignore string))
+  (multiple-value-bind (next-in-sequence? link-number notes-with-number) (parse-new-link-parameters match)
+    (declare (ignore next-in-sequence?))
+    (let* ((direction (if (or (string= (get-group :direction match) "to")
+                              (string= (get-group :direction match) "t"))
+                        :forward
+                        :backward))
+           (source-column (if (eq direction :forward)
+                            :source
+                            :destination))
+           (destination-column (if (eq direction :forward)
+                                 :destination
+                                 :source))
+           (override-note-number? (and notes-with-number (yes-or-no-p +question-note-with-number-exists+))))
+      (cond ((select :*
+                     (from :link)
+                     (where (:and (:= source-column *current-note*)
+                                  (:= destination-column *memorized-note*))))
+             (format *standard-output* +msg-link-exists+))
+            (:else
+              (when override-note-number?
+                (update :link
+                        (set= :number nil)
+                        (where (:and (:= :source (first notes-with-number))
+                                     (:= :destination (second notes-with-number))))))
+              (when (or (not notes-with-number)
+                        override-note-number?)
+                (insert-into :link
+                             (set= source-column *current-note*
+                                   destination-column *memorized-note*
+                                   :number link-number))))))))
 
 
 ;;; Alternative definition of goto commands
@@ -377,6 +445,8 @@
                                  ((:closure . "\\*") :optional :immediate)
                                  ,@tag-arguments
                                  ,@substring-arguments))
+         (new-link-number `(((:number . "\\d+|next") :optional)))
+         (new-link-number-short `(((:number . "\\d+|n") :optional :immediate)))
          (goto-rxs `(("goto" ,@link-arguments)       ; /goto [forward][:<N>][*] [<substring>] | /goto back[:<N>][*] [<substring>]
                      ("g" ,@short-link-arguments)))  ; /g[f][<N>][*] [<substring>] | /gb[<N>][*] [<substring>]
          (search-rxs `("s(?:earch)?"                                                             ; /s[earch] [+tag,tag,...] [-tag,tag,...] <substring>
@@ -384,22 +454,24 @@
                        ,@substring-arguments))
          (links-rxs `(("links" ,@link-arguments)
                       ("l" ,@short-link-arguments)))
-         (add-note-rxs `(("add" "note" ((:number . "\\d+") :optional))
-                         ("add" "note" ((:next . "next") :optional))
-                         ("an" ((:number . "\\d+") :optional :immediate))
-                         ("an" ((:next . "n") :optional :immediate)))))
-
+         (add-note-rxs `(("add" "note" ,@new-link-number)
+                         ("an" ,@new-link-number-short)))
+         (add-link-rxs `(("add" "link" (:direction . "to|from") ,@new-link-number)
+                         ("al" ((:direction . "t|f") :immediate)
+                          ,@new-link-number-short))))
     ;; Simple commands
     (generate-commands
       (create-shell-commands '(("edit") ("e")) #'command-edit "Edit current note"
                              '("home") #'command-home "Go to root note"
                              '(("next") ("n")) #'command-next "Goto next note in sequence"
                              '(("memorize") ("memo") ("m")) #'command-memorize "Memorize current note for future use"
-                             '(("clear\\s+memory") ("clear\\s+memo") ("cm")) #'command-clear-memory "Forget memorized note"
-                             add-note-rxs #'command-add-note "Adding note"
+                             '(("clear" "memo(?:ry)?") ("cm")) #'command-clear-memory "Forget memorized note"
+                             '(("goto" "memo(?:ry)?") ("gm")) #'command-goto-memory "Goto memorized note"
                              search-rxs #'command-search-note "Search by substring across all zettelkasten"
                              goto-rxs #'command-goto "Go to specific note using links, starting from current one"
-                             links-rxs #'command-links "Show links from this note with specified parameters"))))
+                             links-rxs #'command-links "Show links from this note with specified parameters"
+                             add-note-rxs #'command-add-note "Adding note"
+                             add-link-rxs #'command-add-link "Adding link to and from other note"))))
 
 
 

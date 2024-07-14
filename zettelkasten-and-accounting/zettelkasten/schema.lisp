@@ -19,7 +19,8 @@
                           :not-null t)
                  (:destination :type 'integer
                                :not-null t)
-                 (:number :type 'integer))
+                 (:number :type 'integer
+                          :unique t))
                 (unique-key '(:source :destination))
                 (foreign-key :source
                              :references '(:note :id)
