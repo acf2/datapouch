@@ -65,8 +65,8 @@
                               (where (:instr :text substring))))
          (chosen-note (choose-note-with-peeking found-notes)))
     (cond ((null found-notes)
-           (format *standard-output* +msg-no-notes+))
+           (format *standard-output* "~A~&" +msg-no-notes+))
           ((null chosen-note)
-           (format *standard-output* +msg-note-is-not-chosen+))
+           (format *standard-output* "~%~A~&" +msg-note-is-not-chosen+))
           (:else
             (set-current-note (first chosen-note))))))

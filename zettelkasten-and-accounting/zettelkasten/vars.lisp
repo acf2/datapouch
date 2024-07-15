@@ -20,12 +20,12 @@
 (defparameter *order-by-text* nil)
 
 
-(defparameter +question-note-with-number-exists+ "Link with such number exist~%Override?")
+(defparameter +question-note-with-number-exists+ (format nil "Link with such number exist~%Override?"))
 
-(defparameter +msg-note-is-not-chosen+ "~%Note is not chosen.~&")
-(defparameter +msg-no-notes+ "There is no notes meeting this criteria.~&")
-(defparameter +msg-abort-note-creation+ "~%Aborted.~&")
-(defparameter +msg-link-exists+ "Link already exists.~&")
+(defparameter +msg-note-is-not-chosen+ "Note is not chosen.")
+(defparameter +msg-no-notes+ "There is no notes meeting this criteria.")
+(defparameter +msg-abort-note-creation+ "Aborted.")
+(defparameter +msg-link-exists+ "Link already exists.")
 
 (defparameter +errmsg-no-note-found+ "~%No such note found.~&")
 (defparameter +errmsg-generic-sqlite-error+ "~A~&~%Operation aborted.~&")

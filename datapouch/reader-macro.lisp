@@ -45,8 +45,8 @@
                                :for (match groups) = (multiple-value-list (scan-named-groups (command-regex command) command-string))
                                :when match
                                :return (list command groups)))
-         (command (when command-bundle (first command-bundle)))
-         (match (when command-bundle (second command-bundle))))
+         (command (first command-bundle))
+         (match (second command-bundle)))
     (if command
       ;; well, yes, it could've been done more flexible to cover cases with need for in-reader computations
       ;; but i don care. it's hard to juggle characters with read/unread, when error handling arises

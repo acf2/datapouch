@@ -39,7 +39,6 @@
 
 ; TODO
 ;(defun goto-history
-;(defun goto-link
 
 
 ;;; As with `find-note' but more interactive. Obsolete.
@@ -87,7 +86,7 @@
               (left-join :note :on (:= :link.destination :note.id))
               (where (:= :link.source note))
               (order-by (:asc :link.number))))
-    (format *standard-output* +msg-note-is-not-chosen+)))
+    (format *standard-output* "~A~&" +msg-note-is-not-chosen+)))
 
 ;; TODO
 ;(defun add-link
@@ -256,7 +255,7 @@
                                                  (:= :number 0)))))))
     (if next-note-id
       (set-current-note next-note-id)
-      (format *standard-output* +msg-no-notes+))))
+      (format *standard-output* "~A~&" +msg-no-notes+))))
 
 
 (defun command-memorize (string match)
@@ -273,7 +272,7 @@
   (declare (ignore string match))
   (if *memorized-note*
     (set-current-note *memorized-note*)
-    (format *standard-output* +msg-note-is-not-chosen+)))
+    (format *standard-output* "~A~&" +msg-note-is-not-chosen+)))
 
 
 (defun parse-link-parameters (match)
@@ -293,9 +292,9 @@
          (transformed-rows (apply #'zac.box.travel:select-notes-through-links *current-note* parameters))
          (chosen-row (apply #'zac.box.travel:choose-row-from-note-through-links transformed-rows *choose-note-prompt* parameters)))
     (cond ((null transformed-rows)
-           (format *standard-output* +msg-no-notes+))
+           (format *standard-output* "~A~&" +msg-no-notes+))
           ((null chosen-row)
-           (format *standard-output* +msg-note-is-not-chosen+))
+           (format *standard-output* "~%~A~&" +msg-note-is-not-chosen+))
           (:else
             (funcall command chosen-row)))))
 
@@ -335,7 +334,7 @@
     (let* ((override-note-number? (and notes-with-number (yes-or-no-p +question-note-with-number-exists+)))
            (new-note (first (edit-strings ""))))
       (cond ((string= new-note "")
-             (format *standard-output* +msg-abort-note-creation+))
+             (format *standard-output* "~A~&" +msg-abort-note-creation+))
             (:else
               (when override-note-number?
                 (update :link
@@ -459,7 +458,6 @@
          (add-link-rxs `(("add" "link" (:direction . "to|from") ,@new-link-number)
                          ("al" ((:direction . "t|f") :immediate)
                           ,@new-link-number-short))))
-    ;; Simple commands
     (generate-commands
       (create-shell-commands '(("edit") ("e")) #'command-edit "Edit current note"
                              '("home") #'command-home "Go to root note"

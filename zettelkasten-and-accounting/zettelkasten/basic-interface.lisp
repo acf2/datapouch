@@ -80,7 +80,7 @@
                                                             :get-index t
                                                             :prompt-fun prompt))))
     (cond ((null found-rows)
-           (values nil +msg-no-notes+)) ; TODO Do something with this
+           (values nil (format nil "~A~&" +msg-no-notes+))) ; TODO Do something with this
           ((null chosen-row-index)
-           (values nil +msg-note-is-not-chosen+)) ; TODO Do something with this [x2]
+           (values nil (format nil "~%~A~&" +msg-note-is-not-chosen+))) ; TODO Do something with this [x2]
           (:else (values (nth chosen-row-index found-rows) nil)))))
