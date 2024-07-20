@@ -11,9 +11,8 @@
 (defparameter *current-note* nil)
 (defparameter *memorized-note* nil)
 
-;; History
-(defparameter *note-history* nil) ; TBD
-(defparameter *note-future* nil) ; TBD
+(defparameter *note-history* nil)
+(defparameter *note-future* nil)
 
 (defparameter *option-show-note-after-jump* t)
 
@@ -27,8 +26,7 @@
 (defparameter +msg-abort-note-creation+ "Aborted.")
 (defparameter +msg-link-exists+ "Link already exists.")
 
-(defparameter +errmsg-no-note-found+ "~%No such note found.~&")
-(defparameter +errmsg-generic-sqlite-error+ "~A~&~%Operation aborted.~&")
+(defparameter +errfmt-generic-sqlite-error+ "~A~&~%Operation aborted.~&")
 
 (defparameter +intermsg-cannot-find-id+ "~%INTERNAL: No note with such ID~&")
 

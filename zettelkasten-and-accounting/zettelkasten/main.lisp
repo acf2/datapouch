@@ -1,4 +1,4 @@
-;;;; zettelkasten.lisp
+k;;; zettelkasten.lisp
 ;;; Zettelkasten example
 ;;;
 ;;; WARNING! Every and any note interaction must interpret a note as ID number
@@ -232,7 +232,7 @@
 ;(defun wrap-catch-sqlite-errors (fun)
 ;  (lambda (string match)
 ;    (handler-case (funcall fun string match)
-;      (sqlite:sqlite-error (err) (format *standard-output* +errmsg-generic-sqlite-error+ err)))))
+;      (sqlite:sqlite-error (err) (format *standard-output* +errfmt-generic-sqlite-error+ err)))))
 
 
 (defun command-edit (string match)
@@ -273,6 +273,30 @@
   (if *memorized-note*
     (set-current-note *memorized-note*)
     (format *standard-output* "~A~&" +msg-note-is-not-chosen+)))
+
+
+(defun command-back (string match)
+  (declare (ignore string match))
+  (let ((old-note *current-note*)
+        (new-note (first *note-history*)))
+    (cond (new-note
+             (set-current-note new-note :update-history nil)
+             (setf *note-history* (rest *note-history*))
+             (setf *note-future* (cons old-note *note-future*)))
+           (:else
+             (format *standard-output* "~A~&" +msg-no-notes+)))))
+
+
+(defun command-forward (string match)
+  (declare (ignore string match))
+  (let ((old-note *current-note*)
+        (new-note (first *note-future*)))
+    (cond (new-note
+             (set-current-note new-note :update-history nil)
+             (setf *note-history* (cons old-note *note-history*))
+             (setf *note-future* (rest *note-future*)))
+           (:else
+             (format *standard-output* "~A~&" +msg-no-notes+)))))
 
 
 (defun parse-link-parameters (match)
@@ -432,15 +456,17 @@
          (tags-rx "(?:\\w+,)*\\w+")
          (tag-arguments `((,(concat "\\+" (make-named-group :ptags tags-rx)) :optional)
                           (,(concat "-" (make-named-group :ntags tags-rx)) :optional)))
+         (exponent-arguments `(((:exponent . "[1-9]\\d*") :optional)))
+         (short-exponent-arguments `(((:exponent . "[1-9]\\d*") :optional :optionally-immediate)))
          (link-type-arguments `(((:type . "forward|back") :optional)))
          (short-link-type-arguments `(((:type . "f|b") :optional :immediate)))
          (link-arguments `(,@link-type-arguments
-                           ((:exponent . "[1-9]\\d*") :optional)
+                           ,@exponent-arguments
                            ((:closure . "\\*") :optional :immediate)
                            ,@tag-arguments
                            ,@substring-arguments))
          (short-link-arguments `(,@short-link-type-arguments
-                                 ((:exponent . "[1-9]\\d*") :optional :immediate)
+                                 ,@short-exponent-arguments
                                  ((:closure . "\\*") :optional :immediate)
                                  ,@tag-arguments
                                  ,@substring-arguments))
@@ -451,6 +477,10 @@
          (search-rxs `("s(?:earch)?"                                                             ; /s[earch] [+tag,tag,...] [-tag,tag,...] <substring>
                        ,@tag-arguments
                        ,@substring-arguments))
+         (back-rxs `(("back" ,@exponent-arguments)
+                     ("b" ,@short-exponent-arguments)))
+         (forward-rxs `(("forward" ,@exponent-arguments)
+                        ("f" ,@short-exponent-arguments)))
          (links-rxs `(("links" ,@link-arguments)
                       ("l" ,@short-link-arguments)))
          (add-note-rxs `(("add" "note" ,@new-link-number)
@@ -465,6 +495,8 @@
                              '(("memorize") ("memo") ("m")) #'command-memorize "Memorize current note for future use"
                              '(("clear" "memo(?:ry)?") ("cm")) #'command-clear-memory "Forget memorized note"
                              '(("goto" "memo(?:ry)?") ("gm")) #'command-goto-memory "Goto memorized note"
+                             back-rxs #'command-back "Go back in history"
+                             forward-rxs #'command-forward "Go forward in history"
                              search-rxs #'command-search-note "Search by substring across all zettelkasten"
                              goto-rxs #'command-goto "Go to specific note using links, starting from current one"
                              links-rxs #'command-links "Show links from this note with specified parameters"

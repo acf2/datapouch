@@ -18,16 +18,25 @@
 
 ;;; Readline config
 
-(defun no-newline-after-debugger (con val)
-  (declare (ignore con val))
-  (setf d.cli:*there-is-no-fresh-line-now* t))
+
+;(defun remove-extra-new-line-after-debugger (con val)
+  ;(declare (ignore con val))
+  ;(setf d.cli:*there-is-no-fresh-line-now* t))
+
+
+(defun ignore-hook (con val)
+  (declare (ignore val))
+  (print con)
+  (clear-input)
+  (abort))
 
 
 (defun init-readline ()
-  (setf d.cli:*there-is-no-fresh-line-now* t)
   (setf d.cli:*buffer* "")
-  (pushnew #'no-newline-after-debugger *debugger-hooks*)
+  ;(pushnew #'no-newline-after-debugger *debugger-hooks*)
+  ;(pushnew #'ignore-debugger *debugger-hooks*)
   (when *history-path* (rl:read-history (namestring (truename *history-path*))))
+  ;; Check if readline version > 8?
   (d.cli:disable-bracketed-paste))
 
 
@@ -67,9 +76,12 @@
                                                              #'finalize-sqlite
                                                              #'d.crypto:rehash-database)
                                                        *post-unload-hooks*)))
-  (d.regex:allow-named-registers) ; Need this to use named registers
+  (d.regex:allow-named-registers)
   (d.rmacro:install-command-reader-macro)
   (setf sb-ext:*invoke-debugger-hook* #'debugger-hook)
   (setf sb-int:*repl-prompt-fun* (constantly ""))
-  (setf sb-int:*repl-read-form-fun* (d.cli:get-repl)) ; Best it to remain second to last
+  (setf sb-int:*repl-read-form-fun* (d.cli:get-repl-read-form)) ; Best leave it to remain third to last
+  (if d.cli:*heretical-repl-available*
+    (setf sb-impl::*repl-fun-generator* (constantly #'d.cli:repl-fun-with-readline))
+    (setf d.cli:*add-fresh-line-after-each-result-print* t))
   (apply #'sb-ext:save-lisp-and-die args))

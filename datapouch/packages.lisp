@@ -40,14 +40,17 @@
   (:export #:+default-line-separator+
            #:+default-space-characters+
            #:*buffer*
-           #:*there-is-no-fresh-line-now*
+           #:*add-fresh-line-after-each-result-print*
            #:*prompt-fun*
            #:*custom-readtable*
+           #:*noprint-result* #:*noprint-prompt*
            #:readline
            #:read-form
            #:disable-bracketed-paste
            #:restore-bracketed-paste
-           #:get-repl))
+           #:get-repl-read-form
+           #:*heretical-repl-available*
+           #:repl-fun-with-readline))
 
 
 (defpackage :datapouch.reader-macro

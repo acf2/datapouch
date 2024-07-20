@@ -48,6 +48,7 @@
 
 
 (defun make-zac (&rest args)
+  (setf d.cli:*noprint-result* nil) ; At least for now
   (setf d.cli:*prompt-fun* #'custom-prompt-fun)
   (setf d.main:*preload-hooks* (append d.main:*preload-hooks*
                                        (list #'parse-command-line-arguments)))

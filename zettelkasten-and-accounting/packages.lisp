@@ -39,9 +39,8 @@
 (defpackage :zac.zettelkasten
   (:use #:cl #:datapouch)
   (:nicknames :zac.box)
-  (:export #:+errmsg-note-is-not-chosen+
-           #:*current-note* #:*memorized-note*
-           #:*note-history*
+  (:export #:*current-note* #:*memorized-note*
+           #:*note-history* #:*note-future*
            #:*option-show-note-after-jump*
            #:create-zettelkasten
            #:max-note-id

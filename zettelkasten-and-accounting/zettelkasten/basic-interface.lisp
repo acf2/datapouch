@@ -15,9 +15,10 @@
 
 
 (defun show-note (note)
-  (let ((answer (when note (get-note-by-id note))))
-    (if answer
-      (format *standard-output* "~A~&" (second (first answer)))
+  (let* ((answer (when note (get-note-by-id note)))
+         (text (second (first answer))))
+    (if text
+      (format *standard-output* "~A~&" text)
       (error +intermsg-cannot-find-id+))))
 
 
@@ -25,10 +26,12 @@
 ;;; Every note change should be going through this function
 ;;; Unless you what to add some low-level stuff
 (defun set-current-note (note &key ((:update-history update-history) t))
-  (setf *current-note* note)
-  (when note
+  (when *current-note*
     (when update-history
-      nil) ; TODO
+      (setf *note-history* (cons *current-note* *note-history*))
+      (setf *note-future* nil)))
+  (setf *current-note* note)
+  (when *current-note*
     (when *option-show-note-after-jump*
       (show-note note))))
 

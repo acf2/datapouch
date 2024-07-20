@@ -9,13 +9,22 @@
 
 
 (defun default-prompt (buffer)
-  (if (string= buffer "")
-    "> "
-    "* "))
+  (format nil "~:[*~:;>~] " (string= buffer "")))
 (defparameter *prompt-fun* #'default-prompt)
 
 
+;; Fixes fresh-line bug, if heretical repl is not available
+(defparameter *add-fresh-line-after-each-result-print* nil)
+
+
 (defparameter *custom-readtable* (copy-readtable *readtable*))
+
+
+(defparameter *noprint-result* t)
+(defparameter *noprint-prompt* nil)
+
+
+(defparameter *buffer* "")
 
 
 ;;; Read one line from with rl:readline
@@ -28,13 +37,13 @@
 ;;; Especially when it's a synonym stream
 ;;; What? (sb-sys:fd-stream-fd (eval (synonym-stream-symbol output-stream)))? Like with naked eval?
 (defun readline (buffer prompt-fun)
-  (let ((line (rl:readline :prompt (funcall prompt-fun buffer)
+  (let ((line (rl:readline :prompt (when (not *noprint-prompt*)
+                                     (funcall prompt-fun buffer))
                            :erase-empty-line nil
                            :add-history t)))
     ;; nil from rl:readline means EOF
     (values line (and (null line)
                       (string= buffer "")))))
-
 
 ;;; Returns two values: form, unused characters
 ;;;
@@ -63,7 +72,7 @@
     (end-of-file () (values nil form-string))))
 
 
-;;; Read one form from interactive-input
+;;; Read one form with readline (I cannot really control its input stream?..)
 ;;; Returns three values:
 ;;;   form, read from input
 ;;;   is-eof, boolean value
@@ -84,7 +93,6 @@
             :when form :return (values form nil new-buffer)))))
 
 
-
 ;;; Piece of shit
 ;;; https://github.com/hanslub42/rlwrap/issues/108
 (let (bracketed-paste)
@@ -98,33 +106,82 @@
       (rl:variable-bind "enable-bracketed-paste" bracketed-paste))))
 
 
-(defparameter *there-is-no-fresh-line-now* t)
-(defparameter *buffer* "")
-
-
-;;; XXX: This is the bug ridden hell.
-;;;      I dunno what to do with this.
-;;;      [1] and [2] should be fixed somehow, and then this clusterduck can be eliminated
-(defun get-repl ()
+;;; XXX: Fixed fresh-line bug, by introducing The Harbinger of Kludge God
+;;;      More info below.
+;;; NOTE: add-fresh-line-after... is not a perfect mitigation in case of broken readline repl function
+;;;       e.g. when debugger is called without new repl, additional new line is outputted
+;;;       To fix this, revert there-is-no-fresh-line-now to global/special and add debug hook
+(let (there-is-no-fresh-line-now)
+(defun get-repl-read-form ()
   (lambda (in out)
     (declare (ignore in))
-    ;; Why fresh-line does not work here? [1]
-    ;; (With fresh-line here, *there-is-no-fresh-line-now* can be removed entirely)
-    (if *there-is-no-fresh-line-now*
-      (setf *there-is-no-fresh-line-now* nil)
-      (terpri out))
+    (when there-is-no-fresh-line-now
+      (terpri *standard-output*)
+      (setf there-is-no-fresh-line-now nil))
     (handler-case
       (multiple-value-bind (form eof new-buffer)
         (let ((*readtable* *custom-readtable*))
           (read-form *buffer* *prompt-fun*))
-        (when (or eof *there-is-no-fresh-line-now*)
-          ;; Why fresh-line does not work here? [2]
-          (terpri out)
-          (setf *there-is-no-fresh-line-now* nil))
-        (when eof
-          (sb-ext:quit))
+        (cond (eof
+                (terpri out)
+                (sb-ext:quit))
+              ((and *add-fresh-line-after-each-result-print*
+                    (not *noprint-prompt*)
+                    (not *noprint-result*))
+               (setf there-is-no-fresh-line-now t)))
         (setf *buffer* new-buffer)
         form)
       (sb-int:simple-reader-error (c)
                                   (setf *buffer* "")
-                                  (error c)))))
+                                  (error c))))))
+
+
+;; Try to look at this variable, before doing anything rash.
+;; repl-fun depends on internal functions heavily,
+;; so it is likely to be broken, when SBCL is updated.
+(defparameter *heretical-repl-available* t)
+
+
+;;; XXX: Yes, I'm gonna burn in hell for this. Don't bother complaining.
+;;; XXX: Yes, I just removed everything about prompt, because readline will use it automatically.
+;;;      And no, using it here is worse, because some other code changes *prompt-fun* on-the-fly,
+;;;      and I feel better, when its usage is incapsulated in part of my code.
+;;;      ...not this abomination.
+(defun repl-fun-with-readline (noprint-global)
+  (declare (special *noprint-prompt* *noprint-result*))
+  ;(/show0 "entering REPL") ; TBD: Make this work, at least. Its sb-int:/show0
+  (let* ((*noprint-prompt* (or noprint-global *noprint-prompt*)) ; Yup, readline uses it
+         (*noprint-result* (or noprint-global *noprint-result*)))
+    (loop
+      (unwind-protect
+        (progn
+          (sb-sys:scrub-control-stack)
+          (sb-thread::get-foreground)
+          ;(unless *noprint-prompt*
+          ;(sb-int:flush-standard-output-streams)
+          ;(funcall sb-impl::*repl-prompt-fun* *standard-output*)
+          ;; (Should *REPL-PROMPT-FUN* be responsible for doing its own
+          ;; FORCE-OUTPUT? I can't imagine a valid reason for it not to
+          ;; be done here, so leaving it up to *REPL-PROMPT-FUN* seems
+          ;; odd. But maybe there *is* a valid reason in some
+          ;; circumstances? perhaps some deadlock issue when being driven
+          ;; by another process or something...)
+          ;(force-output *standard-output*)
+          ;(let ((real (sb-impl::maybe-resolve-synonym-stream *standard-output*)))
+          ;; Because by default *standard-output* is not
+          ;; *terminal-io* but STDOUT the column is not reset
+          ;; after pressing enter. Reduce confusion by resetting
+          ;; the column to 0
+          ;(when (sb-sys:fd-stream-p real)
+          ;(setf (sb-impl::fd-stream-output-column real) 0))))
+          (let* ((form (funcall sb-int:*repl-read-form-fun*
+                                *standard-input*
+                                *standard-output*))
+                 (results (multiple-value-list (sb-impl::interactive-eval form))))
+            (unless *noprint-result*
+              (dolist (result results)
+                (fresh-line)
+                (sb-impl::prin1 result))
+              (terpri)))) ;; NOTE: ALL THIS HERESY, FOR NEED OF A ONE LITTLE LINE OF CODE
+        ;; If we started stepping in the debugger we want to stop now.
+        (sb-impl::disable-stepping)))))
