@@ -209,27 +209,5 @@
         options))
 
 
-; command-regex    = regex
-; argument-regexes = nil | (argument-regex...)
-; argument-regex   = regex | (regex modifier...)
-; modifier = :optional | :immediate
-;  :optinal makes this argument optional
-;  :immediate won't separate this argument from previous one with spaces
-(defun make-command-regex-scanner (command-regex &rest argument-regexes)
-  (make-scanner (apply #'concat (append (list "^\\s*"
-                                              command-regex)
-                                        (mapcar (lambda (argument-regex)
-                                                  (if (listp argument-regex)
-                                                    (let ((result (first argument-regex))
-                                                          (modifiers (rest argument-regex))
-                                                          (separator "\\s+"))
-                                                      (when (member :optionally-immediate modifiers)
-                                                        (setf separator "\\s*"))
-                                                      (unless (member :immediate modifiers)
-                                                        (setf result (concat-two separator result)))
-                                                      (when (member :optional modifiers)
-                                                        (setf result (concat (wrap-in-noncapturing-group result) "?")))
-                                                      result)
-                                                    (concat-two "\\s+" argument-regex)))
-                                                argument-regexes)
-                                        (list "\\s*$")))))
+(defun list-group-names (groups)
+  (map 'list #'car groups))
