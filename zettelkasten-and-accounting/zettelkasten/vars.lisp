@@ -9,7 +9,7 @@
 
 
 (defparameter *current-note* nil)
-(defparameter *memorized-note* nil)
+;(defparameter *memorized-notes* nil) ; TODO
 
 (defparameter *note-history* nil)
 (defparameter *note-future* nil)
