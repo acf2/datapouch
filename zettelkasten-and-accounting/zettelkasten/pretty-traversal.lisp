@@ -45,10 +45,12 @@
       (funcall (if closure? #'build-union #'build-select) exponent))))
 
 
-(defun select-notes-through-links (note-id backward? exponent closure?)
+(defun select-notes-through-links (note-id &key ((:direction direction)) ((:exponent exponent)) ((:closure closure?)) &allow-other-keys)
   (declare (type integer note-id exponent)
-           (type boolean backward? closure?))
-  (let* ((target-column (if (not backward?) :destination :source))
+           (type keyword direction)
+           (type boolean closure?))
+  (let* ((target-column (if (eq direction :forward) :destination :source))
+         (backward? (eq direction :backward))
          (show-numbers? (and (not closure?)
                              (= exponent 1))))
     (labels ((link-name-gen (&optional index column) (make-name :table :link
@@ -218,27 +220,40 @@
          rows)))
 
 
-(defun choose-row-from-note-through-links (transformed-rows prompt backward? exponent closure?)
-  (cond (closure?
-          (let* ((column-names (column-names-for-notes-through-links backward? exponent closure?))
-                 (sorted-rows (get-referrers transformed-rows))
-                 (chosen-row-index (and sorted-rows (find-row-dialog column-names
-                                                                     sorted-rows
-                                                                     :row-transformation-function #'row-transformations-for-referrers
-                                                                     :get-index t
-                                                                     :prompt-fun prompt))))
-            (and chosen-row-index (nth chosen-row-index sorted-rows))))
-        (:else
-          (let* ((column-names (column-names-for-notes-through-links backward? exponent closure?))
-                 (chosen-row-index (and transformed-rows (find-row-dialog column-names
-                                                                          (prettify-rows transformed-rows)
-                                                                          :get-index t
-                                                                          :prompt-fun prompt))))
-            (and chosen-row-index (nth chosen-row-index transformed-rows))))))
+(defun choose-row-from-note-through-links (transformed-rows prompt &key ((:direction direction)) ((:exponent exponent)) ((:closure closure?)) ((:choose-many choose-many) nil) &allow-other-keys)
+  (declare (type integer note-id exponent)
+           (type keyword direction)
+           (type boolean closure?))
+  (let* ((backward? (eq direction :backward)))
+    (cond (closure?
+            (let* ((column-names (column-names-for-notes-through-links backward? exponent closure?))
+                   (sorted-rows (get-referrers transformed-rows))
+                   (chosen-row-index (and sorted-rows (find-row-dialog column-names
+                                                                       sorted-rows
+                                                                       :row-transformation-function #'row-transformations-for-referrers
+                                                                       :get-index t
+                                                                       :prompt-fun prompt
+                                                                       :choose-many choose-many))))
+              (and chosen-row-index (if choose-many
+                                      (loop :for index :in chosen-row-index
+                                            :collect (nth index sorted-rows))
+                                      (nth chosen-row-index sorted-rows)))))
+          (:else
+            (let* ((column-names (column-names-for-notes-through-links backward? exponent closure?))
+                   (chosen-row-index (and transformed-rows (find-row-dialog column-names
+                                                                            (prettify-rows transformed-rows)
+                                                                            :get-index t
+                                                                            :prompt-fun prompt
+                                                                            :choose-many choose-many))))
+              (and chosen-row-index (if choose-many
+                                      (loop :for index :in chosen-row-index
+                                            :collect (nth index transformed-rows))
+                                      (nth chosen-row-index transformed-rows))))))))
 
 
-(defun pretty-print-note-through-links (transformed-rows backward? exponent closure?)
-  (let* ((column-names (column-names-for-notes-through-links backward? exponent closure?))
+(defun pretty-print-note-through-links (transformed-rows &key ((:direction direction)) ((:exponent exponent)) ((:closure closure?)) &allow-other-keys)
+  (let* ((backward? (eq direction :backward))
+         (column-names (column-names-for-notes-through-links backward? exponent closure?))
          (sorted-rows (funcall (if closure? #'get-referrers #'prettify-rows) transformed-rows))
          (prettified-rows (if closure?
                             (row-transformations-for-referrers (loop :for row :in sorted-rows

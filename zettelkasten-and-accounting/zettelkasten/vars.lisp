@@ -9,7 +9,7 @@
 
 
 (defparameter *current-note* nil)
-(defparameter *memorized-note* nil)
+(defparameter *memorized-notes* nil) ; The first one is the target
 
 (defparameter *note-history* nil)
 (defparameter *note-future* nil)

@@ -31,20 +31,22 @@
 
 
 (defun add-all-commands ()
-  (setf *commands*
-        (append
-          (generate-commands
-            (list (make-shell-command '("init")
-                                      (lambda (str match)
-                                        (declare (ignore str match))
-                                        (init-everything)))
-                  (make-shell-command '(("h(?:ello)?" ("dear" :optional) (:name . "\\w+"))
-                                        ("greet" (:name . "\\w+")))
-                                      (lambda (str groups)
-                                        (declare (ignore str))
-                                        (format t "Hello, ~:(~A~)!~&"
-                                                (d.regex:get-group :name groups))))))
-          (zac.box:get-zettelkasten-commands))))
+  (let ((zac-shell (make-instance 'd.shell:shell)))
+    (zac.box:add-zettelkasten-commands zac-shell)
+    (setf *commands*
+          (generate-commands-from-shell zac-shell))))
+
+;          (generate-commands
+;            (list (make-shell-command '("init")
+;                                      (lambda (str match)
+;                                        (declare (ignore str match))
+;                                        (init-everything)))
+;                  (make-shell-command '(("h(?:ello)?" ("dear" :optional) (:name . "\\w+"))
+;                                        ("greet" (:name . "\\w+")))
+;                                      (lambda (str groups)
+;                                        (declare (ignore str))
+;                                        (format t "Hello, ~:(~A~)!~&"
+;                                                (d.regex:get-group :name groups))))))
 
 
 (defun make-zac (&rest args)
