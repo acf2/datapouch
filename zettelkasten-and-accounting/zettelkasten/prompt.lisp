@@ -35,7 +35,8 @@
           *zettelkasten-prompt-character-count*
           (when *current-note* (obfuscate-note-id *current-note*))
           *zettelkasten-prompt-character-count*
-          (when *memorized-note* (obfuscate-note-id *memorized-note*))))
+          31337 ;(when *memorized-note* (obfuscate-note-id *memorized-note*))
+          ))
 
 
 ;  (when *current-note* (format nil

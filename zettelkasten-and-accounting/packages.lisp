@@ -55,7 +55,7 @@
            #:show-links
            #:choose-note-interactive
            #:choose-link-interactive
-           #:get-zettelkasten-commands
+           #:add-zettelkasten-commands
            #:zettelkasten-init-hook))
 
 

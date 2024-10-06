@@ -1,4 +1,4 @@
-k;;; zettelkasten.lisp
+;;; zettelkasten.lisp
 ;;; Zettelkasten example
 ;;;
 ;;; WARNING! Every and any note interaction must interpret a note as ID number
@@ -186,23 +186,42 @@ k;;; zettelkasten.lisp
 ;;;       Implicit tags mechanic (alt - workspace defined by tags)
 ;;;       Or should I? Maybe it's not that bright of an idea
 ;;; [ ] Goto random note?
+;;; [ ] Sequential read for /next
+;;; [ ] Sequential read for content notes ("books"?)
+
+
+;;; TBD v2
+;;; Everything should be based around operator composition
+;;; [x] /home
+;;; [x] /next (note in sequence)
+;;;    maybe next designation?
+;;; [ ] Select notes through expression
+;;;   [ ] One note
+;;;   [ ] Many notes
+;;;   [ ] From this one
+;;;   [ ] Global search
+;;; [ ] /goto
+;;;     one note, tags?, substring
+;;; [ ] Memorization
+;;;   [ ] Command for memorizing
+;;;   [ ] Expression to use memorized notes (target, memorized)
+
 
 ;;; COMMAND HELP / TODO
-;;; /note (/n) - open text editor for current note +
-;;; goto != jump
-;;;   /goto forward/back/any N* [+tags] [-tags] <substring> (/gfN* +-, /gbN* +-, /gaN* +-) - interactive link choice from current note: possibly filtered by substring
-;;;   /jump <N1> ... <Nm> (/j) - special command for non-interative link choice, can be chained to form "paths" of links
-;;;                              Only forward. Somewhat service value for big Zettelkastens.
-;;;                              Number - number of a link, if exists (or text inside note)
-;;;                              Text - text inside note
-;;;   /search [+tags] [-tags] <substring> (/s) - global goto substring (slow)
-;;; /<linkcommand> N* - show links from this note in forward/backward/all directions
-;;;                     number after the command shows how much times zt should travel
-;;;                     asterisk shows if closure is needed (all levels deep notes from 1 to N will be shown)
-;;;   /links (/l)
-;;;   /links back (/lb)
-;;;   /connections (/la) - kinda too complex for now, if accounting for closure option
-;;;   /goto + /<linkcommand>?
+;;; /jump <N1> ... <Nm> (/j) - special command for non-interative link choice, can be chained to form "paths" of links
+;;;                            Only forward. Somewhat service value for big Zettelkastens.
+;;;                            Number - number of a link, if exists (or text inside note)
+;;;                            Text - text inside note
+;;;                            goto != jump
+;;; - /goto
+;;;     +tags -tags
+;;;     substring
+;;;     any direction ??
+;;; - /search
+;;;     +tags -tags
+;;; - /links all | /connections (/la) - kinda too complex for now, if accounting for closure option
+;;; - command composition
+;;;     /goto + /<linkcommand>?
 ;;;
 ;;; /add (/a), /remove (/r) + note (n), link (l)
 ;;;   /add note (/an) - adds note, with link from current to new, opens editor for new note body +
@@ -226,7 +245,91 @@ k;;; zettelkasten.lisp
 ;;;   /back (/b)
 ;;;   /forward (/f)
 
+;;; +++++  COMMAND HELP / DONE  +++++
+;;;
+;;;   ===  Command types  ===
+;;;
+;;; [E] Exponent commands:
+;;;   Commands, that support repeated application
+;;;
+;;;   Invokation: <command> [number]
+;;;   Short invocation: <cmd>[number]
+;;;
+;;; [D] Directed commands:
+;;;   Support change of direction.
+;;;
+;;;   Invokation: <command> [forward|back]
+;;;   Short invokation: <cmd>[f|b]
+;;;
+;;; [DAE] Directed Advanced Exponent commands:
+;;;   These support repeated application, as well as change of direction and
+;;;   possible closure "Closure" is the Kleene star: union of all repeated
+;;;   applications in 1..N at once.
+;;;
+;;;   Invocation: <command> [forward|back] [number][*]
+;;;   Short invocation: <cmd>[f|b][number][*]
+;;;
+;;; [S] Substring constrained command:
+;;;   These commands' results can (or must) be filtered with some substring.
+;;;
+;;;   Invocation: <command> [<substring>]
+;;;   Short invocation ???
+;;;
+;;;
+;;;   ===  Display commands  ===
+;;;
+;;; /links [DAE]
+;;;   Command displays all links fitting set criteria from current note.
+;;;
+;;;
+;;;   ===  Movement commands  ===
+;;;
+;;; /next (/n) - goto next note in sequence ("natural order" of reading).
+;;;              (internally this is achieved by number 0 for one particular link)
+;;; /goto forward/back/any N* [+tags] [-tags] <substring> (/gfN* +-, /gbN* +-, /gaN* +-) - interactive link choice from current note: possibly filtered by substring
+;;;   /search [+tags] [-tags] <substring> (/s) - global goto substring (slow)
+;;;
+;;;
+;;;   ===  Editing commands  ===
+;;;
+;;; /edit (/e) - open text editor for current note
+
 ;;; COMMANDS
+
+
+(defun parse-directed-args (match)
+  (let* ((argsymbol :direction)
+         (backward? (and (get-group argsymbol match)
+                         (or (string= (get-group argsymbol match) "back")
+                             (string= (get-group argsymbol match) "b")))))
+    backward?))
+
+
+
+(defun parse-link-parameters (match)
+  (let* ((backward? (and (get-group :type match)
+                         (or (string= (get-group :type match) "back")
+                             (string= (get-group :type match) "b"))))
+         (exponent (if (get-group :exponent match)
+                     (parse-integer (get-group :exponent match))
+                     1))
+         (closure? (not (null (get-group :closure match)))))
+    (values backward? exponent closure?)))
+
+
+(defun parse-new-link-parameters (match)
+  (let* ((next-in-sequence? (or (string= (get-group :number match) "next")
+                                (string= (get-group :number match) "n")))
+         (link-number (if next-in-sequence?
+                        0
+                        (and (get-group :number match)
+                             (parse-integer (get-group :number match)))))
+         (notes-with-number (and link-number
+                                 (car (select '(:source :destination)
+                                              (from :link)
+                                              (where (:and (:= :source *current-note*)
+                                                           (:= :number link-number))))))))
+    (values next-in-sequence? link-number notes-with-number)))
 
 
 ;(defun wrap-catch-sqlite-errors (fun)
@@ -241,14 +344,19 @@ k;;; zettelkasten.lisp
     (edit-notes (where (:= :id *current-note*)))))
 
 
-(defun command-home (string match)
+(defun command-home-old (string match)
   (declare (ignore string match))
   (when (select :* (from :note) (where (:= :id 0)))
     (set-current-note 0)))
 
 
-(defun command-next (string match)
-  (declare (ignore string match))
+(defun command-home ()
+  (when (select :* (from :note) (where (:= :id 0)))
+    (set-current-note 0)))
+
+
+
+(defun command-next ()
   (let ((next-note-id (caar (select :destination
                                     (from :link)
                                     (where (:and (:= :source *current-note*)
@@ -258,22 +366,29 @@ k;;; zettelkasten.lisp
       (format *standard-output* "~A~&" +msg-no-notes+))))
 
 
-(defun command-memorize (string match)
-  (declare (ignore string match))
-  (setf *memorized-note* *current-note*))
+;(defun command-memorize (string match)
+;  (declare (ignore string match))
+;  (setf *memorized-notes* *current-note*))
 
 
-(defun command-clear-memory (string match)
-  (declare (ignore string match))
-  (setf *memorized-note* nil))
+;; command-list-memorized
 
 
-(defun command-goto-memory (string match)
-  (declare (ignore string match))
-  (if *memorized-note*
-    (set-current-note *memorized-note*)
-    (format *standard-output* "~A~&" +msg-note-is-not-chosen+)))
+;; command-choose-memory
 
+
+;; clear memory [N1] [N2] ...
+;(defun command-clear-memory (string match)
+;  (declare (ignore string match))
+;  (setf *memorized-notes* nil))
+;
+;
+;(defun command-goto-memory (string match)
+;  (declare (ignore string match))
+;  (if *memorized-notes*
+;    (set-current-note *memorized-notes*)
+;    (format *standard-output* "~A~&" +msg-note-is-not-chosen+)))
+;
 
 (defun command-back (string match)
   (declare (ignore string match))
@@ -297,17 +412,6 @@ k;;; zettelkasten.lisp
              (setf *note-future* (rest *note-future*)))
            (:else
              (format *standard-output* "~A~&" +msg-no-notes+)))))
-
-
-(defun parse-link-parameters (match)
-  (let* ((backward? (and (get-group :type match)
-                         (or (string= (get-group :type match) "back")
-                             (string= (get-group :type match) "b"))))
-         (exponent (if (get-group :exponent match)
-                     (parse-integer (get-group :exponent match))
-                     1))
-         (closure? (not (null (get-group :closure match)))))
-    (values backward? exponent closure?)))
 
 
 (defun from-note-through-links-choosing-command (command string match)
@@ -337,21 +441,6 @@ k;;; zettelkasten.lisp
     (apply #'zac.box.travel:pretty-print-note-through-links transformed-rows parameters)))
 
 
-(defun parse-new-link-parameters (match)
-  (let* ((next-in-sequence? (or (string= (get-group :number match) "next")
-                                (string= (get-group :number match) "n")))
-         (link-number (if next-in-sequence?
-                        0
-                        (and (get-group :number match)
-                             (parse-integer (get-group :number match)))))
-         (notes-with-number (and link-number
-                                 (car (select '(:source :destination)
-                                              (from :link)
-                                              (where (:and (:= :source *current-note*)
-                                                           (:= :number link-number))))))))
-    (values next-in-sequence? link-number notes-with-number)))
-
-
 (defun command-add-note (string match)
   (declare (ignore string))
   (multiple-value-bind (next-in-sequence? link-number notes-with-number) (parse-new-link-parameters match)
@@ -375,38 +464,53 @@ k;;; zettelkasten.lisp
                   (set-current-note new-note))))))))
 
 
-(defun command-add-link (string match)
-  (declare (ignore string))
-  (multiple-value-bind (next-in-sequence? link-number notes-with-number) (parse-new-link-parameters match)
-    (declare (ignore next-in-sequence?))
-    (let* ((direction (if (or (string= (get-group :direction match) "to")
-                              (string= (get-group :direction match) "t"))
-                        :forward
-                        :backward))
-           (source-column (if (eq direction :forward)
-                            :source
-                            :destination))
-           (destination-column (if (eq direction :forward)
-                                 :destination
-                                 :source))
-           (override-note-number? (and notes-with-number (yes-or-no-p +question-note-with-number-exists+))))
-      (cond ((select :*
-                     (from :link)
-                     (where (:and (:= source-column *current-note*)
-                                  (:= destination-column *memorized-note*))))
-             (format *standard-output* +msg-link-exists+))
-            (:else
-              (when override-note-number?
-                (update :link
-                        (set= :number nil)
-                        (where (:and (:= :source (first notes-with-number))
-                                     (:= :destination (second notes-with-number))))))
-              (when (or (not notes-with-number)
-                        override-note-number?)
-                (insert-into :link
-                             (set= source-column *current-note*
-                                   destination-column *memorized-note*
-                                   :number link-number))))))))
+;(defun command-remove-note (string match)
+;  (declare (ignore string))
+;  nil)
+
+
+;(defun command-add-link (string match)
+;  (declare (ignore string))
+;  (multiple-value-bind (next-in-sequence? link-number notes-with-number) (parse-new-link-parameters match)
+;    (declare (ignore next-in-sequence?))
+;    (let* ((direction (if (or (string= (get-group :direction match) "to")
+;                              (string= (get-group :direction match) "t"))
+;                        :forward
+;                        :backward))
+;           (source-column (if (eq direction :forward)
+;                            :source
+;                            :destination))
+;           (destination-column (if (eq direction :forward)
+;                                 :destination
+;                                 :source))
+;           (override-note-number? (and notes-with-number (yes-or-no-p +question-note-with-number-exists+))))
+;      (cond ((select :*
+;                     (from :link)
+;                     (where (:and (:= source-column *current-note*)
+;                                  (:= destination-column *memorized-notes*))))
+;             (format *standard-output* +msg-link-exists+))
+;            (:else
+;              (when override-note-number? ; TODO: Wrong condition placement - won't work
+;                (update :link
+;                        (set= :number nil)
+;                        (where (:and (:= :source (first notes-with-number))
+;                                     (:= :destination (second notes-with-number))))))
+;              (when (or (not notes-with-number)
+;                        override-note-number?)
+;                (insert-into :link
+;                             (set= source-column *current-note*
+;                                   destination-column *memorized-notes*
+;                                   :number link-number))))))))
+
+
+;(defun command-remove-link (string match)
+;  (declare (ignore string))
+;  nil)
+
+
+;(defun command-modify-link (string match)
+;  (declare (ignore string))
+;  nil)
 
 
 ;;; Alternative definition of goto commands
@@ -450,58 +554,150 @@ k;;; zettelkasten.lisp
 ;                                        (format t "Hello, ~:(~A~)!~&"
 ;                                                (d.regex:get-group :name groups))))))))
 
-(defun get-zettelkasten-commands ()
-  (let* ((substring-rx ".*")
-         (substring-arguments `(((:substring . ,substring-rx) :optional)))
-         (tags-rx "(?:\\w+,)*\\w+")
-         (tag-arguments `((,(concat "\\+" (make-named-group :ptags tags-rx)) :optional)
-                          (,(concat "-" (make-named-group :ntags tags-rx)) :optional)))
-         (exponent-arguments `(((:exponent . "[1-9]\\d*") :optional)))
-         (short-exponent-arguments `(((:exponent . "[1-9]\\d*") :optional :optionally-immediate)))
-         (link-type-arguments `(((:type . "forward|back") :optional)))
-         (short-link-type-arguments `(((:type . "f|b") :optional :immediate)))
-         (link-arguments `(,@link-type-arguments
-                           ,@exponent-arguments
-                           ((:closure . "\\*") :optional :immediate)
-                           ,@tag-arguments
-                           ,@substring-arguments))
-         (short-link-arguments `(,@short-link-type-arguments
-                                 ,@short-exponent-arguments
-                                 ((:closure . "\\*") :optional :immediate)
-                                 ,@tag-arguments
-                                 ,@substring-arguments))
-         (new-link-number `(((:number . "\\d+|next") :optional)))
-         (new-link-number-short `(((:number . "\\d+|n") :optional :immediate)))
-         (goto-rxs `(("goto" ,@link-arguments)       ; /goto [forward][:<N>][*] [<substring>] | /goto back[:<N>][*] [<substring>]
-                     ("g" ,@short-link-arguments)))  ; /g[f][<N>][*] [<substring>] | /gb[<N>][*] [<substring>]
-         (search-rxs `("s(?:earch)?"                                                             ; /s[earch] [+tag,tag,...] [-tag,tag,...] <substring>
-                       ,@tag-arguments
-                       ,@substring-arguments))
-         (back-rxs `(("back" ,@exponent-arguments)
-                     ("b" ,@short-exponent-arguments)))
-         (forward-rxs `(("forward" ,@exponent-arguments)
-                        ("f" ,@short-exponent-arguments)))
-         (links-rxs `(("links" ,@link-arguments)
-                      ("l" ,@short-link-arguments)))
-         (add-note-rxs `(("add" "note" ,@new-link-number)
-                         ("an" ,@new-link-number-short)))
-         (add-link-rxs `(("add" "link" (:direction . "to|from") ,@new-link-number)
-                         ("al" ((:direction . "t|f") :immediate)
-                          ,@new-link-number-short))))
-    (generate-commands
-      (create-shell-commands '(("edit") ("e")) #'command-edit "Edit current note"
-                             '("home") #'command-home "Go to root note"
-                             '(("next") ("n")) #'command-next "Goto next note in sequence"
-                             '(("memorize") ("memo") ("m")) #'command-memorize "Memorize current note for future use"
-                             '(("clear" "memo(?:ry)?") ("cm")) #'command-clear-memory "Forget memorized note"
-                             '(("goto" "memo(?:ry)?") ("gm")) #'command-goto-memory "Goto memorized note"
-                             back-rxs #'command-back "Go back in history"
-                             forward-rxs #'command-forward "Go forward in history"
-                             search-rxs #'command-search-note "Search by substring across all zettelkasten"
-                             goto-rxs #'command-goto "Go to specific note using links, starting from current one"
-                             links-rxs #'command-links "Show links from this note with specified parameters"
-                             add-note-rxs #'command-add-note "Adding note"
-                             add-link-rxs #'command-add-link "Adding link to and from other note"))))
+
+
+;; TODO
+;; make one big command, that can incapsulate every movement command:
+;;  -> if it's on its own, then move (separate complete expression with only subexpression as it's contents)
+;;  -> if it's part of a bigger command - use returned value
+;; then command groups? (aggregate regexes into one big variant?)
+
+
+(defun add-zettelkasten-commands (shell)
+         ;(substring-rx ".*")
+         ;(substring-arguments `(((:substring . ,substring-rx) :optional)))
+;         (tags-rx "(?:\\w+,)*\\w+")
+;         (tag-arguments `((,(concat "\\+" (make-named-group :ptags tags-rx)) :optional)
+;                          (,(concat "-" (make-named-group :ntags tags-rx)) :optional)))
+;         (exponent-arguments `(((:exponent . "[1-9]\\d*") :optional)))
+;         (short-exponent-arguments `(((:exponent . "[1-9]\\d*") :optional :optionally-immediate)))
+;         (link-type-arguments `(((:type . "forward|back") :optional)))
+;         (short-link-type-arguments `(((:type . "f|b") :optional :immediate)))
+;         (link-arguments `(,@link-type-arguments
+;                           ,@exponent-arguments
+;                           ((:closure . "\\*") :optional :immediate)
+;                           ,@tag-arguments
+;                           ,@substring-arguments))
+;         (short-link-arguments `(,@short-link-type-arguments
+;                                 ,@short-exponent-arguments
+;                                 ((:closure . "\\*") :optional :immediate)
+;                                 ,@tag-arguments
+;                                 ,@substring-arguments))
+;         (new-link-number `(((:number . "\\d+|next") :optional)))
+;         (new-link-number-short `(((:number . "\\d+|n") :optional :immediate)))
+;         (goto-rxs `(("goto" ,@link-arguments)       ; /goto [forward][:<N>][*] [<substring>] | /goto back[:<N>][*] [<substring>]
+;                     ("g" ,@short-link-arguments)))  ; /g[f][<N>][*] [<substring>] | /gb[<N>][*] [<substring>]
+;         (search-rxs `("s(?:earch)?"                                                             ; /s[earch] [+tag,tag,...] [-tag,tag,...] <substring>
+;                       ,@tag-arguments
+;                       ,@substring-arguments))
+;         (back-rxs `(("back" ,@exponent-arguments)
+;                     ("b" ,@short-exponent-arguments)))
+;         (forward-rxs `(("forward" ,@exponent-arguments)
+;                        ("f" ,@short-exponent-arguments)))
+;         (links-rxs `(("links" ,@link-arguments)
+;                      ("l" ,@short-link-arguments)))
+;         (add-note-rxs `(("add" "note" ,@new-link-number)
+;                         ("an" ,@new-link-number-short)))
+;         (add-link-rxs `(("add" "link" (:direction . "to|from") ,@new-link-number)
+;                         ("al" ((:direction . "t|f") :immediate)
+;                          ,@new-link-number-short)))
+;    (generate-commands
+;      (create-shell-commands
+;        '("home") #'command-home "Go to root note"
+;        '(("edit") ("e")) #'command-edit "Edit current note"
+;        '(("next") ("n")) #'command-next "Goto next note in sequence"
+;        back-rxs #'command-back "Go back in history"
+;        forward-rxs #'command-forward "Go forward in history"
+;        search-rxs #'command-search-note "Search by substring across all zettelkasten"
+;        goto-rxs #'command-goto "Go to specific note using links, starting from current one"
+;        links-rxs #'command-links "Show links from this note with specified parameters"
+;        add-note-rxs #'command-add-note "Adding note"
+;        ))
+        ;(format t "Acceptable? ~A~&" (every #'acceptable-term? '("add" "some" (:r . "\\w+"))))
+
+        (add-shell-subexpressions
+          shell
+          ;(:next-designator ((:next-designator . "next"))
+          (:optional-direction (((:type . "f(?:orward)?|b(?:ack(?:ward)?)?") :optional))
+                               (lambda (&key ((:type type)))
+                                 (let* ((backward? (and type
+                                                        (some (lambda (var)
+                                                                (string= type var))
+                                                              (list "b" "back" "backward")))))
+                                   (if backward? :back :forward)))
+                               "Direction for operations supporting it")
+          (:optional-exponent (((:exponent . "[1-9]\\d*") :optional :optionally-immediate))
+                              (lambda (&key ((:exponent exponent)))
+                                (if exponent
+                                  (parse-integer exponent)
+                                  1))
+                              "Number of times some operation would be applied")
+          (:optional-closure (((:closure . "\\*") :optional :optionally-immediate))
+                             (lambda (&key ((:closure closure)))
+                               (not (null closure)))
+                             "Should repeated call to operation be concatenated? (Kleene star)")
+          (:dae-selector ((:direction . :optional-direction)
+                          (:exponent . :optional-exponent)
+                          (:closure . :optional-closure))
+                         (lambda (&key ((:direction direction)) ((:exponent exponent)) ((:closure closure)))
+                           (list direction exponent closure))
+                         "[DAE] Directed Advanced Exponent commands:
+                           These support repeated application, as well as change of direction and
+                           possible closure \"Closure\" is the Kleene star: union of all repeated
+                           applications in 1..N at once.")
+          )
+
+        (add-shell-commands
+          shell
+          (("home") #'command-home "Go to root note")
+          ((:many-forms ("next") ("n")) #'command-next "Goto next note in sequence")
+          (("g(?:oto)?" (:dae . :dae-selector)) (lambda (&key ((:dae dae)))
+                                             (format t "DAE: ~{~#[~A~:;~A ~]~}~&" dae))
+                                           "Dummy goto")
+          )
+        )
+
+;        (define-subexpression shell :exponent (make-shell-expression '(((:exponent . "[1-9]\\d*") :optional))
+;                                                                     (lambda (&key ((:exponent exponent)))
+;                                                                       (if (get-group :exponent match)
+;                                                                         (parse-integer (get-group :exponent match))
+;                                                                         1))
+;                                                                     "Number of times some operation would be applied"))
+;        (define-subexpression shell :direction (make-shell-expression '(((:type . "forward|back") :optional))
+;                                                                      (lambda (&key ((:type type)))
+;                                                                        (let* ((backward? (and type
+;                                                                                               (or (string= type "back")))))
+;                                                                          (if backward? :back :forward)))
+;                                                                      "Direction for operations supporting it"))
+;        (define-subexpression shell :closure (make-shell-expression '(((:closure . "\\*") :optional :immediate))
+;                                                                    (lambda (&key ((:closure closure)))
+;                                                                      (not (null closure)))
+;                                                                    "Should repeated call to operation be concatenated? (Kleene star)"))
+
+
+;         (exponent-arguments )
+;         (short-exponent-arguments `(((:exponent . "[1-9]\\d*") :optional :optionally-immediate)))
+;         (link-type-arguments `(((:type . "forward|back") :optional)))
+;         (short-link-type-arguments `(((:type . "f|b") :optional :immediate)))
+;         (link-arguments `(,@link-type-arguments
+;                           ,@exponent-arguments
+;                           ((:closure . "\\*") :optional :immediate)
+;                           ,@tag-arguments
+;                           ,@substring-arguments))
+;         (short-link-arguments `(,@short-link-type-arguments
+;                                 ,@short-exponent-arguments
+;                                 ((:closure . "\\*") :optional :immediate)
+;                                 ,@tag-arguments
+;                                 ,@substring-arguments))
+;         (new-link-number `(((:number . "\\d+|next") :optional)))
+;         (new-link-number-short `(((:number . "\\d+|n") :optional :immediate)))
+;         (goto-rxs `(("goto" ,@link-arguments)       ; /goto [forward][:<N>][*] [<substring>] | /goto back[:<N>][*] [<substring>]
+;                     ("g" ,@short-link-arguments)))  ; /g[f][<N>][*] [<substring>] | /gb[<N>][*] [<substring>]
+
+        ;                             '(("memorize") ("memo") ("m")) #'command-memorize "Memorize current note for future use"
+        ;                             '(("clear" "memo(?:ry)?") ("cm")) #'command-clear-memory "Forget memorized note"
+        ;                             '(("goto" "memo(?:ry)?") ("gm")) #'command-goto-memory "Goto memorized note"
+        ;add-link-rxs #'command-add-link "Adding link to and from other note"
 
 
 

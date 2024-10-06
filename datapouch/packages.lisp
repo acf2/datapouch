@@ -11,8 +11,12 @@
            #:list-existing*
            #:ensure-list
            #:append-lists
+           #:map-append
            #:rotate
-           #:repeat-string))
+           #:repeat-string
+           #:member-of
+           #:get-keys-from-hash-table
+           #:check-directed-graph-for-cycles))
 
 
 (defpackage :datapouch.regex-support
@@ -28,10 +32,10 @@
            #:interchange
            #:interchange-three
            #:scan-named-groups
-           #:get-group #:is-group
+           #:get-group #:is-group #:list-group-names
            #:regex-scanner #:scanner
            #:make-scanner
-           #:make-command-regex-scanner))
+           ))
 
 
 (defpackage :datapouch.cli
@@ -133,8 +137,6 @@
            #:get-table-power-expression))
 
 
-
-
 (defpackage :datapouch.crypto
   (:use #:cl #:uiop #:ironclad)
   (:nicknames :d.crypto)
@@ -164,11 +166,32 @@
 (defpackage :datapouch.shell
   (:use #:cl #:d.rmacro)
   (:nicknames :d.shell)
-  (:export #:shell-command
-           #:add-shell-command-form
-           #:make-shell-command
-           #:generate-commands
-           #:create-shell-commands))
+  (:import-from :d.aux
+                #:list-existing*)
+  (:export 
+    ;; S-form
+    #:acceptable-regex?
+    #:simple-regex-group?
+    #:named-regex-group?
+    #:acceptable-regex-group?
+    #:simple-argument?
+    #:acceptable-modifier-for-argument?
+    #:argument-with-modifiers?
+    #:acceptable-term?
+    #:make-command-s-form-scanner
+    ;; Expression
+    #:subexpression-argument?
+    #:acceptable-argument?
+    #:acceptable-expression-s-form?
+    #:acceptable-built-expression-s-form?
+    #:shell-expression #:shell
+    #:built-shell-expression #:built-shell
+    #:define-subexpression #:define-command
+    #:build-expression #:build-shell
+    #:make-shell-expression
+    #:generate-commands-from-shell
+    #:add-shell-subexpressions
+    #:add-shell-commands))
 
 
 (defpackage :datapouch.main
