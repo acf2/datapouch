@@ -42,13 +42,6 @@
   (every #'acceptable-term? form))
 
 
-;; TODO
-;; make one big command, that can incapsulate every movement command:
-;;  -> if it's on its own, then move (separate complete expression with only subexpression as it's contents)
-;;  -> if it's part of a bigger command - use returned value
-;; then command groups? (aggregate regexes into one big variant?)
-
-
 (defgeneric define-subexpression (shell id expression)
   (:documentation "Define an subexpression and assign it id in shell expression table"))
 
@@ -65,12 +58,9 @@
   (:documentation "Make shell expressions usable for transformation to reader macro commands"))
 
 
-;;; handler should be a function that accepts:
-;;;  one positional argument:
-;;;    - the whole command string
-;;;  key arguments:
-;;;    - one for each regex match group, that is provided only for this command (and not subexpressions, for example)
-;;;    - one for result of each subexpression (across all s-forms/lexers), and/or &allow-other-keys
+;;; handler should be a function that accepts only key arguments:
+;;;  - one for each regex match group, that is provided only for this command (and not subexpressions, for example)
+;;;  - one for result of each subexpression (across all s-forms/lexers), and/or &allow-other-keys
 (defclass shell-expression ()
   ((s-form :initarg :s-form
            :reader s-form)
@@ -99,12 +89,18 @@
 ;                            :format-arguments 'add-shell-expression-form)))))
 
 
+(defparameter +make-shell-expression-error+ "Error when making shell expression: ~A~&")
+
+
 (defun make-shell-expression (expression-s-form handler &optional docs)
-  (when (acceptable-expression-s-form? expression-s-form)
+  (if (acceptable-expression-s-form? expression-s-form)
     (make-instance 'shell-expression
                    :s-form expression-s-form
                    :handler handler
-                   :docs docs)))
+                   :docs docs)
+    (error (make-instance 'simple-error
+                          :format-control +make-shell-expression-error+
+                          :format-arguments (list (format nil "unacceptable expression s-form: ~S" expression-s-form))))))
 
 
 ;;; Note: wanted to use (type-id keyword), but apparently CL cannot do that
@@ -159,10 +155,16 @@
 ;; This helps to eliminate collisions of arguments/group names
 (defun scope-nrgs-in-s-form (name s-form)
   (map 'list (lambda (term)
-               (if (named-regex-group? term)
-                 (cons (get-scoped-name name (car term))
-                       (cdr term))
-                 term))
+               (cond ((and (argument-with-modifiers? term)
+                           (named-regex-group? (first term)))
+                      (list* (cons (get-scoped-name name (car (first term)))
+                                   (cdr (first term)))
+                             (rest term)))
+                     ((named-regex-group? term)
+                      (cons (get-scoped-name name (car term))
+                            (cdr term)))
+                     (:else 
+                       term)))
        s-form))
 
 
@@ -318,8 +320,28 @@
   (generate-commands-from-shell (build-shell shell)))
 
 
+(defmacro add-shell-subexpressions (shell &rest expr-defs)
+  `(progn
+     ,@(loop :for (type-key s-form user-handler docs) :in expr-defs
+             :collect `(define-subexpression ,shell
+                                             ,type-key
+                                             (make-shell-expression ',s-form ,user-handler ,docs)))))
+
+
+(defmacro add-shell-commands (shell &rest cmd-defs)
+  `(progn
+     ,@(loop :for (s-form user-handler docs) :in cmd-defs
+             :if (eq (first s-form) :many-forms)
+             :append (loop :for one-form :in (rest s-form)
+                           :collect `(define-command ,shell
+                                                     (make-shell-expression ',one-form ,user-handler ,docs)))
+             :else
+             :collect `(define-command ,shell
+                                       (make-shell-expression ',s-form ,user-handler ,docs)))))
+
+
 ;(defmacro create-shell-commands (&rest cmd-defs)
-;  `(list ,@(loop :for all-cmds := cmd-defs :then (cdddr all-cmds)
+;t `(list ,@(loop :for all-cmds := cmd-defs :then (cdddr all-cmds)
 ;                 :for cmd-rx := (first all-cmds)
 ;                 :for cmd-handler := (second all-cmds)
 ;                 :for cmd-docs := (third all-cmds)

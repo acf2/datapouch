@@ -189,7 +189,9 @@
     #:define-subexpression #:define-command
     #:build-expression #:build-shell
     #:make-shell-expression
-    #:generate-commands-from-shell))
+    #:generate-commands-from-shell
+    #:add-shell-subexpressions
+    #:add-shell-commands))
 
 
 (defpackage :datapouch.main

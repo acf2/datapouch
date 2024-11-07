@@ -14,11 +14,28 @@
   (select '(:id :text) (from :note) (where (:= :id id))))
 
 
+(defun get-notes-by-id (ids)
+  (select '(:id :text)
+          (from :note)
+          (where (:in :id ids))
+          (order-by `(:case :id ,@(loop :for index :from 1 :to (length ids)
+                                        :for id :in ids
+                                        :collect (list :when id index))))))
+
+
 (defun show-note (note)
   (let* ((answer (when note (get-note-by-id note)))
          (text (second (first answer))))
     (if text
       (format *standard-output* "~A~&" text)
+      (error +intermsg-cannot-find-id+))))
+
+
+(defun show-notes (notes)
+  (let* ((answer (when notes (get-notes-by-id notes)))
+         (texts (map 'list #'rest answer)))
+    (if texts
+      (pretty-print-table '("Notes") texts)
       (error +intermsg-cannot-find-id+))))
 
 

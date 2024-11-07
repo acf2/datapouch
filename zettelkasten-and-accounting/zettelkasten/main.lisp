@@ -189,6 +189,28 @@
 ;;; [ ] Sequential read for /next
 ;;; [ ] Sequential read for content notes ("books"?)
 
+
+;;; TBD v2
+;;; Everything should be based around operator composition
+;;; [x] /home
+;;; [x] /next (note in sequence)
+;;;    maybe next designation?
+;;; [~] Select notes through expression
+;;;   [x] One note
+;;;     [x] From this one
+;;;     [ ] Global search
+;;;   [ ] Many notes
+;;;     [ ] From this one
+;;;     [ ] Global search
+;;; [~] /goto
+;;;   [x] basic
+;;;   [ ] substring
+;;;   [ ] tags
+;;; [ ] Memorization
+;;;   [ ] Command for memorizing
+;;;   [ ] Expression to use memorized notes (target, memorized)
+
+
 ;;; COMMAND HELP / TODO
 ;;; /jump <N1> ... <Nm> (/j) - special command for non-interative link choice, can be chained to form "paths" of links
 ;;;                            Only forward. Somewhat service value for big Zettelkastens.
@@ -276,7 +298,107 @@
 ;;;
 ;;; /edit (/e) - open text editor for current note
 
-;;; COMMANDS
+
+;;; SUBEXPRESSION HANDLERS
+
+
+(defun pick-next-note (&key &allow-other-keys)
+  (let ((next-note-id (caar (select :destination
+                                    (from :link)
+                                    (where (:and (:= :source *current-note*)
+                                                 (:= :number 0)))))))
+    (if next-note-id
+      next-note-id
+      (format *standard-output* "~A~&" +msg-no-notes+))))
+
+
+(defun handle-optional-exponent (&key ((:exponent exponent)))
+  (if exponent
+    (parse-integer exponent)
+    1))
+
+
+(defun handle-optional-direction (&key ((:type type)))
+  (let* ((backward? (and type
+                         (some (lambda (var)
+                                 (string= type var))
+                               (list "b" "back" "backward")))))
+    (if backward? :backward :forward)))
+
+
+(defun select-constrained-notes (&key ((:parameters parameters)) ((:give-up-on-empty give-up-on-empty) nil))
+  (list :parameters parameters
+        :rows (when (or (not give-up-on-empty)
+                        (not (getf parameters :empty-expression?)))
+                (apply #'zac.box.travel:select-notes-through-links *current-note* parameters))))
+
+
+(defun pick-single-note (&key ((:selection selection)) ((:default-on-empty default-on-empty) nil))
+  (if (and default-on-empty
+           (getf (getf selection :parameters) :empty-expression?)
+           (null (getf selection :rows)))
+    *current-note*
+    (let* ((selected-rows (getf selection :rows))
+           (chosen-row (apply #'zac.box.travel:choose-row-from-note-through-links
+                              selected-rows
+                              *choose-note-prompt*
+                              (getf selection :parameters))))
+      (cond ((null selected-rows)
+             (format *standard-output* "~A~&" +msg-no-notes+))
+            ((null chosen-row)
+             (format *standard-output* "~%~A~&" +msg-note-is-not-chosen+))
+            (:else
+              (getf chosen-row :id))))))
+
+
+;;; COMMAND HANDLERS
+
+(defun command-home ()
+  (when (select :* (from :note) (where (:= :id 0)))
+    (set-current-note 0)))
+
+
+(defun command-show-note (&key ((:note note-id)))
+  (if note-id
+    (show-note note-id)
+    (format *standard-output* "~A~&" +msg-no-notes+)))
+
+
+(defun command-links (&key ((:selection selection)))
+  (apply #'zac.box.travel:pretty-print-note-through-links
+         (getf selection :rows)
+         (getf selection :parameters)))
+
+
+(defun command-goto (&key ((:note note-id)))
+  (when note-id
+    (set-current-note note-id)))
+
+
+;;; OLD (FOR REWORK)
+
+(defun parse-directed-args (match)
+  (let* ((argsymbol :direction)
+         (backward? (and (get-group argsymbol match)
+                         (or (string= (get-group argsymbol match) "back")
+                             (string= (get-group argsymbol match) "b")))))
+    backward?))
+
+
+
+(defun parse-new-link-parameters (match)
+  (let* ((next-in-sequence? (or (string= (get-group :number match) "next")
+                                (string= (get-group :number match) "n")))
+         (link-number (if next-in-sequence?
+                        0
+                        (and (get-group :number match)
+                             (parse-integer (get-group :number match)))))
+         (notes-with-number (and link-number
+                                 (car (select '(:source :destination)
+                                              (from :link)
+                                              (where (:and (:= :source *current-note*)
+                                                           (:= :number link-number))))))))
+    (values next-in-sequence? link-number notes-with-number)))
 
 
 (defun parse-directed-args (match)
@@ -332,24 +454,6 @@
     (set-current-note 0)))
 
 
-(defun command-home (command-string)
-  (declare (ignore command-string))
-  (when (select :* (from :note) (where (:= :id 0)))
-    (set-current-note 0)))
-
-
-
-(defun command-next (string match)
-  (declare (ignore string match))
-  (let ((next-note-id (caar (select :destination
-                                    (from :link)
-                                    (where (:and (:= :source *current-note*)
-                                                 (:= :number 0)))))))
-    (if next-note-id
-      (set-current-note next-note-id)
-      (format *standard-output* "~A~&" +msg-no-notes+))))
-
-
 ;(defun command-memorize (string match)
 ;  (declare (ignore string match))
 ;  (setf *memorized-notes* *current-note*))
@@ -360,6 +464,19 @@
 
 ;; command-choose-memory
 
+
+;; clear memory [N1] [N2] ...
+;(defun command-clear-memory (string match)
+;  (declare (ignore string match))
+;  (setf *memorized-notes* nil))
+;
+;
+;(defun command-goto-memory (string match)
+;  (declare (ignore string match))
+;  (if *memorized-notes*
+;    (set-current-note *memorized-notes*)
+;    (format *standard-output* "~A~&" +msg-note-is-not-chosen+)))
+;
 
 ;; clear memory [N1] [N2] ...
 ;(defun command-clear-memory (string match)
@@ -398,10 +515,8 @@
              (format *standard-output* "~A~&" +msg-no-notes+)))))
 
 
-(defun from-note-through-links-choosing-command (command string match)
-  (declare (ignore string))
-  (let* ((parameters (multiple-value-list (parse-link-parameters match)))
-         (transformed-rows (apply #'zac.box.travel:select-notes-through-links *current-note* parameters))
+(defun from-note-through-links-choosing-command (&key ((:parameters parameters)))
+  (let* ((transformed-rows (apply #'zac.box.travel:select-notes-through-links *current-note* parameters))
          (chosen-row (apply #'zac.box.travel:choose-row-from-note-through-links transformed-rows *choose-note-prompt* parameters)))
     (cond ((null transformed-rows)
            (format *standard-output* "~A~&" +msg-no-notes+))
@@ -409,20 +524,6 @@
            (format *standard-output* "~%~A~&" +msg-note-is-not-chosen+))
           (:else
             (funcall command chosen-row)))))
-
-
-(defun command-goto (string match)
-  (from-note-through-links-choosing-command (lambda (row)
-                                              (set-current-note (getf row :id)))
-                                            string
-                                            match))
-
-
-(defun command-links (string match)
-  (declare (ignore string))
-  (let* ((parameters (multiple-value-list (parse-link-parameters match)))
-         (transformed-rows (apply #'zac.box.travel:select-notes-through-links *current-note* parameters)))
-    (apply #'zac.box.travel:pretty-print-note-through-links transformed-rows parameters)))
 
 
 (defun command-add-note (string match)
@@ -499,26 +600,26 @@
 
 ;;; Alternative definition of goto commands
 ;;; For reference
-(defun get-goto-commands ()
-  ;; Goto
-  ;; /goto (forward|back)?(:\\d+)?(\\*)?
-  ;; /g(f|b)?(\\d+)?(\\*)?
-  (list (make-instance 'command
-                       :regex (concat "^\\s*"
-                                      "goto"
-                                      (wrap-in-noncapturing-group (concat "\\s+" (make-named-group :type "forward|back"))) "?"
-                                      (wrap-in-noncapturing-group (concat ":" (make-named-group :exponent "\\d+"))) "?"
-                                      (make-named-group :closure "\\*") "?"
-                                      "\\s*$")
-                       :handler #'command-goto)
-        (make-instance 'command
-                       :regex (concat "^\\s*"
-                                      "g"
-                                      (make-named-group :type "f|b") "?"
-                                      (make-named-group :exponent "\\d+") "?"
-                                      (make-named-group :closure "\\*") "?"
-                                      "\\s*$")
-                       :handler #'command-goto)))
+;(defun get-goto-commands ()
+;  ;; Goto
+;  ;; /goto (forward|back)?(:\\d+)?(\\*)?
+;  ;; /g(f|b)?(\\d+)?(\\*)?
+;  (list (make-instance 'command
+;                       :regex (concat "^\\s*"
+;                                      "goto"
+;                                      (wrap-in-noncapturing-group (concat "\\s+" (make-named-group :type "forward|back"))) "?"
+;                                      (wrap-in-noncapturing-group (concat ":" (make-named-group :exponent "\\d+"))) "?"
+;                                      (make-named-group :closure "\\*") "?"
+;                                      "\\s*$")
+;                       :handler #'command-goto)
+;        (make-instance 'command
+;                       :regex (concat "^\\s*"
+;                                      "g"
+;                                      (make-named-group :type "f|b") "?"
+;                                      (make-named-group :exponent "\\d+") "?"
+;                                      (make-named-group :closure "\\*") "?"
+;                                      "\\s*$")
+;                       :handler #'command-goto)))
 
 
 ;  (list (zac.cmd:make-command-wrapper '(("add" "note")
@@ -539,135 +640,54 @@
 ;                                                (d.regex:get-group :name groups))))))))
 
 
-
-;;;;;; DEBUG
-;;;;;; DEBUG
-;;;;;; DEBUG
-;;;;;; DEBUG
-
-;(defclass shell-expression ()
-;  ((s-forms :initarg :s-forms
-;            :reader s-forms)
-;   (handler :initarg :handler
-;            :reader handler)
-;   (docs :initarg :docs
-;         :reader :docs)))
-;
-;
-;(defmethod add-shell-expression-form ((expression shell-expression) expression-s-form &rest other-expression-forms)
-;  (if (every #'acceptable-expression-s-form? (cons expression-s-form other-expression-forms))
-;    (with-slots (s-forms lexers) expression
-;      (loop :for new-s-form :in (cons expression-s-form other-expression-forms) :do
-;            (push new-s-form s-forms))
-;      expression)
-;    (error (make-instance 'simple-error
-;                          :format-control +s-form-errors+
-;                          :format-arguments 'add-shell-expression-form))))
-;
-;
-;(defun make-shell-expression (expression-s-form handler &optional docs)
-;  (let ((multiple-expression-forms? (listp (first expression-s-form))))
-;    (when (or (and (not multiple-expression-forms?)
-;                   (acceptable-expression-s-form? expression-s-form))
-;              (and multiple-expression-forms?
-;                   (every #'acceptable-expression-s-form? expression-s-form)))
-;      (make-instance 'shell-expression
-;                     :s-forms (if multiple-expression-forms?
-;                                expression-s-form
-;                                (list expression-s-form))
-;                     :handler handler
-;                     :docs docs))))
-;
-;
-;(defun generate-commands (shell-commands)
-;  (loop :for shell-command :in shell-commands
-;        :append (loop :for s-forms := (s-forms shell-command) :then (rest s-forms)
-;                      :for parsers := (parsers shell-command) :then (rest parsers)
-;                      :for current-s-form := (first s-forms)
-;                      :for current-parser := (first parsers)
-;                      :while s-forms
-;                      :while parsers
-;                      :collect (make-instance 'command
-;                                              :regex current-parser
-;                                              :handler (handler shell-command)))))
-;
-;
-;(defmacro create-commands (&rest cmd-defs)
-;  `(list ,@(loop :for all-cmds := cmd-defs :then (cdddr all-cmds)
-;                 :for cmd-rx := (first all-cmds)
-;                 :for cmd-handler := (second all-cmds)
-;                 :for cmd-docs := (third all-cmds)
-;                 :while all-cmds
-;                 :collect `(make-shell-command ,cmd-rx ,cmd-handler ,cmd-docs))))
+;; TODO
+;; make one big command, that can incapsulate every movement command:
+;;  -> if it's on its own, then move (separate complete expression with only subexpression as it's contents)
+;;  -> if it's part of a bigger command - use returned value
+;; then command groups? (aggregate regexes into one big variant?)
 
 
-;(defclass shell-command ()
-;  ((s-forms :initarg :s-forms
-;            :reader s-forms)
-;   (parsers :initarg :parsers
-;            :reader parsers)
-;   (handler :initarg :handler
-;            :reader handler)
-;   (docs :initarg :docs
-;         :reader :docs)))
-;
-;
-;(defgeneric add-shell-command-form (shell-command command-s-form &rest other-command-forms)
-;  (:documentation "Add another s-form for this shell-command handler to handle"))
-;
-;
-;(defmethod add-shell-command-form ((command shell-command) command-s-form &rest other-command-s-forms)
-;  (with-slots (s-forms parsers) command
-;    (loop :for new-s-form :in (cons command-s-form other-command-s-forms) :do
-;          (push new-s-form s-forms)
-;          (push (apply #'d.shell::make-command-s-form-scanner new-s-form) parsers))
-;    command))
-;
-;
-;(defun make-shell-command (command-s-form handler &optional docs)
-;  (let ((multiple-command-forms? (listp (first command-s-form))))
-;    (make-instance 'shell-command
-;                   :s-forms (if multiple-command-forms?
-;                              command-s-form
-;                              (list command-s-form))
-;                   :parsers (if multiple-command-forms?
-;                              (mapcar (lambda (s-form)
-;                                        (apply #'d.shell::make-command-s-form-scanner s-form))
-;                                      command-s-form)
-;                              (list (apply #'d.shell::make-command-s-form-scanner command-s-form)))
-;                   :handler handler
-;                   :docs docs)))
-;
-;
-;(defun generate-commands (shell-commands)
-;  (loop :for shell-command :in shell-commands
-;        :append (loop :for s-forms = (s-forms shell-command) :then (rest s-forms)
-;                      :for parsers = (parsers shell-command) :then (rest parsers)
-;                      :for current-s-form = (first s-forms)
-;                      :for current-parser = (first parsers)
-;                      :while s-forms
-;                      :while parsers
-;                      :collect (make-instance 'command
-;                                              :regex current-parser
-;                                              :handler (handler shell-command)))))
-;
-;
-;(defmacro create-shell-commands (&rest cmd-defs)
-;  `(list ,@(loop :for all-cmds := cmd-defs :then (cdddr all-cmds)
-;                 :for cmd-rx := (first all-cmds)
-;                 :for cmd-handler := (second all-cmds)
-;                 :for cmd-docs := (third all-cmds)
-;                 :while all-cmds
-;                 :collect `(make-shell-command ,cmd-rx ,cmd-handler ,cmd-docs))))
+;;; +++++  COMMANDS  +++++
+;;;   ===  Syntax  ===
+;;;     Just /command
+;;;     Each command has unique syntax, but they can be combined.
+;;;
+;;;   ===  Basics  ===
+;;;     New command system works through combination of different commands.
+;;;     For clarity, commands that select some  notes are called "designators",
+;;;              and commands that act on these notes are called "operators".
+;;;
+;;;     They are all the same: some operators can use results of other operators.
+;;;     But this distinction makes understanding easier for me.
+;;;
+;;;   ===  Designators  ===
+;;;     cur[rent]
+;;;       Selects currently chosen note.
+;;;       Usually operators select current note by default, but it can be selected explicitly.
+;;;
+;;;     n[ext]
+;;;       Select next note in stated sequence.
+;;;       (Next note in sequence is explicitly labeled as "the next one" or with sign "->",
+;;;        internally it is represented by link with number 0.)
+;;;
+;;;     DAE single-note
+;;;
+;;;   ===  Operations  ===
+;;;
+;;; TODO: Memory ops
+;;; /set target (choose target from memorized list or current note; swaps, not forgets)
+;;; /memorize (push new note onto memorized-notes, result: last target - new head of memo list, selected note becomes target)
+;;; /rotate (first -> to end, second -> first, ...)
 
 
-;;;;;; DEBUG
-;;;;;; DEBUG
-;;;;;; DEBUG
-;;;;;; DEBUG
+(defparameter +dae-help+
+  "[DAE] Directed Advanced Exponent commands:
+  These support repeated application, as well as change of direction and
+  possible closure \"Closure\" is the Kleene star: union of all repeated
+  applications in 1..N at once.")
 
-(defun get-zettelkasten-commands ()
-  (let* ((shell (make-instance 'd.shell:shell))
+
+(defun add-zettelkasten-commands (shell)
          ;(substring-rx ".*")
          ;(substring-arguments `(((:substring . ,substring-rx) :optional)))
 ;         (tags-rx "(?:\\w+,)*\\w+")
@@ -705,7 +725,6 @@
 ;         (add-link-rxs `(("add" "link" (:direction . "to|from") ,@new-link-number)
 ;                         ("al" ((:direction . "t|f") :immediate)
 ;                          ,@new-link-number-short)))
-         )
 ;    (generate-commands
 ;      (create-shell-commands
 ;        '("home") #'command-home "Go to root note"
@@ -720,16 +739,118 @@
 ;        ))
         ;(format t "Acceptable? ~A~&" (every #'acceptable-term? '("add" "some" (:r . "\\w+"))))
 
-        (define-subexpression shell :num (make-shell-expression '((:body . "\\d+"))
-                                                                (lambda (&key ((:body body)))
-                                                                  (parse-integer body))
-                                                                "Integer number"))
-        (define-command shell (make-shell-expression '("add" "some" (:item . "\\w+") (:count . :num))
-                                                     (lambda (&key ((:item item)) ((:count count)))
-                                                       (format t "Add some ~A, ~A items~&" item count))
-                                                     "Adding-Some command"))
-        (define-command shell (make-shell-expression '("home") #'command-home "Go to root note"))
-        (generate-commands-from-shell shell)))
+        (add-shell-subexpressions
+          shell
+          ;;; Raw regexes - used to circumvent flaws of subexpressions
+          (:raw-optional-direction (((:type . "f(?:orward)?|b(?:ack(?:ward)?)?") :optional))
+                               (lambda (&key ((:type type)))
+                                 type)
+                               "Raw value of optional direction regex.")
+          (:raw-optional-exponent (((:raw-exponent . "[1-9]\\d*") :optional :optionally-immediate))
+                                  (lambda (&key ((:raw-exponent raw-exponent)))
+                                    raw-exponent)
+                                  "Raw value of optional exponent regex.")
+          ;;; Expressions - for parsing command arguments
+          (:optional-direction ((:type . :raw-optional-direction))
+                               #'handle-optional-direction
+                               "Optional parameter for operation direction.")
+          (:optional-exponent ((:exponent . :raw-optional-exponent))
+                              #'handle-optional-exponent
+                              "Optional parameter for number of times operation would be applied.")
+          (:optional-closure (((:closure . "\\*") :optional :optionally-immediate))
+                             (lambda (&key ((:closure closure)))
+                               (not (null closure)))
+                             "Optional parameter to enable concatenation of results of repeated calls to operation (Kleene star subset).")
+          (:dae ((:raw-direction . :raw-optional-direction)
+                 (:raw-exponent . :raw-optional-exponent)
+                 (:closure . :optional-closure))
+                (lambda (&key ((:raw-direction raw-direction)) ((:raw-exponent raw-exponent)) ((:closure closure)))
+                  (list :direction (handle-optional-direction :type raw-direction)
+                        :exponent (handle-optional-exponent :exponent raw-exponent)
+                        :closure closure
+                        :empty-expression? (and (null raw-direction)
+                                                (null raw-exponent)
+                                                (null closure))))
+                +dae-help+)
+          ;;; Selectors - literally performing some form of select statement
+          ;;;             return full tables, without filtering
+          (:constrained-note-selector ((:parameters . :dae))
+                                      #'select-constrained-notes
+                                      "For note selection, constrained by current note.")
+          (:explicit-constrained-note-selector ((:parameters . :dae))
+                                               (lambda (&key ((:parameters parameters)))
+                                                 (select-constrained-notes :parameters parameters
+                                                                           :give-up-on-empty t))
+                                               "For note selection, constrained by current note. Must be explicitly stated.")
+          ;;; Designators - allow to designate singular notes and note subsets,
+          ;;;               direct various note operators to notes on which they should be performed
+          (:current-note-designator (((:current . "cur(?:rent)?") :optionally-immediate))
+                                    (lambda (&key &allow-other-keys)
+                                      *current-note*)
+                                    "Currently chosen note.")
+          (:next-note-designator (((:next . "n(?:ext)?") :optionally-immediate))
+                                 #'pick-next-note
+                                 "Next note in sequence.")
+          (:single-constrained-note-designator ((:selection . :constrained-note-selector))
+                                               #'pick-single-note
+                                               "Pick one note over a constrained selection.")
+          (:single-constraint-note-designator-with-default ((:selection . :constrained-note-selector))
+                                                           (lambda (&key ((:selection selection)))
+                                                             (pick-single-note :selection selection
+                                                                               :default-on-empty t))
+                                                           "Pick one note over a constrained selection. Defaults to current note.")
+          )
+
+        (add-shell-commands
+          shell
+          (("home") #'command-home "Go to root note")
+          ((:many-forms ((:note . :current-note-designator))
+                        ((:note . :next-note-designator)))
+           #'command-show-note "Show contents of the note.")
+          ((:many-forms ("g(?:oto)?" (:note . :single-constrained-note-designator))
+                        ("g(?:oto)?" (:note . :next-note-designator)))
+           #'command-goto "Go to some note from this one")
+          (("l(?:inks)?" (:selection . :constrained-note-selector)) #'command-links "Show links from this note with specified parameters")
+          )
+        )
+
+
+;        (define-subexpression shell :exponent (make-shell-expression '(((:exponent . "[1-9]\\d*") :optional))
+;                                                                     (lambda (&key ((:exponent exponent)))
+;                                                                       (if (get-group :exponent match)
+;                                                                         (parse-integer (get-group :exponent match))
+;                                                                         1))
+;                                                                     "Number of times some operation would be applied"))
+;        (define-subexpression shell :direction (make-shell-expression '(((:type . "forward|back") :optional))
+;                                                                      (lambda (&key ((:type type)))
+;                                                                        (let* ((backward? (and type
+;                                                                                               (or (string= type "back")))))
+;                                                                          (if backward? :back :forward)))
+;                                                                      "Direction for operations supporting it"))
+;        (define-subexpression shell :closure (make-shell-expression '(((:closure . "\\*") :optional :immediate))
+;                                                                    (lambda (&key ((:closure closure)))
+;                                                                      (not (null closure)))
+;                                                                    "Should repeated call to operation be concatenated? (Kleene star)"))
+
+
+;         (exponent-arguments )
+;         (short-exponent-arguments `(((:exponent . "[1-9]\\d*") :optional :optionally-immediate)))
+;         (link-type-arguments `(((:type . "forward|back") :optional)))
+;         (short-link-type-arguments `(((:type . "f|b") :optional :immediate)))
+;         (link-arguments `(,@link-type-arguments
+;                           ,@exponent-arguments
+;                           ((:closure . "\\*") :optional :immediate)
+;                           ,@tag-arguments
+;                           ,@substring-arguments))
+;         (short-link-arguments `(,@short-link-type-arguments
+;                                 ,@short-exponent-arguments
+;                                 ((:closure . "\\*") :optional :immediate)
+;                                 ,@tag-arguments
+;                                 ,@substring-arguments))
+;         (new-link-number `(((:number . "\\d+|next") :optional)))
+;         (new-link-number-short `(((:number . "\\d+|n") :optional :immediate)))
+;         (goto-rxs `(("goto" ,@link-arguments)       ; /goto [forward][:<N>][*] [<substring>] | /goto back[:<N>][*] [<substring>]
+;                     ("g" ,@short-link-arguments)))  ; /g[f][<N>][*] [<substring>] | /gb[<N>][*] [<substring>]
 
         ;                             '(("memorize") ("memo") ("m")) #'command-memorize "Memorize current note for future use"
         ;                             '(("clear" "memo(?:ry)?") ("cm")) #'command-clear-memory "Forget memorized note"

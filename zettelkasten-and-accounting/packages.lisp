@@ -39,24 +39,29 @@
 (defpackage :zac.zettelkasten
   (:use #:cl #:datapouch)
   (:nicknames :zac.box)
-  (:export #:*current-note* #:*memorized-note*
-           #:*note-history* #:*note-future*
-           #:*option-show-note-after-jump*
-           #:create-zettelkasten
-           #:max-note-id
-           #:get-note-by-id
-           #:get-prompt
-           #:note-is-not-chosen
-           #:show-text
-           #:goto-text
-           #:edit-note
-           #:add-note
-           #:remove-note
-           #:show-links
-           #:choose-note-interactive
-           #:choose-link-interactive
-           #:get-zettelkasten-commands
-           #:zettelkasten-init-hook))
+  (:export
+    ;; Options
+    #:*option-show-note-after-jump*
+    ;; Globals
+    #:*current-note* #:*memorized-note*
+    #:*note-history* #:*note-future*
+    ;; Schema
+    ;#:create-zettelkasten
+    ;; Prompt
+    #:get-prompt
+    ;; Low level
+    #:max-note-id
+    #:get-note-by-id #:get-notes-by-id
+    #:show-note #:show-notes
+    ;#:edit-notes
+    ;#:add-note
+    ;#:remove-note
+    ;#:show-links
+    ;#:choose-note-interactive
+    ;#:choose-link-interactive
+    ;; Main exports
+    #:add-zettelkasten-commands
+    #:zettelkasten-init-hook))
 
 
 (defpackage :zac.bookkeeping
