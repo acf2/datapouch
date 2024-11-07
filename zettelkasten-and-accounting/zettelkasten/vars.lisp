@@ -24,6 +24,7 @@
 (defparameter +msg-note-is-not-chosen+ "Note is not chosen.")
 (defparameter +msg-no-notes+ "There is no notes meeting this criteria.")
 (defparameter +msg-abort-note-creation+ "Aborted.")
+(defparameter +msg-abort-note-deletion+ "Aborted.")
 (defparameter +msg-link-exists+ "Link already exists.")
 
 (defparameter +errfmt-generic-sqlite-error+ "~A~&~%Operation aborted.~&")

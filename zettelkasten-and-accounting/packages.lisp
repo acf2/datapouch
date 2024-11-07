@@ -53,6 +53,7 @@
     ;; Low level
     #:max-note-id
     #:get-note-by-id #:get-notes-by-id
+    #:find-lost-notes
     #:show-note #:show-notes
     ;#:edit-notes
     ;#:add-note

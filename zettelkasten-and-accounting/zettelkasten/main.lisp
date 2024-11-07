@@ -15,13 +15,16 @@
 (in-package :zac.box)
 
 
-;;; Returns list of all notes without parents (no links with destination == note.id)
-;;; There should be only one such a note in normal zettelkasten
-;(defun get-orphans ()
-;  (select '(:id :text)
-;    (from :note)
-;    (left-join :link :on (:= :link.destination :note.id))
-;    (where (:is-null :link.source))))
+;; Should find all notes, that are unreachable from root
+(defun find-lost-notes ()
+  (loop :with all-notes := (reduce #'append (select '(:id) (from :note)))
+        :with all-arcs := (select '(:source :destination) (from :link))
+        :for queue := (list 0) :then (cdr queue)
+        :for current := (car queue)
+        :unless current :return all-notes
+        :when (member current all-notes)
+        :do (setf all-notes (delete current all-notes))
+        (setf queue (append queue (map 'list #'second (remove-if-not (lambda (x) (eq current (first x))) all-arcs))))))
 
 
 ; TODO
@@ -445,6 +448,22 @@
 
 
 
+(defun command-remove-notes (&key ((:notes notes)))
+  (if (null notes)
+    (format *standard-output* "~A~&" +msg-abort-note-deletion+)
+    (delete-from :note (where (:in :id notes)))))
+
+
+(defun command-collect-lost ()
+  (let* ((lost-notes (find-lost-notes))
+         (new-links (map 'list
+                         (lambda (note)
+                           (list *current-note* note))
+                         lost-notes)))
+    (insert-into :link
+                 (:source :destination)
+                 new-links)))
+
 
 ;;; OLD (FOR REWORK)
 
@@ -708,7 +727,7 @@
 
         (add-shell-subexpressions
           shell
-          ;          ;;; Raw regexes - used to circumvent flaws of subexpressions
+          ;;; Raw regexes - used to circumvent flaws of subexpressions
           (:raw-optional-direction ((((:type . "forward|back(?:ward)?") :optional))
                                     (((:type . "f|b") :optional :optionally-immediate)))
                                    (lambda (&key ((:type type)))
@@ -776,6 +795,11 @@
                                                              (pick-notes-from-dae :selection selection
                                                                                   :default-on-empty t))
                                                            "Pick one note over a constrained selection. Defaults to current note.")
+          (:single-constrained-note-designator-with-peeking (((:selection . :constrained-note-selector)))
+                                                            (lambda (&key ((:selection selection)))
+                                                              (pick-notes-from-dae :selection selection
+                                                                                   :allow-peek t))
+                                                            "Pick one note over a constrained selection using a safer method.")
           (:multiple-constrained-note-designator-with-peeking (((:selection . :constrained-note-selector)))
                                                               (lambda (&key ((:selection selection)))
                                                                 (pick-notes-from-dae :selection selection
@@ -795,17 +819,23 @@
           ((("home")) #'command-home "Go to root note")
           ((((:note . :single-note-designator)))
            #'command-show-note "Show contents of the note.")
-          ((("ttpeek" (:notes . :multiple-constrained-note-designator-with-peeking)))
-           (lambda (&key ((:notes notes)))
-             (show-notes notes))
+          ((("ttpeek" (:note . :single-constrained-note-designator-with-peeking)))
+           (lambda (&key ((:note note)))
+             (show-note note))
            "Test peeking")
           ((("g(?:oto)?" (:note . :single-note-designator)))
-           #'command-goto "Go to some note from this one")
+           #'command-goto "Go to some note from this one.")
           ((("l(?:inks)?" (:selection . :constrained-note-selector)))
-           #'command-links "Show links from this note with specified parameters")
+           #'command-links "Show links from this note with specified parameters.")
           ((("add" "note" (:link-number . :optional-link-number) (:continue . :optional-continue))
             ("an" (:link-number . :optional-link-number) (:continue . :optional-continue)))
-           #'command-add-note "Add new note")
+           #'command-add-note "Add new note.")
+          ((("remove" "notes" (:notes . :multiple-constrained-note-designator-with-peeking)))
+           #'command-remove-notes
+           "Remove notes (cannot be reverted).")
+          ((("collect" "lost"))
+           #'command-collect-lost
+           "Add links from this note to all lost (unreachable) notes.")
           )
         )
 
