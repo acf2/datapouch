@@ -345,7 +345,9 @@
   (if (and default-on-empty
            (getf (getf selection :parameters) :empty-expression?)
            (null (getf selection :rows)))
-    *current-note*
+    (if choose-many
+      (list *current-note*)
+      *current-note*)
     (let* ((selected-rows (getf selection :rows))
            (chosen-rows (apply #'zac.box.travel:choose-row-from-note-through-links
                                selected-rows
@@ -364,6 +366,46 @@
                      chosen-rows)
                 (getf chosen-rows :id)))))))
 
+
+;(defun pick-memorized-notes (&key ((:numbers numbers)) ((:pick-only-one pick-one)))
+;  (if pick-one
+;    (let* ((rows (select-notes-by-ids *memorized-notes*))
+;           (temp-table (loop :for row :in rows
+;                             :for i :from 1 :to (length rows)
+;                             :when (or (null numbers) (member i numbers))
+;                             :collect (cons i row))))
+;    (when (null numbers)
+;      *memorized-notes*
+;      (loop :for memorized-note :in *memorized-notes*
+;            :for i :from 1 :to (length *memorized-notes*)
+;            :when (member i numbers)
+;            :collect memorized-note))))
+
+
+(defun pick-memorized-notes (&key ((:numbers numbers)) ((:all all)))
+  (cond (all *memorized-notes*)
+        (numbers (loop :for memorized-note :in *memorized-notes*
+                       :for i :from 1 :to (length *memorized-notes*)
+                       :when (member i numbers)
+                       :collect memorized-note))
+        (*memorized-notes*
+          (let* ((found-rows (get-notes-by-id *memorized-notes*))
+                 (chosen-row-indices (and found-rows (find-row-dialog (get-field-dialog-texts zac.box.db:+table-note-fields+)
+                                                                      (map 'list (get-field-mapping-for-rows zac.box.db:+table-note-fields+) found-rows)
+                                                                      :get-index t
+                                                                      :choose-many t
+                                                                      :prompt-fun (constantly "memory> ")))))
+            (loop :for i :in chosen-row-indices
+                  :collect (nth i *memorized-notes*))))))
+
+
+(defun command-memorize (&key ((:notes notes)))
+  (when notes
+    (setf *memorized-notes* (remove-duplicates (append *memorized-notes* notes)
+                                               :from-end t))))
+
+(defun command-clear-memory (&key ((:memorized-notes notes-to-remove)))
+  (setf *memorized-notes* (delete-if (member-of notes-to-remove) *memorized-notes*)))
 
 (defun command-search-note (string match)
   (declare (ignore string))
@@ -387,10 +429,11 @@
     (set-current-note 0)))
 
 
-(defun command-show-note (&key ((:note note-id)))
-  (if note-id
-    (show-note note-id)
-    (format *standard-output* "~A~&" +msg-no-notes+)))
+(defun command-show-notes (&key ((:note note-id)) ((:notes notes-id)))
+  (cond (note-id (show-note note-id))
+        (notes-id (show-notes notes-id))
+        (:else
+          (format *standard-output* "~A~&" +msg-no-notes+))))
 
 
 (defun command-goto (&key ((:note note-id)))
@@ -748,6 +791,10 @@
                              (lambda (&key ((:closure closure)))
                                (not (null closure)))
                              "Optional parameter to enable concatenation of results of repeated calls to operation (Kleene star subset).")
+          (:number-list (((:numbers . "[1-9]\\d*(?:\\D+[1-9]\\d*)*")))
+                        (lambda (&key ((:numbers numbers)))
+                          (map 'list #'parse-integer (ppcre:split "\\D+" numbers)))
+                        "Number list, with at least one number.")
           (:next-note ((((:next . "n") :optionally-immediate))
                        ((:next . "next")))
                       (lambda (&key &allow-other-keys)
@@ -790,11 +837,17 @@
           (:single-constrained-note-designator (((:selection . :constrained-note-selector)))
                                                #'pick-notes-from-dae
                                                "Pick one note over a constrained selection.")
-          (:single-constraint-note-designator-with-default (((:selection . :constrained-note-selector)))
+          (:single-constraint-note-designator-with-default (((:selection . :explicit-constrained-note-selector)))
                                                            (lambda (&key ((:selection selection)))
                                                              (pick-notes-from-dae :selection selection
                                                                                   :default-on-empty t))
                                                            "Pick one note over a constrained selection. Defaults to current note.")
+          (:multiple-constrained-note-designator-with-default (((:selection . :explicit-constrained-note-selector)))
+                                                              (lambda (&key ((:selection selection)))
+                                                                (pick-notes-from-dae :selection selection
+                                                                                     :default-on-empty t
+                                                                                     :choose-many t))
+                                                              "Pick one or more notes over a constrained selection. Defaults to current note only.")
           (:single-constrained-note-designator-with-peeking (((:selection . :constrained-note-selector)))
                                                             (lambda (&key ((:selection selection)))
                                                               (pick-notes-from-dae :selection selection
@@ -806,36 +859,80 @@
                                                                                      :allow-peek t
                                                                                      :choose-many t))
                                                               "Pick one or more notes over a constrained selection using a safer method.")
+          (:multiple-memory-designator ((("m" :optionally-immediate))
+                                        (("m" :optionally-immediate) (:numbers . :number-list))
+                                        (("m" :optionally-immediate) ((:all . "a(?:ll)?") :optionally-immediate))
+                                        ("memo(?:ry)?")
+                                        ("memo(?:ry)?" (:numbers . :number-list))
+                                        ("memo(?:ry)?" ((:all . "a(?:ll)?") :optionally-immediate)))
+                                       #'pick-memorized-notes
+                                       "Memorized notes designator")
           (:single-note-designator (((:note . :current-note-designator))
                                     ((:note . :next-note-designator))
                                     ((:note . :single-constrained-note-designator)))
+                                   ;; TODO:global-note-designator
                                    (lambda (&key ((:note note)))
                                      note)
                                    "Aggregate single note designator")
+          (:multiple-note-designator-with-default (((:next-note . :next-note-designator))
+                                                   ((:notes . :multiple-constrained-note-designator-with-default))
+                                                   ((:notes . :multiple-memory-designator)))
+                                   ;; TODO:global-note-designator
+                                                  (lambda (&key ((:notes notes)) ((:next-note next-note)))
+                                                    (if next-note
+                                                      (list next-note)
+                                                      notes))
+                                                  "Aggregate multiple note designator for broad operations.")
           )
+
+        ;;; NOTE: current:target+memorized...
 
         (add-shell-commands
           shell
-          ((("home")) #'command-home "Go to root note")
-          ((((:note . :single-note-designator)))
-           #'command-show-note "Show contents of the note.")
-          ((("ttpeek" (:note . :single-constrained-note-designator-with-peeking)))
-           (lambda (&key ((:note note)))
-             (show-note note))
-           "Test peeking")
+          ((("home"))
+           #'command-home
+           "Go to root note")
+
+          ((((:note . :current-note-designator))
+            ((:note . :next-note-designator)))
+           #'command-show-notes
+           "Implicitly show contents of the note.")
+
+          ((("s(?:how)?" (:note . :current-note-designator))
+            ("s(?:how)?" (:note . :next-note-designator))
+            ("s(?:how)?" (:notes . :multiple-memory-designator)))
+           #'command-show-notes
+           "Show contents of the note.")
+
+          ((("m(?:emo(?:rize)?)?" (:notes . :multiple-note-designator-with-default)))
+           #'command-memorize
+           "Memorize notes for cumbersome operations.")
+
+          ((("c(?:lear)?" (:memorized-notes . :multiple-memory-designator)))
+           #'command-clear-memory
+           "Clear memorized notes.")
+
           ((("g(?:oto)?" (:note . :single-note-designator)))
-           #'command-goto "Go to some note from this one.")
+           #'command-goto
+           "Go to some note from this one.")
+
           ((("l(?:inks)?" (:selection . :constrained-note-selector)))
-           #'command-links "Show links from this note with specified parameters.")
+           #'command-links
+           "Show links from this note with specified parameters.")
+
           ((("add" "note" (:link-number . :optional-link-number) (:continue . :optional-continue))
             ("an" (:link-number . :optional-link-number) (:continue . :optional-continue)))
-           #'command-add-note "Add new note.")
+           #'command-add-note
+           "Add new note.")
+
           ((("remove" "notes" (:notes . :multiple-constrained-note-designator-with-peeking)))
            #'command-remove-notes
            "Remove notes (cannot be reverted).")
+
           ((("collect" "lost"))
            #'command-collect-lost
            "Add links from this note to all lost (unreachable) notes.")
+
           )
         )
 

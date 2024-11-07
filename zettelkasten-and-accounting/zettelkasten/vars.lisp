@@ -22,6 +22,7 @@
 (defparameter +question-note-with-number-exists+ (format nil "Link with such number exist~%Override?"))
 
 (defparameter +msg-note-is-not-chosen+ "Note is not chosen.")
+(defparameter +msg-notes-are-not-chosen+ "Not a single note is not chosen.")
 (defparameter +msg-no-notes+ "There is no notes meeting this criteria.")
 (defparameter +msg-abort-note-creation+ "Aborted.")
 (defparameter +msg-abort-note-deletion+ "Aborted.")
