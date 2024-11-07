@@ -7,7 +7,8 @@
 (defpackage :datapouch.auxiliary
   (:use #:cl)
   (:nicknames :d.aux)
-  (:export #:list-existing
+  (:export #:*debug-output*
+           #:list-existing
            #:list-existing*
            #:ensure-list
            #:append-lists
@@ -168,6 +169,7 @@
   (:use #:cl #:d.rmacro)
   (:nicknames :d.shell)
   (:import-from :d.aux
+                #:*debug-output*
                 #:list-existing*)
   (:export 
     ;; S-form

@@ -283,16 +283,17 @@
 ;;; Has an ability to peek note text
 ;;; Because search is a hard operation, and it kinda fits
 ;;; For "ordinary goto" user can just go back in history and choose different note to go to
-(defun choose-row-from-note-with-peeking (rows prompt &key ((:choose-many choose-many) nil))
-  (find-row-with-peeking-dialog '("ID" "Text") rows
-                                :choose-many choose-many
-                                :prompt-msg "S[how] list again, [choose] note number or p[eek] it:~&"
-                                :id-column-name-map (lambda (column-names)
-                                                      (cons "Number" (cdr column-names)))
-                                :row-mapping-function (lambda (i row)
-                                                        (cons i (cdr row)))
-                                :prompt-fun prompt
-                                :peek-row-function (lambda (row last?)
-                                                     (if last?
-                                                       (format *standard-output* "~A~&" (second row))
-                                                       (format *standard-output* "~A~&~%" (second row))))))
+;(defun choose-row-from-note-with-peeking (rows prompt &key ((:choose-many choose-many) nil))
+;  (find-row-with-peeking-dialog (get-field-names zac.box.db:+table-note-fields+)
+;                                rows
+;                                :choose-many choose-many
+;                                :prompt-msg "S[how] list again, [choose] note number or p[eek] it:~&"
+;                                :id-column-name-map (lambda (column-names)
+;                                                      (cons "Number" (cdr column-names)))
+;                                :row-mapping-function (lambda (i row)
+;                                                        (cons i (cdr row)))
+;                                :prompt-fun prompt
+;                                :peek-row-function (lambda (row last?)
+;                                                     (if last?
+;                                                       (format *standard-output* "~A~&" (second row))
+;                                                       (format *standard-output* "~A~&~%" (second row))))))

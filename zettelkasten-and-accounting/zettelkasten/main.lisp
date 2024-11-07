@@ -328,6 +328,13 @@
                 (apply #'zac.box.travel:select-notes-through-links *current-note* parameters))))
 
 
+(defun select-global-notes (&key ((:substring substring)))
+  (list :parameters (list :substring substring)
+        :rows (select (get-field-names zac.box.db:+table-note-fields+)
+                      (from :note)
+                      (where (:instr :text substring)))))
+
+
 (defun pick-next-note (&key &allow-other-keys)
   (let ((next-note-id (caar (select :destination
                                     (from :link)
@@ -365,6 +372,26 @@
                              (getf row :id))
                      chosen-rows)
                 (getf chosen-rows :id)))))))
+
+
+(defun pick-notes-from-global (&key ((:selection selection))
+                                    ((:choose-many choose-many) nil))
+  (let* ((selected-rows (getf selection :rows))
+         (chosen-rows (find-row-with-peeking-dialog (get-field-dialog-texts zac.box.db:+table-note-fields+)
+                                                    (map 'list (get-field-mapping-for-rows zac.box.db:+table-note-fields+) selected-rows)
+                                                    :get-index t
+                                                    :choose-many choose-many
+                                                    :prompt-fun *choose-note-prompt*)))
+    (cond ((null selected-rows)
+           (format *standard-output* "~A~&" +msg-no-notes+))
+          ((null chosen-rows)
+           (format *standard-output* "~%~A~&" +msg-note-is-not-chosen+))
+          (:else
+              (if choose-many
+                (map 'list (lambda (index)
+                             (first (nth index selected-rows)))
+                     chosen-rows)
+                (first (nth chosen-rows selected-rows)))))))
 
 
 ;(defun pick-memorized-notes (&key ((:numbers numbers)) ((:pick-only-one pick-one)))
@@ -406,20 +433,6 @@
 
 (defun command-clear-memory (&key ((:memorized-notes notes-to-remove)))
   (setf *memorized-notes* (delete-if (member-of notes-to-remove) *memorized-notes*)))
-
-(defun command-search-note (string match)
-  (declare (ignore string))
-  (let* ((substring (get-group :substring match))
-         (found-notes (select '(:id :text)
-                              (from :note)
-                              (where (:instr :text substring))))
-         (chosen-note (zac.box.travel:choose-row-from-note-with-peeking found-notes *choose-note-prompt*)))
-    (cond ((null found-notes)
-           (format *standard-output* "~A~&" +msg-no-notes+))
-          ((null chosen-note)
-           (format *standard-output* "~%~A~&" +msg-note-is-not-chosen+))
-          (:else
-            (set-current-note (first chosen-note))))))
 
 
 ;;; COMMAND HANDLERS
@@ -780,6 +793,10 @@
                                   (lambda (&key ((:raw-number raw-number)))
                                     raw-number)
                                   "Raw value of optional exponent regex.")
+          (:substring (((:string . ".*?")))
+                      (lambda (&key ((:string str)))
+                        str)
+                      "Substring parameters")
           ;;; Expressions - for parsing command arguments
           (:optional-direction (((:type . :raw-optional-direction)))
                                #'handle-optional-direction
@@ -825,6 +842,9 @@
                                                  (select-constrained-notes :parameters parameters
                                                                            :give-up-on-empty t))
                                                "For note selection, constrained by current note. Must be explicitly stated.")
+          (:global-note-selector (("gl(?:obal)?" (:substring . :substring)))
+                                 #'select-global-notes
+                                 "For global note selection.")
           ;;; Designators - allow to designate singular notes and note subsets,
           ;;;               direct various note operators to notes on which they should be performed
           (:current-note-designator ((((:current . "cur(?:rent)?") :optionally-immediate)))
@@ -859,6 +879,11 @@
                                                                                      :allow-peek t
                                                                                      :choose-many t))
                                                               "Pick one or more notes over a constrained selection using a safer method.")
+          (:multiple-global-note-designator-with-peeking (((:selection . :global-note-selector)))
+                                                         (lambda (&key ((:selection selection)))
+                                                           (pick-notes-from-global :selection selection
+                                                                                   :choose-many t))
+                                                         "Pick one or more notes filtering by substring.")
           (:multiple-memory-designator ((("m" :optionally-immediate))
                                         (("m" :optionally-immediate) (:numbers . :number-list))
                                         (("m" :optionally-immediate) ((:all . "a(?:ll)?") :optionally-immediate))
@@ -876,8 +901,8 @@
                                    "Aggregate single note designator")
           (:multiple-note-designator-with-default (((:next-note . :next-note-designator))
                                                    ((:notes . :multiple-constrained-note-designator-with-default))
+                                                   ((:notes . :multiple-global-note-designator-with-peeking))
                                                    ((:notes . :multiple-memory-designator)))
-                                   ;; TODO:global-note-designator
                                                   (lambda (&key ((:notes notes)) ((:next-note next-note)))
                                                     (if next-note
                                                       (list next-note)

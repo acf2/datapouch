@@ -138,7 +138,11 @@
                                                ((:pretty-print-table-function pretty-print-table) #'pretty-print-table)
                                                &allow-other-keys)
   (cond ((= (length rows) 0) nil)
-        ((= (length rows) 1) (if get-index 0 (first rows)))
+        ((= (length rows) 1)
+         (cond ((and (not choose-many) get-index) 0)
+               ((and choose-many get-index) (list 0))
+               ((and (not choose-many) (not get-index)) (first rows))
+               ((and choose-many (not get-index)) rows)))
         (:else (dialog :query-fun (lambda (&optional (error-form nil error-form-supplied?))
                                     (declare (ignore error-form))
                                     (if error-form-supplied?
@@ -191,12 +195,14 @@
                                                             ((:prompt-fun prompt-fun) *prompt-fun*)
                                                             ((:pretty-print-table-function pretty-print-table) #'pretty-print-table)
                                                             ((:peek-row-function show-row) (lambda (row last?)
-                                                                                             (if last?
-                                                                                               (format *standard-output* "~A~&" row)
-                                                                                               (format *standard-output* "~A~&~%" row))))
+                                                                                             (format *standard-output* "~A~&~@[~%~]" row last?)))
                                                             &allow-other-keys)
   (cond ((= (length rows) 0) nil)
-        ((= (length rows) 1) (first rows))
+        ((= (length rows) 1)
+         (cond ((and (not choose-many) get-index) 0)
+               ((and choose-many get-index) (list 0))
+               ((and (not choose-many) (not get-index)) (first rows))
+               ((and choose-many (not get-index)) rows)))
         (:else
           (let ((rx (make-scanner (concat "\\s*"
                                           (combine (make-named-group :option "s(?:h(?:ow)?)?")

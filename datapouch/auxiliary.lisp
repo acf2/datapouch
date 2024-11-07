@@ -3,6 +3,9 @@
 (in-package :datapouch.auxiliary)
 
 
+(defparameter *debug-output* nil)
+
+
 (defun list-existing (&rest rest)
   (remove nil rest))
 
