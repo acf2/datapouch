@@ -62,8 +62,8 @@
 ;;;  - one for each regex match group, that is provided only for this command (and not subexpressions, for example)
 ;;;  - one for result of each subexpression (across all s-forms/lexers), and/or &allow-other-keys
 (defclass shell-expression ()
-  ((s-form :initarg :s-form
-           :reader s-form)
+  ((s-forms :initarg :s-forms
+            :reader s-forms)
    (handler :initarg :handler
             :reader handler)
    (docs :initarg :docs
@@ -77,30 +77,33 @@
                          :reader complete-expressions)))
 
 
-;(defmethod add-shell-expression-form ((expression shell-expression) expression-s-form &rest other-expression-s-forms)
-;  (let ((all-s-forms (cons expression-s-form other-expression-s-forms)))
-;    (if (every #'acceptable-expression-s-form? all-s-forms)
-;      (with-slots (s-forms lexers) expression
-;        (loop :for new-s-form :in all-s-forms
-;              :do (push new-s-form s-forms))
-;        expression)
-;      (error (make-instance 'simple-error
-;                            :format-control +s-form-errors+
-;                            :format-arguments 'add-shell-expression-form)))))
+(defparameter +add-shell-expression-form-error+ "Error when adding shell expression form: ~A~&")
+
+
+(defmethod add-shell-expression-form ((expression shell-expression) expression-s-form &rest other-expression-s-forms)
+  (let ((all-s-forms (cons expression-s-form other-expression-s-forms)))
+    (if (every #'acceptable-expression-s-form? all-s-forms)
+      (with-slots (s-forms) expression
+        (loop :for new-s-form :in all-s-forms
+              :do (push new-s-form s-forms))
+        expression)
+      (error (make-instance 'simple-error
+                            :format-control +add-shell-expression-form-error+
+                            :format-arguments (list (format nil "one of s-form is unacceptable: ~S" all-s-forms)))))))
 
 
 (defparameter +make-shell-expression-error+ "Error when making shell expression: ~A~&")
 
 
-(defun make-shell-expression (expression-s-form handler &optional docs)
-  (if (acceptable-expression-s-form? expression-s-form)
+(defun make-shell-expression (expression-s-forms handler &optional docs)
+  (if (every #'acceptable-expression-s-form? expression-s-forms)
     (make-instance 'shell-expression
-                   :s-form expression-s-form
+                   :s-forms expression-s-forms
                    :handler handler
                    :docs docs)
     (error (make-instance 'simple-error
                           :format-control +make-shell-expression-error+
-                          :format-arguments (list (format nil "unacceptable expression s-form: ~S" expression-s-form))))))
+                          :format-arguments (list (format nil "one of s-forms is unacceptable: ~S" expression-s-forms))))))
 
 
 ;;; Note: wanted to use (type-id keyword), but apparently CL cannot do that
@@ -116,9 +119,9 @@
   expression)
 
 
-(defclass built-shell-expression ()
+(defclass built-shell-expression-shard ()
   ((s-form :initarg :s-form
-           :reader s-form) ; _unwrapped_ s-form, NRG-only
+            :reader s-form) ; _unwrapped_ s-form, NRG-only
    (wrapped-user-handler :initarg :handler
                          :reader handler)
    (docs :initarg :docs
@@ -126,8 +129,8 @@
 
 
 (defclass built-shell ()
-  ((built-subexpressions :initform (make-hash-table))
-   (built-complete-expressions :initform nil)))
+  ((built-subexpression-shards :initform (make-hash-table)) ; hashtable<key, list>
+   (built-complete-expression-shards :initform nil)))
 
 
 (defparameter +shell-build-error+ "Expression wrappers cannot be built: ~A~&")
@@ -196,88 +199,105 @@
 (defparameter +shell-expression-build-error+ "Expression cannot be built: ~A~&")
 
 
+(defun build-shard (expression-s-form user-handler docs deps-info)
+  (let* ((immediate-arguments (map 'list #'car (get-s-form-nrgs expression-s-form)))
+         (args-info (loop :for (name . dep-info) :in deps-info
+                          :collect (list :name name
+                                         :wrapped-handler (getf dep-info :wrapped-handler)
+                                         :arguments (map 'list #'car (get-s-form-nrgs (getf dep-info :s-form))))))
+         (s-form (loop :for argument :in expression-s-form
+                       :append (cond ((subexpression-argument? argument)
+                                      (let* ((name (car argument))
+                                             (dep-info (rest (assoc name deps-info))))
+                                        (scope-nrgs-in-s-form name (getf dep-info :s-form))))
+                                     (:else (list argument))))))
+    (format t "build-shard call:~&S-FORM: ~S~&ARGS INFO: ~S~&DEPS INFO: ~S~&~%" s-form args-info deps-info)
+    (flet ((get-arg-p-list (get-value arg-keys) (loop :for arg :in arg-keys
+                                                      :append (list arg (funcall get-value arg)))))
+      (make-instance 'built-shell-expression-shard
+                     :s-form s-form
+                     :docs docs
+                     :handler (lambda (&rest handler-arguments &key &allow-other-keys)
+                                (format t "command call:~&S-FORM: ~S~&IMM-ARGS: ~S~&FUN ARGS: ~S~&ARGS INFO: ~S~&DEPS INFO: ~S~&~%" s-form immediate-arguments handler-arguments args-info deps-info)
+                                (let ((subexpression-values 
+                                        (loop :for arg-info :in args-info
+                                              :append (let ((subexpr-name (getf arg-info :name))
+                                                            (subexpr-args (getf arg-info :arguments))
+                                                            (subexpr-wrapper (getf arg-info :wrapped-handler)))
+                                                        (list subexpr-name
+                                                              (apply subexpr-wrapper
+                                                                     (get-arg-p-list (lambda (subexpr-arg)
+                                                                                       (getf handler-arguments
+                                                                                             (get-scoped-name subexpr-name subexpr-arg)))
+                                                                                     subexpr-args)))))))
+                                  (format t "SUBEXPR VALS: ~A~&" subexpression-values)
+                                  (apply user-handler
+                                         (append
+                                           (get-arg-p-list (lambda (nrg)
+                                                             (getf handler-arguments nrg))
+                                                           immediate-arguments)
+                                           subexpression-values))))))))
+
+
 ;; This sucks ass.
 ;; I know. Chill.
 (defmethod build-expression ((expression shell-expression) (dependencies built-shell))
-  (with-slots (built-subexpressions) dependencies
-    (let* ((subexpression-forms (get-s-form-subexpressions (s-form expression)))
-           (immediate-arguments (map 'list #'car (get-s-form-nrgs (s-form expression))))
-           (deps-info (loop :for (name . type) :in subexpression-forms
-                            :for built-subexpression := (gethash type built-subexpressions)
-                            :if built-subexpression
-                            :collect (list name
-                                           :wrapped-handler (handler built-subexpression)
-                                           :type type
-                                           :s-form (s-form built-subexpression))
-                            :else
-                            :do (error (make-instance 'simple-error
-                                                      :format-control +shell-expression-build-error+
-                                                      :format-arguments (format nil "~A dependency is not found" type)))))
-           (args-info (loop :for (name . dep-info) :in deps-info
-                            :collect (list :name name
-                                           :wrapped-handler (getf dep-info :wrapped-handler)
-                                           :arguments (map 'list #'car (get-s-form-nrgs
-                                                                         (getf dep-info :s-form))))))
-           (s-form (loop :for argument :in (s-form expression)
-                         :append (cond ((subexpression-argument? argument)
-                                        (let* ((name (car argument))
-                                               (dep-info (rest (assoc name deps-info))))
-                                          (scope-nrgs-in-s-form name (getf dep-info :s-form))))
-                                       (:else (list argument))))))
-      (format t "build-expression call:~&S-FORM: ~S~&ARGS INFO: ~S~&DEPS INFO: ~S~&~%" s-form args-info deps-info)
-      (flet ((get-arg-p-list (get-value arg-keys) (loop :for arg :in arg-keys
-                                                        :append (list arg (funcall get-value arg)))))
-        (make-instance 'built-shell-expression
-                       :s-form s-form
-                       :docs (docs expression)
-                       :handler (lambda (&rest handler-arguments &key &allow-other-keys)
-                                  (format t "command call:~&S-FORM: ~S~&IMM-ARGS: ~S~&FUN ARGS: ~S~&ARGS INFO: ~S~&DEPS INFO: ~S~&~%" s-form immediate-arguments handler-arguments args-info deps-info)
-                                  (let ((subexpression-values 
-                                          (loop :for arg-info :in args-info
-                                                :append (let ((subexpr-name (getf arg-info :name))
-                                                              (subexpr-args (getf arg-info :arguments))
-                                                              (subexpr-wrapper (getf arg-info :wrapped-handler)))
-                                                          (list subexpr-name
-                                                                (apply subexpr-wrapper
-                                                                       (get-arg-p-list (lambda (subexpr-arg)
-                                                                                         (getf handler-arguments
-                                                                                               (get-scoped-name subexpr-name subexpr-arg)))
-                                                                                       subexpr-args)))))))
-                                    (format t "SUBEXPR VALS: ~A~&" subexpression-values)
-                                    (apply (handler expression)
-                                           (append
-                                             (get-arg-p-list (lambda (nrg)
-                                                               (getf handler-arguments nrg))
-                                                             immediate-arguments)
-                                             subexpression-values)))))))))
+  (with-slots (built-subexpression-shards) dependencies
+    (loop :for expression-s-form :in (s-forms expression)
+          :append (let* ((subexpression-forms (get-s-form-subexpressions expression-s-form))
+                         (variable-deps-info (loop :for (name . type) :in subexpression-forms
+                                                   :for built-subexpression-list := (gethash type built-subexpression-shards)
+                                                   :if built-subexpression-list
+                                                   :collect (loop :for built-subexpression :in built-subexpression-list
+                                                                  :collect (list name
+                                                                                 :wrapped-handler (handler built-subexpression)
+                                                                                 :type type
+                                                                                 :s-form (s-form built-subexpression)))
+                                                   :else
+                                                   :do (error (make-instance 'simple-error
+                                                                             :format-control +shell-expression-build-error+
+                                                                             :format-arguments (format nil "~A dependency is not found" type))))))
+                    (format t "build-expression iteration~&S-FORM: ~S~&VDEPS INFO: ~S~&~%" expression-s-form variable-deps-info)
+                    (if (null variable-deps-info)
+                      (list (build-shard expression-s-form
+                                         (handler expression)
+                                         (docs expression)
+                                         nil))
+                      (loop :for deps-info-variant :in (d.aux:cartesian-product variable-deps-info)
+                            :collect (build-shard expression-s-form
+                                                  (handler expression)
+                                                  (docs expression)
+                                                  deps-info-variant)))))))
 
 
 (defmethod build-shell ((shell shell))
   (with-slots (complete-expressions subexpressions) shell
-    (let ((subexpression-keys (d.aux:get-keys-from-hash-table subexpressions)))
-      ;; Check subexpression graph for cycles
-      ;; Complete expressions cannot form cycles, because no expression could depend on them
-      (if (d.aux:check-directed-graph-for-cycles :vertices subexpression-keys
-                                                 :get-adjacent (lambda (expression-key)
-                                                                 (let ((expr (gethash expression-key subexpressions)))
-                                                                   (when expr
-                                                                     (map 'list #'rest (get-s-form-subexpressions (s-form expr)))))))
-        (error (make-instance 'simple-error
-                              :format-control +shell-build-error+
-                              :format-arguments "A cycle is found in shell-expression dependency graph"))
-        (let ((built-shell (make-instance 'built-shell)))
-          (with-slots (built-complete-expressions built-subexpressions) built-shell
-            (labels ((prepare (expression) (let ((subexpr-pairs (get-s-form-subexpressions (s-form expression))))
-                                             (loop :for (name . type) :in subexpr-pairs
-                                                   :for built-subexpr := (gethash type built-subexpressions)
-                                                   :unless built-subexpr
-                                                   :do (setf (gethash type built-subexpressions)
-                                                             (prepare (gethash type subexpressions))))
-                                             (build-expression expression built-shell))))
-              (loop :for complete-expression :in complete-expressions
-                    :do (push (prepare complete-expression)
-                              built-complete-expressions))))
-          built-shell)))))
+    (flet ((get-deps-types (expr) (remove-duplicates (map 'list #'rest (loop :for s-form :in (s-forms expr)
+                                                                             :append (get-s-form-subexpressions s-form))))))
+      (let ((subexpression-keys (d.aux:get-keys-from-hash-table subexpressions)))
+        ;; Check subexpression graph for cycles
+        ;; Complete expressions cannot form cycles, because no expression could depend on them
+        (if (d.aux:check-directed-graph-for-cycles :vertices subexpression-keys
+                                                   :get-adjacent (lambda (expression-key)
+                                                                   (let ((expr (gethash expression-key subexpressions)))
+                                                                     (when expr
+                                                                       (get-deps-types expr)))))
+          (error (make-instance 'simple-error
+                                :format-control +shell-build-error+
+                                :format-arguments "A cycle is found in shell-expression dependency graph"))
+          (let ((built-shell (make-instance 'built-shell)))
+            (with-slots (built-complete-expression-shards built-subexpression-shards) built-shell
+              (labels ((prepare (expression) (let ((subexpr-types (get-deps-types expression)))
+                                               (loop :for type :in subexpr-types
+                                                     :for built-subexpr := (gethash type built-subexpression-shards)
+                                                     :unless built-subexpr
+                                                     :do (setf (gethash type built-subexpression-shards)
+                                                               (prepare (gethash type subexpressions))))
+                                               (build-expression expression built-shell))))
+                (setf built-complete-expression-shards
+                      (loop :for complete-expression :in complete-expressions
+                            :append (prepare complete-expression)))))
+            built-shell))))))
 
 
 (defparameter +generate-commands-from-shell-error+ "Error during generation of commands from shell: ~A~&")
@@ -291,15 +311,15 @@
   (flet ((groups-names-as-symbols (groups) (map 'list (lambda (symbol-name)
                                                         (intern symbol-name "KEYWORD"))
                                                 (d.regex:list-group-names groups))))
-    (with-slots (built-complete-expressions) built-shell
+    (with-slots (built-complete-expression-shards) built-shell
       (format t "generate-commands-from-shell~&")
-      (loop :for built-complete-expression :in built-complete-expressions
-            :do (format t "BE: ~A ~A~&" (s-form built-complete-expression) (docs built-complete-expression)))
+      (loop :for shard :in built-complete-expression-shards
+            :do (format t "shard: ~S ~S~&" (s-form shard) (docs shard)))
       (format t "~%")
-      (loop :for built-complete-expression :in built-complete-expressions
-            :for s-form := (s-form built-complete-expression)
+      (loop :for shard :in built-complete-expression-shards
+            :for s-form := (s-form shard)
             :for parser := (apply #'make-command-s-form-scanner s-form)
-            :for handler := (handler built-complete-expression)
+            :for handler := (handler shard)
             :for proxy-command := (let ((local-handler handler))
                                     (lambda (string match)
                                       (declare (ignore string))
@@ -322,22 +342,17 @@
 
 (defmacro add-shell-subexpressions (shell &rest expr-defs)
   `(progn
-     ,@(loop :for (type-key s-form user-handler docs) :in expr-defs
+     ,@(loop :for (type-key s-forms user-handler docs) :in expr-defs
              :collect `(define-subexpression ,shell
                                              ,type-key
-                                             (make-shell-expression ',s-form ,user-handler ,docs)))))
+                                             (make-shell-expression ',s-forms ,user-handler ,docs)))))
 
 
 (defmacro add-shell-commands (shell &rest cmd-defs)
   `(progn
-     ,@(loop :for (s-form user-handler docs) :in cmd-defs
-             :if (eq (first s-form) :many-forms)
-             :append (loop :for one-form :in (rest s-form)
-                           :collect `(define-command ,shell
-                                                     (make-shell-expression ',one-form ,user-handler ,docs)))
-             :else
+     ,@(loop :for (s-forms user-handler docs) :in cmd-defs
              :collect `(define-command ,shell
-                                       (make-shell-expression ',s-form ,user-handler ,docs)))))
+                                       (make-shell-expression ',s-forms ,user-handler ,docs)))))
 
 
 ;(defmacro create-shell-commands (&rest cmd-defs)

@@ -16,7 +16,8 @@
            #:repeat-string
            #:member-of
            #:get-keys-from-hash-table
-           #:check-directed-graph-for-cycles))
+           #:check-directed-graph-for-cycles
+           #:cartesian-product))
 
 
 (defpackage :datapouch.regex-support
@@ -185,7 +186,7 @@
     #:acceptable-expression-s-form?
     #:acceptable-built-expression-s-form?
     #:shell-expression #:shell
-    #:built-shell-expression #:built-shell
+    #:built-shell-expression-shard #:built-shell
     #:define-subexpression #:define-command
     #:build-expression #:build-shell
     #:make-shell-expression
@@ -215,6 +216,14 @@
                 #:readline
                 #:read-form
                 #:*prompt-fun*)
+  (:import-from :d.regex
+                #:make-scanner
+                #:concat
+                #:combine
+                #:make-named-group
+                #:get-group
+                #:is-group
+                #:scan-named-groups)
   (:export #:*max-string-length*
            #:*wrap-marker*
            #:*table-metaformat*
@@ -225,7 +234,8 @@
            #:find-max-field-widths
            #:pretty-print-rows
            #:pretty-print-table
-           #:find-row-dialog))
+           #:find-row-dialog
+           #:find-row-with-peeking-dialog))
 
 
 ;;; Parent package, using cl-reexport

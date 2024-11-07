@@ -72,3 +72,12 @@
                                                                     :test test)
                                                          vertices-to-check)
                                              :do (return-from check-directed-graph-for-cycles t)))))
+
+;; ((1) (2 3) (4 5 6)) -> ((1 2 4) (1 2 5) (1 2 6)
+;;                         (1 3 4) (1 3 5) (1 3 6))
+(defun cartesian-product (sets &optional (path nil))
+  (if (null (rest sets))
+    (loop :for e in (first sets)
+          :collect (append path (list e)))
+    (loop :for e in (first sets)
+          :append (cartesian-product (rest sets) (append path (list e))))))

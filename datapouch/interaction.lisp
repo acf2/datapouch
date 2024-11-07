@@ -174,3 +174,92 @@
                                                         (get-rows input)))))))
                        :prompt-fun prompt-fun
                        :raw-input choose-many))))
+
+
+;; It's... it's bad, okay?
+;; Maybe someday I refactor, I refactor it all.
+(defun find-row-with-peeking-dialog (column-names rows &key ((:choose-many choose-many) nil)
+                                                            ((:prompt-msg prompt-msg) "S[how] list again, [choose] row number or p[eek] it:~&")
+                                                            ((:error-msg error-msg) "Please, try again.~&")
+                                                            ((:id-column-name-map id-map) (lambda (column-names)
+                                                                                            (cons "Row number" column-names)))
+                                                            ((:row-mapping-function row-map) (lambda (row-number row)
+                                                                                               (cons row-number row)))
+                                                            ((:row-transformation-function row-transform) #'identity)
+                                                            ((:get-index get-index) nil)
+                                                            ((:prompt-fun prompt-fun) *prompt-fun*)
+                                                            ((:pretty-print-table-function pretty-print-table) #'pretty-print-table)
+                                                            ((:peek-row-function show-row) (lambda (row last?)
+                                                                                             (if last?
+                                                                                               (format *standard-output* "~A~&" row)
+                                                                                               (format *standard-output* "~A~&~%" row)))))
+  (cond ((= (length rows) 0) nil)
+        ((= (length rows) 1) (first rows))
+        (:else
+          (let ((rx (make-scanner (concat "\\s*"
+                                          (combine (make-named-group :option "s(?:h(?:ow)?)?")
+                                                   (concat (make-named-group :option "(?:c(?:h(?:oose)?)?)?|p(?:eek)?")
+                                                           "\\s*"
+                                                           (make-named-group :numbers (if choose-many
+                                                                                        "\\d+(?:\\D+\\d+)*"
+                                                                                        "\\d+"))))
+                                          "\\s*")))
+                (current-mode :choosing)
+                (peeked-rows nil))
+            (labels ((get-row-numbers (input-match &optional (no-input? nil)) (or (and (get-group :numbers input-match)
+                                                                                       (if choose-many
+                                                                                         (map 'list #'parse-integer (ppcre:split "\\D+" (get-group :numbers input-match)))
+                                                                                         (parse-integer (get-group :numbers input-match))))
+                                                                                  (and no-input?
+                                                                                       peeked-rows)))
+                     (accepted-number? (row-number) (and (integerp row-number)
+                                                         (<= 1 row-number (length rows))))
+                     (accepted-input? (input) (if choose-many
+                                                (every #'accepted-number? input)
+                                                (accepted-number? input)))
+                     (show-rows (input) (let ((row-numbers (if (listp input) input (list input))))
+                                          (loop :for current-row-numbers := row-numbers :then (rest current-row-numbers)
+                                                :for current-row-number := (first current-row-numbers)
+                                                :while current-row-number
+                                                :do (funcall show-row
+                                                             (nth (1- current-row-number) rows)
+                                                             (null (rest current-row-numbers)))))))
+              (dialog :query-fun (lambda (&optional (error-form nil error-form-supplied?))
+                                   (declare (ignore error-form))
+                                   (cond ((and (eq current-mode :choosing)
+                                               error-form-supplied?)
+                                          (format *standard-output* error-msg))
+                                         ((eq current-mode :peeking)
+                                          (setf current-mode :choosing))
+                                         (:else
+                                           (funcall pretty-print-table
+                                                    (funcall id-map column-names)
+                                                    (funcall row-transform (loop :for row :in rows
+                                                                                 :for i :from 1 :to (length rows)
+                                                                                 :collect (funcall row-map i row))))
+                                           (format *standard-output* prompt-msg)
+                                           (setf current-mode :choosing))))
+                      :input-handler (lambda (unfiltered-input)
+                                       (let* ((input-match (when unfiltered-input
+                                                             (multiple-value-bind (matched match-list) (scan-named-groups rx unfiltered-input)
+                                                               (and matched match-list))))
+                                              (peeking? (is-group :option input-match "peek" "p"))
+                                              (show-again? (is-group :option input-match "show" "sh" "s"))
+                                              (row-numbers (get-row-numbers input-match (string= unfiltered-input "")))
+                                              (accepted (accepted-input? row-numbers)))
+                                         (cond (show-again? (setf current-mode :show-again)
+                                                            (values nil :show-again))
+                                               (peeking? (setf current-mode :peeking)
+                                                         (setf peeked-rows row-numbers)
+                                                         (show-rows row-numbers)
+                                                         (values nil :peeking))
+                                               (:else (values accepted (and accepted
+                                                                            (cond ((and get-index (not choose-many)) (1- row-numbers))
+                                                                                  ((and get-index choose-many) (map 'list #'1- row-numbers))
+                                                                                  ((and (not get-index) (not choose-many)) (nth (1- row-numbers) rows))
+                                                                                  ((and (not get-index) choose-many)
+                                                                                   (map 'list
+                                                                                        (lambda (index) (nth index rows))
+                                                                                        (map 'list #'1- row-numbers))))))))))
+                      :prompt-fun prompt-fun
+                      :raw-input t))))))

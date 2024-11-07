@@ -24,19 +24,6 @@
 ;    (where (:is-null :link.source))))
 
 
-;;; Find notes from db, using substring
-;;; Subset of notes can be limited by choosing specific list of IDs
-;;; deprecated
-(defun filter-notes-by-substring (substring &key ((:in note-list) nil))
-  (declare (type list note-list))
-  (let ((where-clause (list :instr :text substring)))
-    (when note-list
-      (setf where-clause (list :and where-clause (list :in :id note-list))))
-    (select :id
-            (from :note)
-            (where where-clause))))
-
-
 ; TODO
 ;(defun goto-history
 
@@ -302,16 +289,6 @@
 ;;; SUBEXPRESSION HANDLERS
 
 
-(defun pick-next-note (&key &allow-other-keys)
-  (let ((next-note-id (caar (select :destination
-                                    (from :link)
-                                    (where (:and (:= :source *current-note*)
-                                                 (:= :number 0)))))))
-    (if next-note-id
-      next-note-id
-      (format *standard-output* "~A~&" +msg-no-notes+))))
-
-
 (defun handle-optional-exponent (&key ((:exponent exponent)))
   (if exponent
     (parse-integer exponent)
@@ -326,6 +303,15 @@
     (if backward? :backward :forward)))
 
 
+(defun handle-dae (&key ((:raw-direction raw-direction)) ((:raw-exponent raw-exponent)) ((:closure closure)))
+  (list :direction (handle-optional-direction :type raw-direction)
+        :exponent (handle-optional-exponent :exponent raw-exponent)
+        :closure closure
+        :empty-expression? (and (null raw-direction)
+                                (null raw-exponent)
+                                (null closure))))
+
+
 (defun select-constrained-notes (&key ((:parameters parameters)) ((:give-up-on-empty give-up-on-empty) nil))
   (list :parameters parameters
         :rows (when (or (not give-up-on-empty)
@@ -333,7 +319,17 @@
                 (apply #'zac.box.travel:select-notes-through-links *current-note* parameters))))
 
 
-(defun pick-single-note (&key ((:selection selection)) ((:default-on-empty default-on-empty) nil))
+(defun pick-next-note (&key &allow-other-keys)
+  (let ((next-note-id (caar (select :destination
+                                    (from :link)
+                                    (where (:and (:= :source *current-note*)
+                                                 (:= :number 0)))))))
+    (if next-note-id
+      next-note-id
+      (format *standard-output* "~A~&" +msg-no-notes+))))
+
+
+(defun pick-single-note-from-dae (&key ((:selection selection)) ((:default-on-empty default-on-empty) nil))
   (if (and default-on-empty
            (getf (getf selection :parameters) :empty-expression?)
            (null (getf selection :rows)))
@@ -349,6 +345,21 @@
              (format *standard-output* "~%~A~&" +msg-note-is-not-chosen+))
             (:else
               (getf chosen-row :id))))))
+
+
+(defun command-search-note (string match)
+  (declare (ignore string))
+  (let* ((substring (get-group :substring match))
+         (found-notes (select '(:id :text)
+                              (from :note)
+                              (where (:instr :text substring))))
+         (chosen-note (choose-row-from-note-with-peeking found-notes)))
+    (cond ((null found-notes)
+           (format *standard-output* "~A~&" +msg-no-notes+))
+          ((null chosen-note)
+           (format *standard-output* "~%~A~&" +msg-note-is-not-chosen+))
+          (:else
+            (set-current-note (first chosen-note))))))
 
 
 ;;; COMMAND HANDLERS
@@ -376,30 +387,6 @@
 
 
 ;;; OLD (FOR REWORK)
-
-(defun parse-directed-args (match)
-  (let* ((argsymbol :direction)
-         (backward? (and (get-group argsymbol match)
-                         (or (string= (get-group argsymbol match) "back")
-                             (string= (get-group argsymbol match) "b")))))
-    backward?))
-
-
-
-(defun parse-new-link-parameters (match)
-  (let* ((next-in-sequence? (or (string= (get-group :number match) "next")
-                                (string= (get-group :number match) "n")))
-         (link-number (if next-in-sequence?
-                        0
-                        (and (get-group :number match)
-                             (parse-integer (get-group :number match)))))
-         (notes-with-number (and link-number
-                                 (car (select '(:source :destination)
-                                              (from :link)
-                                              (where (:and (:= :source *current-note*)
-                                                           (:= :number link-number))))))))
-    (values next-in-sequence? link-number notes-with-number)))
-
 
 (defun parse-directed-args (match)
   (let* ((argsymbol :direction)
@@ -515,17 +502,6 @@
              (format *standard-output* "~A~&" +msg-no-notes+)))))
 
 
-(defun from-note-through-links-choosing-command (&key ((:parameters parameters)))
-  (let* ((transformed-rows (apply #'zac.box.travel:select-notes-through-links *current-note* parameters))
-         (chosen-row (apply #'zac.box.travel:choose-row-from-note-through-links transformed-rows *choose-note-prompt* parameters)))
-    (cond ((null transformed-rows)
-           (format *standard-output* "~A~&" +msg-no-notes+))
-          ((null chosen-row)
-           (format *standard-output* "~%~A~&" +msg-note-is-not-chosen+))
-          (:else
-            (funcall command chosen-row)))))
-
-
 (defun command-add-note (string match)
   (declare (ignore string))
   (multiple-value-bind (next-in-sequence? link-number notes-with-number) (parse-new-link-parameters match)
@@ -598,30 +574,6 @@
 ;  nil)
 
 
-;;; Alternative definition of goto commands
-;;; For reference
-;(defun get-goto-commands ()
-;  ;; Goto
-;  ;; /goto (forward|back)?(:\\d+)?(\\*)?
-;  ;; /g(f|b)?(\\d+)?(\\*)?
-;  (list (make-instance 'command
-;                       :regex (concat "^\\s*"
-;                                      "goto"
-;                                      (wrap-in-noncapturing-group (concat "\\s+" (make-named-group :type "forward|back"))) "?"
-;                                      (wrap-in-noncapturing-group (concat ":" (make-named-group :exponent "\\d+"))) "?"
-;                                      (make-named-group :closure "\\*") "?"
-;                                      "\\s*$")
-;                       :handler #'command-goto)
-;        (make-instance 'command
-;                       :regex (concat "^\\s*"
-;                                      "g"
-;                                      (make-named-group :type "f|b") "?"
-;                                      (make-named-group :exponent "\\d+") "?"
-;                                      (make-named-group :closure "\\*") "?"
-;                                      "\\s*$")
-;                       :handler #'command-goto)))
-
-
 ;  (list (zac.cmd:make-command-wrapper '(("add" "note")
 ;                                        ("an"))
 ;                                      (lambda (str match)
@@ -638,13 +590,6 @@
 ;                                        (declare (ignore str))
 ;                                        (format t "Hello, ~:(~A~)!~&"
 ;                                                (d.regex:get-group :name groups))))))))
-
-
-;; TODO
-;; make one big command, that can incapsulate every movement command:
-;;  -> if it's on its own, then move (separate complete expression with only subexpression as it's contents)
-;;  -> if it's part of a bigger command - use returned value
-;; then command groups? (aggregate regexes into one big variant?)
 
 
 ;;; +++++  COMMANDS  +++++
@@ -741,29 +686,30 @@
 
         (add-shell-subexpressions
           shell
-          ;;; Raw regexes - used to circumvent flaws of subexpressions
-          (:raw-optional-direction (((:type . "f(?:orward)?|b(?:ack(?:ward)?)?") :optional))
-                               (lambda (&key ((:type type)))
-                                 type)
-                               "Raw value of optional direction regex.")
-          (:raw-optional-exponent (((:raw-exponent . "[1-9]\\d*") :optional :optionally-immediate))
+          ;          ;;; Raw regexes - used to circumvent flaws of subexpressions
+          (:raw-optional-direction ((((:type . "forward|back(?:ward)?") :optional))
+                                    (((:type . "f|b") :optional :optionally-immediate)))
+                                   (lambda (&key ((:type type)))
+                                     type)
+                                   "Raw value of optional direction regex.")
+          (:raw-optional-exponent ((((:raw-exponent . "[1-9]\\d*") :optional :optionally-immediate)))
                                   (lambda (&key ((:raw-exponent raw-exponent)))
                                     raw-exponent)
                                   "Raw value of optional exponent regex.")
           ;;; Expressions - for parsing command arguments
-          (:optional-direction ((:type . :raw-optional-direction))
+          (:optional-direction (((:type . :raw-optional-direction)))
                                #'handle-optional-direction
                                "Optional parameter for operation direction.")
-          (:optional-exponent ((:exponent . :raw-optional-exponent))
+          (:optional-exponent (((:exponent . :raw-optional-exponent)))
                               #'handle-optional-exponent
                               "Optional parameter for number of times operation would be applied.")
-          (:optional-closure (((:closure . "\\*") :optional :optionally-immediate))
+          (:optional-closure ((((:closure . "\\*") :optional :optionally-immediate)))
                              (lambda (&key ((:closure closure)))
                                (not (null closure)))
                              "Optional parameter to enable concatenation of results of repeated calls to operation (Kleene star subset).")
-          (:dae ((:raw-direction . :raw-optional-direction)
-                 (:raw-exponent . :raw-optional-exponent)
-                 (:closure . :optional-closure))
+          (:dae (((:raw-direction . :raw-optional-direction)
+                  (:raw-exponent . :raw-optional-exponent)
+                  (:closure . :optional-closure)))
                 (lambda (&key ((:raw-direction raw-direction)) ((:raw-exponent raw-exponent)) ((:closure closure)))
                   (list :direction (handle-optional-direction :type raw-direction)
                         :exponent (handle-optional-exponent :exponent raw-exponent)
@@ -774,43 +720,49 @@
                 +dae-help+)
           ;;; Selectors - literally performing some form of select statement
           ;;;             return full tables, without filtering
-          (:constrained-note-selector ((:parameters . :dae))
+          (:constrained-note-selector (((:parameters . :dae)))
                                       #'select-constrained-notes
                                       "For note selection, constrained by current note.")
-          (:explicit-constrained-note-selector ((:parameters . :dae))
+          (:explicit-constrained-note-selector (((:parameters . :dae)))
                                                (lambda (&key ((:parameters parameters)))
                                                  (select-constrained-notes :parameters parameters
                                                                            :give-up-on-empty t))
                                                "For note selection, constrained by current note. Must be explicitly stated.")
           ;;; Designators - allow to designate singular notes and note subsets,
           ;;;               direct various note operators to notes on which they should be performed
-          (:current-note-designator (((:current . "cur(?:rent)?") :optionally-immediate))
+          (:current-note-designator ((((:current . "cur(?:rent)?") :optionally-immediate)))
                                     (lambda (&key &allow-other-keys)
                                       *current-note*)
                                     "Currently chosen note.")
-          (:next-note-designator (((:next . "n(?:ext)?") :optionally-immediate))
+          (:next-note-designator ((((:next . "n") :optionally-immediate))
+                                  ((:next . "next")))
                                  #'pick-next-note
                                  "Next note in sequence.")
-          (:single-constrained-note-designator ((:selection . :constrained-note-selector))
-                                               #'pick-single-note
+          (:single-constrained-note-designator (((:selection . :constrained-note-selector)))
+                                               #'pick-single-note-from-dae
                                                "Pick one note over a constrained selection.")
-          (:single-constraint-note-designator-with-default ((:selection . :constrained-note-selector))
+          (:single-constraint-note-designator-with-default (((:selection . :constrained-note-selector)))
                                                            (lambda (&key ((:selection selection)))
-                                                             (pick-single-note :selection selection
+                                                             (pick-single-note-from-dae :selection selection
                                                                                :default-on-empty t))
                                                            "Pick one note over a constrained selection. Defaults to current note.")
+          (:single-note-designator (((:note . :current-note-designator))
+                                    ((:note . :next-note-designator))
+                                    ((:note . :single-constrained-note-designator)))
+                                   (lambda (&key ((:note note)))
+                                     note)
+                                   "Aggregate single note designator")
           )
 
         (add-shell-commands
           shell
-          (("home") #'command-home "Go to root note")
-          ((:many-forms ((:note . :current-note-designator))
-                        ((:note . :next-note-designator)))
+          ((("home")) #'command-home "Go to root note")
+          ((((:note . :single-note-designator)))
            #'command-show-note "Show contents of the note.")
-          ((:many-forms ("g(?:oto)?" (:note . :single-constrained-note-designator))
-                        ("g(?:oto)?" (:note . :next-note-designator)))
+          ((("g(?:oto)?" (:note . :single-note-designator)))
            #'command-goto "Go to some note from this one")
-          (("l(?:inks)?" (:selection . :constrained-note-selector)) #'command-links "Show links from this note with specified parameters")
+          ((("l(?:inks)?" (:selection . :constrained-note-selector)))
+           #'command-links "Show links from this note with specified parameters")
           )
         )
 
@@ -831,7 +783,6 @@
 ;                                                                    (lambda (&key ((:closure closure)))
 ;                                                                      (not (null closure)))
 ;                                                                    "Should repeated call to operation be concatenated? (Kleene star)"))
-
 
 ;         (exponent-arguments )
 ;         (short-exponent-arguments `(((:exponent . "[1-9]\\d*") :optional :optionally-immediate)))

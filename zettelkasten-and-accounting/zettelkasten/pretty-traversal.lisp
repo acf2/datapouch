@@ -221,7 +221,7 @@
 
 
 (defun choose-row-from-note-through-links (transformed-rows prompt &key ((:direction direction)) ((:exponent exponent)) ((:closure closure?)) ((:choose-many choose-many) nil) &allow-other-keys)
-  (declare (type integer note-id exponent)
+  (declare (type integer exponent)
            (type keyword direction)
            (type boolean closure?))
   (let* ((backward? (eq direction :backward)))
@@ -261,3 +261,21 @@
                                                                                        :collect (cons i row)))
                             sorted-rows)))
     (pretty-print-table (cons "Number" column-names) prettified-rows)))
+
+
+;;; Has an ability to peek note text
+;;; Because search is a hard operation, and it kinda fits
+;;; For "ordinary goto" user can just go back in history and choose different note to go to
+(defun choose-row-from-note-with-peeking (rows &key ((:choose-many choose-many) nil))
+  (find-row-with-peeking-dialog '("ID" "Text") rows
+                                :choose-many choose-many
+                                :prompt-msg "S[how] list again, [choose] note number or p[eek] it:~&"
+                                :id-column-name-map (lambda (column-names)
+                                                      (cons "Number" (cdr column-names)))
+                                :row-mapping-function (lambda (i row)
+                                                        (cons i (cdr row)))
+                                :prompt-fun *choose-note-prompt*
+                                :peek-row-function (lambda (row last?)
+                                                     (if last?
+                                                       (format *standard-output* "~A~&" (second row))
+                                                       (format *standard-output* "~A~&~%" (second row))))))
