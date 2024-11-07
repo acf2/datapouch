@@ -289,9 +289,9 @@
 ;;; SUBEXPRESSION HANDLERS
 
 
-(defun handle-optional-exponent (&key ((:exponent exponent)))
-  (if exponent
-    (parse-integer exponent)
+(defun handle-optional-number (&key ((:number number)))
+  (if number
+    (parse-integer number)
     1))
 
 
@@ -303,13 +303,19 @@
     (if backward? :backward :forward)))
 
 
-(defun handle-dae (&key ((:raw-direction raw-direction)) ((:raw-exponent raw-exponent)) ((:closure closure)))
+(defun handle-dae (&key ((:raw-direction raw-direction)) ((:raw-number raw-number)) ((:closure closure)))
   (list :direction (handle-optional-direction :type raw-direction)
-        :exponent (handle-optional-exponent :exponent raw-exponent)
+        :exponent (handle-optional-number :number raw-number)
         :closure closure
         :empty-expression? (and (null raw-direction)
-                                (null raw-exponent)
+                                (null raw-number)
                                 (null closure))))
+
+
+(defun handle-link-number (&key ((:number number)))
+  (if (eq number :next)
+    0
+    (and number (parse-integer number))))
 
 
 (defun select-constrained-notes (&key ((:parameters parameters)) ((:give-up-on-empty give-up-on-empty) nil))
@@ -353,7 +359,7 @@
          (found-notes (select '(:id :text)
                               (from :note)
                               (where (:instr :text substring))))
-         (chosen-note (choose-row-from-note-with-peeking found-notes)))
+         (chosen-note (zac.box.travel:choose-row-from-note-with-peeking found-notes *choose-note-prompt*)))
     (cond ((null found-notes)
            (format *standard-output* "~A~&" +msg-no-notes+))
           ((null chosen-note)
@@ -375,15 +381,60 @@
     (format *standard-output* "~A~&" +msg-no-notes+)))
 
 
-(defun command-links (&key ((:selection selection)))
-  (apply #'zac.box.travel:pretty-print-note-through-links
-         (getf selection :rows)
-         (getf selection :parameters)))
-
-
 (defun command-goto (&key ((:note note-id)))
   (when note-id
     (set-current-note note-id)))
+
+
+(defun command-links (&key ((:selection selection)))
+  (if (getf selection :rows)
+    (apply #'zac.box.travel:pretty-print-note-through-links
+           (getf selection :rows)
+           (getf selection :parameters))
+    (format *standard-output* "~A~&" +msg-no-notes+)))
+
+
+(defun parse-new-link-parameters (match)
+  (let* ((next-in-sequence? (or (string= (get-group :number match) "next")
+                                (string= (get-group :number match) "n")))
+         (link-number (if next-in-sequence?
+                        0
+                        (and (get-group :number match)
+                             (parse-integer (get-group :number match)))))
+         (notes-with-number (and link-number
+                                 (car (select '(:source :destination)
+                                              (from :link)
+                                              (where (:and (:= :source *current-note*)
+                                                           (:= :number link-number))))))))
+    (values next-in-sequence? link-number notes-with-number)))
+
+
+(defun command-add-note (&key ((:link-number link-number)) ((:continue continue)))
+  (let* ((notes-with-number (and link-number
+                                 (car (select '(:source :destination)
+                                              (from :link)
+                                              (where (:and (:= :source *current-note*)
+                                                           (:= :number link-number))))))))
+    (let* ((override-note-number? (and notes-with-number (yes-or-no-p +question-note-with-number-exists+)))
+           (new-note-body (first (edit-strings ""))))
+      (cond ((string= new-note-body "")
+             (format *standard-output* "~A~&" +msg-abort-note-creation+))
+            (:else
+              (when override-note-number?
+                (update :link
+                        (set= :number nil)
+                        (where (:and (:= :source (first notes-with-number))
+                                     (:= :destination (second notes-with-number))))))
+              (let ((new-note (add-note new-note-body
+                                        *current-note*
+                                        (if (and notes-with-number
+                                                 (not override-note-number?))
+                                          nil
+                                          link-number))))
+                (when continue
+                  (set-current-note new-note))))))))
+
+
 
 
 ;;; OLD (FOR REWORK)
@@ -406,21 +457,6 @@
                      1))
          (closure? (not (null (get-group :closure match)))))
     (values backward? exponent closure?)))
-
-
-(defun parse-new-link-parameters (match)
-  (let* ((next-in-sequence? (or (string= (get-group :number match) "next")
-                                (string= (get-group :number match) "n")))
-         (link-number (if next-in-sequence?
-                        0
-                        (and (get-group :number match)
-                             (parse-integer (get-group :number match)))))
-         (notes-with-number (and link-number
-                                 (car (select '(:source :destination)
-                                              (from :link)
-                                              (where (:and (:= :source *current-note*)
-                                                           (:= :number link-number))))))))
-    (values next-in-sequence? link-number notes-with-number)))
 
 
 ;(defun wrap-catch-sqlite-errors (fun)
@@ -500,29 +536,6 @@
              (setf *note-future* (rest *note-future*)))
            (:else
              (format *standard-output* "~A~&" +msg-no-notes+)))))
-
-
-(defun command-add-note (string match)
-  (declare (ignore string))
-  (multiple-value-bind (next-in-sequence? link-number notes-with-number) (parse-new-link-parameters match)
-    (let* ((override-note-number? (and notes-with-number (yes-or-no-p +question-note-with-number-exists+)))
-           (new-note (first (edit-strings ""))))
-      (cond ((string= new-note "")
-             (format *standard-output* "~A~&" +msg-abort-note-creation+))
-            (:else
-              (when override-note-number?
-                (update :link
-                        (set= :number nil)
-                        (where (:and (:= :source (first notes-with-number))
-                                     (:= :destination (second notes-with-number))))))
-              (let ((new-note (add-note new-note
-                                        *current-note*
-                                        (if (and notes-with-number
-                                                 (not override-note-number?))
-                                          nil
-                                          link-number))))
-                (when next-in-sequence?
-                  (set-current-note new-note))))))))
 
 
 ;(defun command-remove-note (string match)
@@ -692,32 +705,41 @@
                                    (lambda (&key ((:type type)))
                                      type)
                                    "Raw value of optional direction regex.")
-          (:raw-optional-exponent ((((:raw-exponent . "[1-9]\\d*") :optional :optionally-immediate)))
-                                  (lambda (&key ((:raw-exponent raw-exponent)))
-                                    raw-exponent)
+          (:raw-optional-number ((((:raw-number . "[1-9]\\d*") :optional :optionally-immediate)))
+                                  (lambda (&key ((:raw-number raw-number)))
+                                    raw-number)
                                   "Raw value of optional exponent regex.")
           ;;; Expressions - for parsing command arguments
           (:optional-direction (((:type . :raw-optional-direction)))
                                #'handle-optional-direction
                                "Optional parameter for operation direction.")
-          (:optional-exponent (((:exponent . :raw-optional-exponent)))
-                              #'handle-optional-exponent
-                              "Optional parameter for number of times operation would be applied.")
+          (:optional-number (((:number . :raw-optional-number)))
+                              #'handle-optional-number
+                              "Optional parameter for number")
           (:optional-closure ((((:closure . "\\*") :optional :optionally-immediate)))
                              (lambda (&key ((:closure closure)))
                                (not (null closure)))
                              "Optional parameter to enable concatenation of results of repeated calls to operation (Kleene star subset).")
+          (:next-note ((((:next . "n") :optionally-immediate))
+                       ((:next . "next")))
+                      (lambda (&key &allow-other-keys)
+                        :next)
+                      "Modifier for next note in sequence")
           (:dae (((:raw-direction . :raw-optional-direction)
-                  (:raw-exponent . :raw-optional-exponent)
+                  (:raw-number . :raw-optional-number)
                   (:closure . :optional-closure)))
-                (lambda (&key ((:raw-direction raw-direction)) ((:raw-exponent raw-exponent)) ((:closure closure)))
-                  (list :direction (handle-optional-direction :type raw-direction)
-                        :exponent (handle-optional-exponent :exponent raw-exponent)
-                        :closure closure
-                        :empty-expression? (and (null raw-direction)
-                                                (null raw-exponent)
-                                                (null closure))))
+                #'handle-dae
                 +dae-help+)
+          (:optional-link-number (((:number . :raw-optional-number))
+                                  ((:number . :next-note)))
+                                 #'handle-link-number
+                                 "Number mark for link")
+          (:optional-continue ((((:continue . "continue") :optional))
+                               (((:continue . "c") :optional :optionally-immediate)))
+                              (lambda (&key ((:continue continue)))
+                                (when continue
+                                  :continue))
+                              "Continuing modifier")
           ;;; Selectors - literally performing some form of select statement
           ;;;             return full tables, without filtering
           (:constrained-note-selector (((:parameters . :dae)))
@@ -734,8 +756,7 @@
                                     (lambda (&key &allow-other-keys)
                                       *current-note*)
                                     "Currently chosen note.")
-          (:next-note-designator ((((:next . "n") :optionally-immediate))
-                                  ((:next . "next")))
+          (:next-note-designator (((:next . :next-note)))
                                  #'pick-next-note
                                  "Next note in sequence.")
           (:single-constrained-note-designator (((:selection . :constrained-note-selector)))
@@ -763,6 +784,9 @@
            #'command-goto "Go to some note from this one")
           ((("l(?:inks)?" (:selection . :constrained-note-selector)))
            #'command-links "Show links from this note with specified parameters")
+          ((("add" "note" (:link-number . :optional-link-number) (:continue . :optional-continue))
+            ("an" (:link-number . :optional-link-number) (:continue . :optional-continue)))
+           #'command-add-note "Add new note")
           )
         )
 

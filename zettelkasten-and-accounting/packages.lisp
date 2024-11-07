@@ -33,7 +33,8 @@
            #:row-transformation-without-pathing
            #:row-transformation-for-pathing
            #:choose-row-from-note-through-links
-           #:pretty-print-note-through-links))
+           #:pretty-print-note-through-links
+           #:choose-row-from-note-with-peeking))
 
 
 (defpackage :zac.zettelkasten

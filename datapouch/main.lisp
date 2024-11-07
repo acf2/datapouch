@@ -69,13 +69,15 @@
                                                              #'d.fs:process-all-backup-tiers
                                                              #'init-readline
                                                              #'init-sqlite)
-                                                       *init-hooks*)))
+                                                       *init-hooks*)
+                                               :from-end t))
   (setf sb-ext:*exit-hooks* (remove-duplicates (append sb-ext:*exit-hooks*
                                                        *exit-hooks*
                                                        (list #'finalize-readline
                                                              #'finalize-sqlite
                                                              #'d.crypto:rehash-database)
-                                                       *post-unload-hooks*)))
+                                                       *post-unload-hooks*)
+                                               :from-end t))
   (d.regex:allow-named-registers)
   (d.rmacro:install-command-reader-macro)
   (setf sb-ext:*invoke-debugger-hook* #'debugger-hook)

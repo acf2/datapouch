@@ -168,7 +168,7 @@
              ;; subtree root is always on top
              ;; NILs are ids of notes, that were filtered due to some circumstances
              ;; they are always at the bottom
-             (generate-referrer-list (row) (sort (remove-duplicates (gethash (row-id-key row) referrers))
+             (generate-referrer-list (row) (sort (remove-duplicates (gethash (row-id-key row) referrers) :from-end t)
                                                  (lambda (one another)
                                                    (if (eq another 'root)
                                                      nil
@@ -187,7 +187,9 @@
                    (append row
                            (list :referrers
                                  (generate-referrer-list row))))
-           (remove-duplicates sorted-rows :key #'row-id-key)))))
+           (remove-duplicates sorted-rows
+                              :key #'row-id-key
+                              :from-end t)))))
 
 
 (defun referrers-to-string (referrer-list &key
@@ -253,20 +255,21 @@
 
 (defun pretty-print-note-through-links (transformed-rows &key ((:direction direction)) ((:exponent exponent)) ((:closure closure?)) &allow-other-keys)
   (let* ((backward? (eq direction :backward))
-         (column-names (column-names-for-notes-through-links backward? exponent closure?))
-         (sorted-rows (funcall (if closure? #'get-referrers #'prettify-rows) transformed-rows))
-         (prettified-rows (if closure?
-                            (row-transformations-for-referrers (loop :for row :in sorted-rows
-                                                                                       :for i :from 1 to (length sorted-rows)
-                                                                                       :collect (cons i row)))
-                            sorted-rows)))
-    (pretty-print-table (cons "Number" column-names) prettified-rows)))
+         (column-names (column-names-for-notes-through-links backward? exponent closure?)))
+    (if (not closure?)
+      (pretty-print-table column-names (prettify-rows transformed-rows))
+      (let* ((sorted-rows (get-referrers transformed-rows))
+             (prettified-rows (row-transformations-for-referrers (loop :for row :in sorted-rows
+                                                                       :for i :from 1 to (length sorted-rows)
+                                                                       :collect (cons i row)))))
+        (pretty-print-table (cons "Number" column-names)
+                            prettified-rows)))))
 
 
 ;;; Has an ability to peek note text
 ;;; Because search is a hard operation, and it kinda fits
 ;;; For "ordinary goto" user can just go back in history and choose different note to go to
-(defun choose-row-from-note-with-peeking (rows &key ((:choose-many choose-many) nil))
+(defun choose-row-from-note-with-peeking (rows prompt &key ((:choose-many choose-many) nil))
   (find-row-with-peeking-dialog '("ID" "Text") rows
                                 :choose-many choose-many
                                 :prompt-msg "S[how] list again, [choose] note number or p[eek] it:~&"
@@ -274,7 +277,7 @@
                                                       (cons "Number" (cdr column-names)))
                                 :row-mapping-function (lambda (i row)
                                                         (cons i (cdr row)))
-                                :prompt-fun *choose-note-prompt*
+                                :prompt-fun prompt
                                 :peek-row-function (lambda (row last?)
                                                      (if last?
                                                        (format *standard-output* "~A~&" (second row))

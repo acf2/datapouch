@@ -102,23 +102,23 @@
 
 ;;; Converts s-form regex (without subexpressions!) to regex-scanner
 (defun make-command-s-form-scanner (&rest terms)
-  (format t "make-command-s-form-scanner call:~&")
+  ;(format t "make-command-s-form-scanner call:~&")
   (flet ((process-term (term) (cond ((and (argument-with-modifiers? term)
                                           (named-regex-group? (first term)))
-                                     (format t "NRG with opts: ~A~&" term)
+                                     ;(format t "NRG with opts: ~A~&" term)
                                      (cons (d.regex:make-named-group (car (first term))
                                                                      (cdr (first term))) (rest term)))
                                     ((named-regex-group? term)
-                                     (format t "NRG: ~A~&" term)
+                                     ;(format t "NRG: ~A~&" term)
                                      (d.regex:make-named-group (car term)
                                                                (cdr term)))
                                     (:else
-                                     (format t "Simple term: ~A~&" term)
+                                     ;(format t "Simple term: ~A~&" term)
                                       term))))
     (if (every #'acceptable-term? terms)
         (let ((a (funcall #'make-regex-s-form-scanner
                           (map 'list #'process-term terms))))
-          (format t "~&~%")
+          ;(format t "~&~%")
           a)
       (error (make-instance 'simple-error
                             :format-control +s-form-errors+

@@ -211,14 +211,14 @@
                                              (dep-info (rest (assoc name deps-info))))
                                         (scope-nrgs-in-s-form name (getf dep-info :s-form))))
                                      (:else (list argument))))))
-    (format t "build-shard call:~&S-FORM: ~S~&ARGS INFO: ~S~&DEPS INFO: ~S~&~%" s-form args-info deps-info)
+    ;(format t "build-shard call:~&S-FORM: ~S~&ARGS INFO: ~S~&DEPS INFO: ~S~&~%" s-form args-info deps-info)
     (flet ((get-arg-p-list (get-value arg-keys) (loop :for arg :in arg-keys
                                                       :append (list arg (funcall get-value arg)))))
       (make-instance 'built-shell-expression-shard
                      :s-form s-form
                      :docs docs
                      :handler (lambda (&rest handler-arguments &key &allow-other-keys)
-                                (format t "command call:~&S-FORM: ~S~&IMM-ARGS: ~S~&FUN ARGS: ~S~&ARGS INFO: ~S~&DEPS INFO: ~S~&~%" s-form immediate-arguments handler-arguments args-info deps-info)
+                                ;(format t "command call:~&S-FORM: ~S~&IMM-ARGS: ~S~&FUN ARGS: ~S~&ARGS INFO: ~S~&DEPS INFO: ~S~&~%" s-form immediate-arguments handler-arguments args-info deps-info)
                                 (let ((subexpression-values 
                                         (loop :for arg-info :in args-info
                                               :append (let ((subexpr-name (getf arg-info :name))
@@ -230,7 +230,7 @@
                                                                                        (getf handler-arguments
                                                                                              (get-scoped-name subexpr-name subexpr-arg)))
                                                                                      subexpr-args)))))))
-                                  (format t "SUBEXPR VALS: ~A~&" subexpression-values)
+                                  ;(format t "SUBEXPR VALS: ~A~&" subexpression-values)
                                   (apply user-handler
                                          (append
                                            (get-arg-p-list (lambda (nrg)
@@ -257,7 +257,7 @@
                                                    :do (error (make-instance 'simple-error
                                                                              :format-control +shell-expression-build-error+
                                                                              :format-arguments (format nil "~A dependency is not found" type))))))
-                    (format t "build-expression iteration~&S-FORM: ~S~&VDEPS INFO: ~S~&~%" expression-s-form variable-deps-info)
+                    ;(format t "build-expression iteration~&S-FORM: ~S~&VDEPS INFO: ~S~&~%" expression-s-form variable-deps-info)
                     (if (null variable-deps-info)
                       (list (build-shard expression-s-form
                                          (handler expression)
@@ -273,7 +273,8 @@
 (defmethod build-shell ((shell shell))
   (with-slots (complete-expressions subexpressions) shell
     (flet ((get-deps-types (expr) (remove-duplicates (map 'list #'rest (loop :for s-form :in (s-forms expr)
-                                                                             :append (get-s-form-subexpressions s-form))))))
+                                                                             :append (get-s-form-subexpressions s-form)))
+                                                     :from-end t)))
       (let ((subexpression-keys (d.aux:get-keys-from-hash-table subexpressions)))
         ;; Check subexpression graph for cycles
         ;; Complete expressions cannot form cycles, because no expression could depend on them
@@ -291,8 +292,13 @@
                                                (loop :for type :in subexpr-types
                                                      :for built-subexpr := (gethash type built-subexpression-shards)
                                                      :unless built-subexpr
-                                                     :do (setf (gethash type built-subexpression-shards)
-                                                               (prepare (gethash type subexpressions))))
+                                                     :do (let ((subexpr (gethash type subexpressions)))
+                                                           (if (null subexpr)
+                                                             (error (make-instance 'simple-error
+                                                                                   :format-control +shell-build-error+
+                                                                                   :format-arguments (format nil "No subexpression is found with key ~S" type)))
+                                                             (setf (gethash type built-subexpression-shards)
+                                                                   (prepare (gethash type subexpressions))))))
                                                (build-expression expression built-shell))))
                 (setf built-complete-expression-shards
                       (loop :for complete-expression :in complete-expressions
@@ -312,10 +318,10 @@
                                                         (intern symbol-name "KEYWORD"))
                                                 (d.regex:list-group-names groups))))
     (with-slots (built-complete-expression-shards) built-shell
-      (format t "generate-commands-from-shell~&")
-      (loop :for shard :in built-complete-expression-shards
-            :do (format t "shard: ~S ~S~&" (s-form shard) (docs shard)))
-      (format t "~%")
+      ;(format t "generate-commands-from-shell~&")
+      ;(loop :for shard :in built-complete-expression-shards
+            ;:do (format t "shard: ~S ~S~&" (s-form shard) (docs shard)))
+      ;(format t "~%")
       (loop :for shard :in built-complete-expression-shards
             :for s-form := (s-form shard)
             :for parser := (apply #'make-command-s-form-scanner s-form)
@@ -323,10 +329,10 @@
             :for proxy-command := (let ((local-handler handler))
                                     (lambda (string match)
                                       (declare (ignore string))
-                                      (format t "Called command:~&Args: ~S~&"
-                                              (loop :for group-name :in (groups-names-as-symbols match)
-                                                    :append (list group-name
-                                                                  (d.regex:get-group group-name match))))
+                                      ;(format t "Called command:~&Args: ~S~&"
+                                      ;       (loop :for group-name :in (groups-names-as-symbols match)
+                                      ;             :append (list group-name
+                                      ;                           (d.regex:get-group group-name match))))
                                       (apply local-handler
                                              (loop :for group-name :in (groups-names-as-symbols match)
                                                    :append (list group-name
