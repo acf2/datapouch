@@ -56,14 +56,15 @@
     new-note))
 
 
-
 ;;; Remove note by ID (or current note if ID is not supplied)
 ;;; When nil is supplied, does nothing
-(defun remove-note (note)
-  (when note
-    (delete-from :note (where (:= :id note)))
-    (when (eql note *current-note*)
-      (set-current-note nil)))) ; TODO Remake to last history item, when history is implemented
+(defun remove-notes (notes)
+  (when notes
+    (delete-from :note (where (:in :id notes)))
+    (setf *note-history* (remove-if (member-of notes) *note-history*))
+    (when (member *current-note* notes :test #'eql)
+      (set-current-note (first *note-history*)
+                        :update-history nil))))
 
 
 ;;; Show all links of a note
@@ -332,7 +333,7 @@
   (list :parameters (list :substring substring)
         :rows (select (get-field-names zac.box.db:+table-note-fields+)
                       (from :note)
-                      (where (:instr :text substring)))))
+                      (where (:instr (:upper :text) (:upper substring))))))
 
 
 (defun pick-next-note (&key &allow-other-keys)
@@ -381,32 +382,19 @@
                                                     (map 'list (get-field-mapping-for-rows zac.box.db:+table-note-fields+) selected-rows)
                                                     :get-index t
                                                     :choose-many choose-many
-                                                    :prompt-fun *choose-note-prompt*)))
+                                                    :prompt-fun *choose-note-prompt*
+                                                    :peek-row-function (lambda (row last?)
+                                                                         (format *standard-output* "~A~&~@[~%~]" (first row) (not last?))))))
     (cond ((null selected-rows)
            (format *standard-output* "~A~&" +msg-no-notes+))
           ((null chosen-rows)
            (format *standard-output* "~%~A~&" +msg-note-is-not-chosen+))
           (:else
-              (if choose-many
-                (map 'list (lambda (index)
-                             (first (nth index selected-rows)))
-                     chosen-rows)
-                (first (nth chosen-rows selected-rows)))))))
-
-
-;(defun pick-memorized-notes (&key ((:numbers numbers)) ((:pick-only-one pick-one)))
-;  (if pick-one
-;    (let* ((rows (select-notes-by-ids *memorized-notes*))
-;           (temp-table (loop :for row :in rows
-;                             :for i :from 1 :to (length rows)
-;                             :when (or (null numbers) (member i numbers))
-;                             :collect (cons i row))))
-;    (when (null numbers)
-;      *memorized-notes*
-;      (loop :for memorized-note :in *memorized-notes*
-;            :for i :from 1 :to (length *memorized-notes*)
-;            :when (member i numbers)
-;            :collect memorized-note))))
+            (if choose-many
+              (map 'list (lambda (index)
+                           (first (nth index selected-rows)))
+                   chosen-rows)
+              (first (nth chosen-rows selected-rows)))))))
 
 
 (defun pick-memorized-notes (&key ((:numbers numbers)) ((:all all)))
@@ -507,7 +495,7 @@
 (defun command-remove-notes (&key ((:notes notes)))
   (if (null notes)
     (format *standard-output* "~A~&" +msg-abort-note-deletion+)
-    (delete-from :note (where (:in :id notes)))))
+    (remove-notes notes)))
 
 
 (defun command-collect-lost ()
@@ -795,7 +783,7 @@
                                   "Raw value of optional exponent regex.")
           (:substring (((:string . ".*?")))
                       (lambda (&key ((:string str)))
-                        str)
+                        (string-trim (list #\Newline #\Space #\Tab) str))
                       "Substring parameters")
           ;;; Expressions - for parsing command arguments
           (:optional-direction (((:type . :raw-optional-direction)))
@@ -844,7 +832,7 @@
                                                "For note selection, constrained by current note. Must be explicitly stated.")
           (:global-note-selector (("gl(?:obal)?" (:substring . :substring)))
                                  #'select-global-notes
-                                 "For global note selection.")
+                                 "For global note selection. Case insensitive.")
           ;;; Designators - allow to designate singular notes and note subsets,
           ;;;               direct various note operators to notes on which they should be performed
           (:current-note-designator ((((:current . "cur(?:rent)?") :optionally-immediate)))
@@ -879,11 +867,14 @@
                                                                                      :allow-peek t
                                                                                      :choose-many t))
                                                               "Pick one or more notes over a constrained selection using a safer method.")
+          (:single-global-note-designator-with-peeking (((:selection . :global-note-selector)))
+                                                       #'pick-notes-from-global
+                                                       "Pick exactly one note, globally filtering by substring.")
           (:multiple-global-note-designator-with-peeking (((:selection . :global-note-selector)))
                                                          (lambda (&key ((:selection selection)))
                                                            (pick-notes-from-global :selection selection
                                                                                    :choose-many t))
-                                                         "Pick one or more notes filtering by substring.")
+                                                         "Pick one or more notes globally filtering by substring.")
           (:multiple-memory-designator ((("m" :optionally-immediate))
                                         (("m" :optionally-immediate) (:numbers . :number-list))
                                         (("m" :optionally-immediate) ((:all . "a(?:ll)?") :optionally-immediate))
@@ -894,8 +885,8 @@
                                        "Memorized notes designator")
           (:single-note-designator (((:note . :current-note-designator))
                                     ((:note . :next-note-designator))
-                                    ((:note . :single-constrained-note-designator)))
-                                   ;; TODO:global-note-designator
+                                    ((:note . :single-constrained-note-designator))
+                                    ((:note . :single-global-note-designator-with-peeking)))
                                    (lambda (&key ((:note note)))
                                      note)
                                    "Aggregate single note designator")
