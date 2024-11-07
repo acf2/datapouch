@@ -222,31 +222,45 @@
          rows)))
 
 
-(defun choose-row-from-note-through-links (transformed-rows prompt &key ((:direction direction)) ((:exponent exponent)) ((:closure closure?)) ((:choose-many choose-many) nil) &allow-other-keys)
+(defun choose-row-from-note-through-links (transformed-rows prompt &key ((:direction direction))
+                                                                        ((:exponent exponent))
+                                                                        ((:closure closure?))
+                                                                        ((:choose-many choose-many) nil)
+                                                                        ((:allow-peek allow-peek) nil)
+                                                                        &allow-other-keys)
   (declare (type integer exponent)
            (type keyword direction)
            (type boolean closure?))
-  (let* ((backward? (eq direction :backward)))
+  (let* ((backward? (eq direction :backward))
+         (dialog-function (if allow-peek
+                            #'find-row-with-peeking-dialog
+                            #'find-row-dialog)))
     (cond (closure?
             (let* ((column-names (column-names-for-notes-through-links backward? exponent closure?))
                    (sorted-rows (get-referrers transformed-rows))
-                   (chosen-row-index (and sorted-rows (find-row-dialog column-names
-                                                                       sorted-rows
-                                                                       :row-transformation-function #'row-transformations-for-referrers
-                                                                       :get-index t
-                                                                       :prompt-fun prompt
-                                                                       :choose-many choose-many))))
+                   (chosen-row-index (and sorted-rows (funcall dialog-function
+                                                               column-names
+                                                               sorted-rows
+                                                               :row-transformation-function #'row-transformations-for-referrers
+                                                               :get-index t
+                                                               :prompt-fun prompt
+                                                               :choose-many choose-many
+                                                               :peek-row-function (lambda (row last?)
+                                                                                    (format *standard-output* "~A~&~@[~%~]" (getf row :text) (not last?)))))))
               (and chosen-row-index (if choose-many
                                       (loop :for index :in chosen-row-index
                                             :collect (nth index sorted-rows))
                                       (nth chosen-row-index sorted-rows)))))
           (:else
             (let* ((column-names (column-names-for-notes-through-links backward? exponent closure?))
-                   (chosen-row-index (and transformed-rows (find-row-dialog column-names
-                                                                            (prettify-rows transformed-rows)
-                                                                            :get-index t
-                                                                            :prompt-fun prompt
-                                                                            :choose-many choose-many))))
+                   (chosen-row-index (and transformed-rows (funcall dialog-function
+                                                                    column-names
+                                                                    (prettify-rows transformed-rows)
+                                                                    :get-index t
+                                                                    :prompt-fun prompt
+                                                                    :choose-many choose-many
+                                                                    :peek-row-function (lambda (row last?)
+                                                                                         (format *standard-output* "~A~&~@[~%~]" (first row) (not last?)))))))
               (and chosen-row-index (if choose-many
                                       (loop :for index :in chosen-row-index
                                             :collect (nth index transformed-rows))

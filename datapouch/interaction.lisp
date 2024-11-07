@@ -135,7 +135,8 @@
                                                ((:row-transformation-function row-transform) #'identity)
                                                ((:get-index get-index) nil)
                                                ((:prompt-fun prompt-fun) *prompt-fun*)
-                                               ((:pretty-print-table-function pretty-print-table) #'pretty-print-table))
+                                               ((:pretty-print-table-function pretty-print-table) #'pretty-print-table)
+                                               &allow-other-keys)
   (cond ((= (length rows) 0) nil)
         ((= (length rows) 1) (if get-index 0 (first rows)))
         (:else (dialog :query-fun (lambda (&optional (error-form nil error-form-supplied?))
@@ -192,7 +193,8 @@
                                                             ((:peek-row-function show-row) (lambda (row last?)
                                                                                              (if last?
                                                                                                (format *standard-output* "~A~&" row)
-                                                                                               (format *standard-output* "~A~&~%" row)))))
+                                                                                               (format *standard-output* "~A~&~%" row))))
+                                                            &allow-other-keys)
   (cond ((= (length rows) 0) nil)
         ((= (length rows) 1) (first rows))
         (:else

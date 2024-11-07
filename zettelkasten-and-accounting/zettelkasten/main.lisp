@@ -335,22 +335,31 @@
       (format *standard-output* "~A~&" +msg-no-notes+))))
 
 
-(defun pick-single-note-from-dae (&key ((:selection selection)) ((:default-on-empty default-on-empty) nil))
+(defun pick-notes-from-dae (&key ((:selection selection))
+                                 ((:choose-many choose-many) nil)
+                                 ((:allow-peek allow-peek) nil)
+                                 ((:default-on-empty default-on-empty) nil))
   (if (and default-on-empty
            (getf (getf selection :parameters) :empty-expression?)
            (null (getf selection :rows)))
     *current-note*
     (let* ((selected-rows (getf selection :rows))
-           (chosen-row (apply #'zac.box.travel:choose-row-from-note-through-links
-                              selected-rows
-                              *choose-note-prompt*
-                              (getf selection :parameters))))
+           (chosen-rows (apply #'zac.box.travel:choose-row-from-note-through-links
+                               selected-rows
+                               *choose-note-prompt*
+                               :choose-many choose-many
+                               :allow-peek allow-peek
+                               (getf selection :parameters))))
       (cond ((null selected-rows)
              (format *standard-output* "~A~&" +msg-no-notes+))
-            ((null chosen-row)
+            ((null chosen-rows)
              (format *standard-output* "~%~A~&" +msg-note-is-not-chosen+))
             (:else
-              (getf chosen-row :id))))))
+              (if choose-many
+                (map 'list (lambda (row)
+                             (getf row :id))
+                     chosen-rows)
+                (getf chosen-rows :id)))))))
 
 
 (defun command-search-note (string match)
@@ -760,13 +769,19 @@
                                  #'pick-next-note
                                  "Next note in sequence.")
           (:single-constrained-note-designator (((:selection . :constrained-note-selector)))
-                                               #'pick-single-note-from-dae
+                                               #'pick-notes-from-dae
                                                "Pick one note over a constrained selection.")
           (:single-constraint-note-designator-with-default (((:selection . :constrained-note-selector)))
                                                            (lambda (&key ((:selection selection)))
-                                                             (pick-single-note-from-dae :selection selection
-                                                                               :default-on-empty t))
+                                                             (pick-notes-from-dae :selection selection
+                                                                                  :default-on-empty t))
                                                            "Pick one note over a constrained selection. Defaults to current note.")
+          (:multiple-constrained-note-designator-with-peeking (((:selection . :constrained-note-selector)))
+                                                              (lambda (&key ((:selection selection)))
+                                                                (pick-notes-from-dae :selection selection
+                                                                                     :allow-peek t
+                                                                                     :choose-many t))
+                                                              "Pick one or more notes over a constrained selection using a safer method.")
           (:single-note-designator (((:note . :current-note-designator))
                                     ((:note . :next-note-designator))
                                     ((:note . :single-constrained-note-designator)))
@@ -780,6 +795,10 @@
           ((("home")) #'command-home "Go to root note")
           ((((:note . :single-note-designator)))
            #'command-show-note "Show contents of the note.")
+          ((("ttpeek" (:notes . :multiple-constrained-note-designator-with-peeking)))
+           (lambda (&key ((:notes notes)))
+             (show-notes notes))
+           "Test peeking")
           ((("g(?:oto)?" (:note . :single-note-designator)))
            #'command-goto "Go to some note from this one")
           ((("l(?:inks)?" (:selection . :constrained-note-selector)))
