@@ -293,23 +293,22 @@
 ;;; SUBEXPRESSION HANDLERS
 
 
-(defun handle-optional-number (&key ((:number number)))
+(defun handle-optional-number (&key ((:number number)) ((:default default)))
   (if number
     (parse-integer number)
-    1))
+    default))
 
 
 (defun handle-optional-direction (&key ((:type type)))
-  (let* ((backward? (and type
-                         (some (lambda (var)
-                                 (string= type var))
-                               (list "b" "back" "backward")))))
+  (let* ((backward? (member type
+                            (list "b" "back" "backward")
+                            :test #'string=)))
     (if backward? :backward :forward)))
 
 
 (defun handle-dae (&key ((:raw-direction raw-direction)) ((:raw-number raw-number)) ((:closure closure)))
   (list :direction (handle-optional-direction :type raw-direction)
-        :exponent (handle-optional-number :number raw-number)
+        :exponent (handle-optional-number :number raw-number :default 1)
         :closure closure
         :empty-expression? (and (null raw-direction)
                                 (null raw-number)
@@ -320,6 +319,13 @@
   (if (eq number :next)
     0
     (and number (parse-integer number))))
+
+
+(defun handle-link-direction (&key ((:direction direction)))
+  (let* ((backward? (member direction
+                            (list "f" "from")
+                            :test #'string=)))
+    (if backward? :backward :forward)))
 
 
 (defun select-constrained-notes (&key ((:parameters parameters)) ((:give-up-on-empty give-up-on-empty) nil))
@@ -397,6 +403,17 @@
               (first (nth chosen-rows selected-rows)))))))
 
 
+(defun pick-single-memorized-note (&key ((:number number)))
+  (cond (number (nth (1- number) *memorized-notes*))
+        (*memorized-notes*
+          (let* ((found-rows (get-notes-by-id *memorized-notes*))
+                 (chosen-row-index (and found-rows (find-row-dialog (get-field-dialog-texts zac.box.db:+table-note-fields+)
+                                                                    (map 'list (get-field-mapping-for-rows zac.box.db:+table-note-fields+) found-rows)
+                                                                    :get-index t
+                                                                    :prompt-fun *choose-memorized-note-prompt*))))
+            (nth chosen-row-index *memorized-notes*)))))
+
+
 (defun pick-memorized-notes (&key ((:numbers numbers)) ((:all all)))
   (cond (all *memorized-notes*)
         (numbers (loop :for memorized-note :in *memorized-notes*
@@ -409,18 +426,9 @@
                                                                       (map 'list (get-field-mapping-for-rows zac.box.db:+table-note-fields+) found-rows)
                                                                       :get-index t
                                                                       :choose-many t
-                                                                      :prompt-fun (constantly "memory> ")))))
+                                                                      :prompt-fun *choose-memorized-note-prompt*))))
             (loop :for i :in chosen-row-indices
                   :collect (nth i *memorized-notes*))))))
-
-
-(defun command-memorize (&key ((:notes notes)))
-  (when notes
-    (setf *memorized-notes* (remove-duplicates (append *memorized-notes* notes)
-                                               :from-end t))))
-
-(defun command-clear-memory (&key ((:memorized-notes notes-to-remove)))
-  (setf *memorized-notes* (delete-if (member-of notes-to-remove) *memorized-notes*)))
 
 
 ;;; COMMAND HANDLERS
@@ -432,6 +440,8 @@
 
 (defun command-show-notes (&key ((:note note-id)) ((:notes notes-id)))
   (cond (note-id (show-note note-id))
+        ((and notes-id (= (length notes-id) 1))
+         (show-note (first notes-id)))
         (notes-id (show-notes notes-id))
         (:else
           (format *standard-output* "~A~&" +msg-no-notes+))))
@@ -450,19 +460,13 @@
     (format *standard-output* "~A~&" +msg-no-notes+)))
 
 
-(defun parse-new-link-parameters (match)
-  (let* ((next-in-sequence? (or (string= (get-group :number match) "next")
-                                (string= (get-group :number match) "n")))
-         (link-number (if next-in-sequence?
-                        0
-                        (and (get-group :number match)
-                             (parse-integer (get-group :number match)))))
-         (notes-with-number (and link-number
-                                 (car (select '(:source :destination)
-                                              (from :link)
-                                              (where (:and (:= :source *current-note*)
-                                                           (:= :number link-number))))))))
-    (values next-in-sequence? link-number notes-with-number)))
+(defun command-memorize (&key ((:notes notes)))
+  (when notes
+    (setf *memorized-notes* (remove-duplicates (append *memorized-notes* notes)
+                                               :from-end t))))
+
+(defun command-clear-memory (&key ((:memorized-notes notes-to-remove)))
+  (setf *memorized-notes* (delete-if (member-of notes-to-remove) *memorized-notes*)))
 
 
 (defun command-add-note (&key ((:link-number link-number)) ((:continue continue)))
@@ -549,43 +553,6 @@
     (set-current-note 0)))
 
 
-;(defun command-memorize (string match)
-;  (declare (ignore string match))
-;  (setf *memorized-notes* *current-note*))
-
-
-;; command-list-memorized
-
-
-;; command-choose-memory
-
-
-;; clear memory [N1] [N2] ...
-;(defun command-clear-memory (string match)
-;  (declare (ignore string match))
-;  (setf *memorized-notes* nil))
-;
-;
-;(defun command-goto-memory (string match)
-;  (declare (ignore string match))
-;  (if *memorized-notes*
-;    (set-current-note *memorized-notes*)
-;    (format *standard-output* "~A~&" +msg-note-is-not-chosen+)))
-;
-
-;; clear memory [N1] [N2] ...
-;(defun command-clear-memory (string match)
-;  (declare (ignore string match))
-;  (setf *memorized-notes* nil))
-;
-;
-;(defun command-goto-memory (string match)
-;  (declare (ignore string match))
-;  (if *memorized-notes*
-;    (set-current-note *memorized-notes*)
-;    (format *standard-output* "~A~&" +msg-note-is-not-chosen+)))
-;
-
 (defun command-back (string match)
   (declare (ignore string match))
   (let ((old-note *current-note*)
@@ -608,11 +575,6 @@
              (setf *note-future* (rest *note-future*)))
            (:else
              (format *standard-output* "~A~&" +msg-no-notes+)))))
-
-
-;(defun command-remove-note (string match)
-;  (declare (ignore string))
-;  nil)
 
 
 ;(defun command-add-link (string match)
@@ -657,24 +619,6 @@
 ;(defun command-modify-link (string match)
 ;  (declare (ignore string))
 ;  nil)
-
-
-;  (list (zac.cmd:make-command-wrapper '(("add" "note")
-;                                        ("an"))
-;                                      (lambda (str match)
-;                                        (declare (ignore str match))
-;                                        (init-everything)))
-;  (list (zac.cmd:make-command-wrapper '(("remove" "note" ((:rest . ".*") :optional))
-;                                        ("rn" ((:rest . ".*") :optional)))
-;                                      (lambda (str match)
-;                                        (declare (ignore str match))
-;                                        (init-everything)))
-;        (zac.cmd:make-command-wrapper '(("h(?:ello)?" ("dear" :optional) (:name . "\\w+"))
-;                                        ("greet" (:name . "\\w+")))
-;                                      (lambda (str groups)
-;                                        (declare (ignore str))
-;                                        (format t "Hello, ~:(~A~)!~&"
-;                                                (d.regex:get-group :name groups))))))))
 
 
 ;;; +++++  COMMANDS  +++++
@@ -790,8 +734,13 @@
                                #'handle-optional-direction
                                "Optional parameter for operation direction.")
           (:optional-number (((:number . :raw-optional-number)))
-                              #'handle-optional-number
-                              "Optional parameter for number")
+                            #'handle-optional-number
+                            "Optional parameter for number")
+          (:optional-number-with-default (((:number . :raw-optional-number)))
+                                         (lambda (&key ((:number number)))
+                                           (handle-optional-number :number number
+                                                                   :default 1))
+                                         "Optional parameter for number with default value of 1.")
           (:optional-closure ((((:closure . "\\*") :optional :optionally-immediate)))
                              (lambda (&key ((:closure closure)))
                                (not (null closure)))
@@ -814,6 +763,10 @@
                                   ((:number . :next-note)))
                                  #'handle-link-number
                                  "Number mark for link")
+          (:optional-link-direction (((:direction . "from|to"))
+                                     (((:direction . "f|t") :optionally-immediate)))
+                                    #'handle-link-direction
+                                    "Direction for link")
           (:optional-continue ((((:continue . "continue") :optional))
                                (((:continue . "c") :optional :optionally-immediate)))
                               (lambda (&key ((:continue continue)))
@@ -875,6 +828,10 @@
                                                            (pick-notes-from-global :selection selection
                                                                                    :choose-many t))
                                                          "Pick one or more notes globally filtering by substring.")
+          (:single-memory-designator ((("m" :optionally-immediate) (:number . :optional-number))
+                                      ("memo(?:ry)?" (:number . :optional-number)))
+                                     #'pick-single-memorized-note
+                                     "Memorized notes designator for single note.")
           (:multiple-memory-designator ((("m" :optionally-immediate))
                                         (("m" :optionally-immediate) (:numbers . :number-list))
                                         (("m" :optionally-immediate) ((:all . "a(?:ll)?") :optionally-immediate))
@@ -882,11 +839,12 @@
                                         ("memo(?:ry)?" (:numbers . :number-list))
                                         ("memo(?:ry)?" ((:all . "a(?:ll)?") :optionally-immediate)))
                                        #'pick-memorized-notes
-                                       "Memorized notes designator")
+                                       "Memorized notes designator.")
           (:single-note-designator (((:note . :current-note-designator))
                                     ((:note . :next-note-designator))
                                     ((:note . :single-constrained-note-designator))
-                                    ((:note . :single-global-note-designator-with-peeking)))
+                                    ((:note . :single-global-note-designator-with-peeking))
+                                    ((:note . :single-memory-designator)))
                                    (lambda (&key ((:note note)))
                                      note)
                                    "Aggregate single note designator")
@@ -910,17 +868,19 @@
            "Go to root note")
 
           ((((:note . :current-note-designator))
-            ((:note . :next-note-designator)))
+            ((:note . :next-note-designator))
+            ((:notes . :multiple-memory-designator)))
            #'command-show-notes
            "Implicitly show contents of the note.")
 
           ((("s(?:how)?" (:note . :current-note-designator))
             ("s(?:how)?" (:note . :next-note-designator))
-            ("s(?:how)?" (:notes . :multiple-memory-designator)))
+            ("s(?:how)?" (:note . :single-memory-designator)))
            #'command-show-notes
            "Show contents of the note.")
 
-          ((("m(?:emo(?:rize)?)?" (:notes . :multiple-note-designator-with-default)))
+          ((("memorize" (:notes . :multiple-note-designator-with-default))
+            ("mz" (:notes . :multiple-note-designator-with-default)))
            #'command-memorize
            "Memorize notes for cumbersome operations.")
 
@@ -949,26 +909,11 @@
            #'command-collect-lost
            "Add links from this note to all lost (unreachable) notes.")
 
+          ;((("add" "link" (:link-number . :optional-link-number)
+
           )
         )
 
-
-;        (define-subexpression shell :exponent (make-shell-expression '(((:exponent . "[1-9]\\d*") :optional))
-;                                                                     (lambda (&key ((:exponent exponent)))
-;                                                                       (if (get-group :exponent match)
-;                                                                         (parse-integer (get-group :exponent match))
-;                                                                         1))
-;                                                                     "Number of times some operation would be applied"))
-;        (define-subexpression shell :direction (make-shell-expression '(((:type . "forward|back") :optional))
-;                                                                      (lambda (&key ((:type type)))
-;                                                                        (let* ((backward? (and type
-;                                                                                               (or (string= type "back")))))
-;                                                                          (if backward? :back :forward)))
-;                                                                      "Direction for operations supporting it"))
-;        (define-subexpression shell :closure (make-shell-expression '(((:closure . "\\*") :optional :immediate))
-;                                                                    (lambda (&key ((:closure closure)))
-;                                                                      (not (null closure)))
-;                                                                    "Should repeated call to operation be concatenated? (Kleene star)"))
 
 ;         (exponent-arguments )
 ;         (short-exponent-arguments `(((:exponent . "[1-9]\\d*") :optional :optionally-immediate)))

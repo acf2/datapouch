@@ -6,6 +6,7 @@
 
 (defparameter *choose-note-prompt* (constantly "note> "))
 (defparameter *choose-link-prompt* (constantly "link> "))
+(defparameter *choose-memorized-note-prompt* (constantly "memory> "))
 
 
 (defparameter *current-note* nil)
