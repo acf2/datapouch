@@ -69,7 +69,7 @@
 ;;; handler should be a function that accepts only key arguments:
 ;;;  - one for each regex match group, that is provided only for this command (and not subexpressions, for example)
 ;;;  - one for result of each subexpression (across all s-forms/lexers), and/or &allow-other-keys
-;;; Docs can be a list. If so, every entry apart from last - is a form of command to be included in doc-table
+;;; Docs can be a list. If so, every entry apart from the first - is a form of command to be included in doc-table
 (defclass shell-expression ()
   ((s-forms :initarg :s-forms
             :reader s-forms)
