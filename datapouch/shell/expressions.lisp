@@ -58,9 +58,18 @@
   (:documentation "Make shell expressions usable for transformation to reader macro commands"))
 
 
+(defgeneric print-expression-brief-help (expression &optional stream)
+  (:documentation "Print brief explanation of expression to the stream"))
+
+
+(defgeneric print-expression-help (expression shell &optional *standard-output*)
+  (:documentation "Print detailed documentation for expression"))
+
+
 ;;; handler should be a function that accepts only key arguments:
 ;;;  - one for each regex match group, that is provided only for this command (and not subexpressions, for example)
 ;;;  - one for result of each subexpression (across all s-forms/lexers), and/or &allow-other-keys
+;;; Docs can be a list. If so, every entry apart from last - is a form of command to be included in doc-table
 (defclass shell-expression ()
   ((s-forms :initarg :s-forms
             :reader s-forms)
@@ -74,7 +83,9 @@
   ((subexpressions :initform (make-hash-table)
                    :reader subexpressions)
    (complete-expressions :initform nil
-                         :reader complete-expressions)))
+                         :reader complete-expressions)
+   (doc-table :initform (make-hash-table :test #'equalp)
+              :reader doc-table)))
 
 
 (defparameter +add-shell-expression-form-error+ "Error when adding shell expression form: ~A~&")
@@ -113,15 +124,31 @@
     (setf (gethash type-id subexpressions) expression)))
 
 
+(defparameter +define-command-error+ "Error when defining shell command: ~A~&")
+
+
 (defmethod define-command ((shell shell) (expression shell-expression))
-  (with-slots (complete-expressions) shell
-    (pushnew expression complete-expressions))
-  expression)
+  (with-slots (complete-expressions doc-table) shell
+    (if (and (listp (docs expression))
+             (rest (docs expression)))
+      (let ((duplicate-doc-form (loop :for doc-form :in (rest (docs expression))
+                                      :when (gethash doc-form doc-table)
+                                      :return doc-form)))
+        (if (null duplicate-doc-form)
+          (progn
+            (pushnew expression complete-expressions)
+            (loop :for doc-form :in (rest (docs expression))
+                  :do (setf (gethash doc-form doc-table) expression)))
+          (error (make-instance 'simple-error
+                                :format-control +define-command-error+
+                                :format-arguments (list (format nil "one of command names in docs is already present in shell: ~S" duplicate-doc-form))))))
+      (pushnew expression complete-expressions))
+    expression))
 
 
 (defclass built-shell-expression-shard ()
   ((s-form :initarg :s-form
-            :reader s-form) ; _unwrapped_ s-form, NRG-only
+           :reader s-form) ; _unwrapped_ s-form, NRG-only
    (wrapped-user-handler :initarg :handler
                          :reader handler)
    (docs :initarg :docs
@@ -357,14 +384,14 @@
      ,@(loop :for (type-key s-forms user-handler docs) :in expr-defs
              :collect `(define-subexpression ,shell
                                              ,type-key
-                                             (make-shell-expression ',s-forms ,user-handler ,docs)))))
+                                             (make-shell-expression ,s-forms ,user-handler ,docs)))))
 
 
 (defmacro add-shell-commands (shell &rest cmd-defs)
   `(progn
      ,@(loop :for (s-forms user-handler docs) :in cmd-defs
              :collect `(define-command ,shell
-                                       (make-shell-expression ',s-forms ,user-handler ,docs)))))
+                                       (make-shell-expression ,s-forms ,user-handler ,docs)))))
 
 
 ;(defmacro create-shell-commands (&rest cmd-defs)

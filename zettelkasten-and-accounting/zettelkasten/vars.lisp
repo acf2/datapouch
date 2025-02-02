@@ -31,5 +31,5 @@
 
 (defparameter +errfmt-generic-sqlite-error+ "~A~&~%Operation aborted.~&")
 
-(defparameter +intermsg-cannot-find-id+ "~%INTERNAL: No note with such ID~&")
+(defparameter +intermsg-cannot-find-id+ "INTERNAL: No note with such ID~&")
 

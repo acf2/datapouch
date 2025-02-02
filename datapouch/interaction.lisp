@@ -16,7 +16,7 @@
 ;;;     Must return two values:
 ;;;       1) Is user input accepted, or user must be queried again? (t/nil)
 ;;;       2) Filtered user input to be returned from dialog
-;;;   prompt-fun is a function, that is used as prompt for read-form (read read-from docs)
+;;;   prompt-fun is a function, that is used as prompt for read-form (read read-form docs)
 ;;;   raw-input is a flag
 ;;;     Essentially, it determines, will lisp reader be used on user input, or not
 ;;;     Values:
@@ -39,6 +39,26 @@
           :else :if query-fun :do
           (funcall query-fun form)
           (finish-output *standard-output*))))
+
+
+(defun yes-or-no-dialog (&key ((:prompt-msg prompt-msg) nil)
+                              ((:error-msg error-msg) "Please type \"yes\" for yes or \"no\" for no.")
+                              ((:yes-choice affirmative) "yes")
+                              ((:no-choice negative) "no")
+                              ((:test test-fun) #'string-equal)
+                              ((:prompt-format prompt-format) "~@[~A ~](~(~A~) or ~(~A~)) "))
+  (dialog :query-fun (lambda (&optional error-input)
+                       (when error-input
+                         (format *standard-output* "~A~&" error-msg)))
+          :input-handler (lambda (input)
+                           (let ((filtered-input (string-trim (list #\Space #\Newline #\Tab) input)))
+                             (values (member filtered-input (list affirmative negative)
+                                             :test test-fun)
+                                     (funcall test-fun filtered-input affirmative))))
+          :prompt-fun (lambda (buffer)
+                        (declare (ignore buffer))
+                        (format nil prompt-format prompt-msg affirmative negative))
+          :raw-input t))
 
 
 (defparameter *max-string-length* 50)

@@ -194,7 +194,8 @@
     #:make-shell-expression
     #:generate-commands-from-shell
     #:add-shell-subexpressions
-    #:add-shell-commands))
+    #:add-shell-commands
+    #:add-help-to-shell))
 
 
 (defpackage :datapouch.main
@@ -232,6 +233,7 @@
            #:*table-pad-width*
            #:*get-table-name-delimiter*
            #:dialog
+           #:yes-or-no-dialog
            #:rotate
            #:find-max-field-widths
            #:pretty-print-rows

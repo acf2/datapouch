@@ -18,6 +18,7 @@
 
                (:file "shell/regex-s-form" :depends-on ("packages" "cli" "regex-support"))
                (:file "shell/expressions" :depends-on ("packages" "auxiliary" "regex-support" "shell/regex-s-form" "reader-macro"))
+               (:file "shell/docs" :depends-on ("packages" "shell/expressions"))
 
-               (:file "main" :depends-on ("packages" "cli" "shell/regex-s-form" "sql" "editor" "filesystem" "crypto")))
+               (:file "main" :depends-on ("packages" "cli" "shell/expressions" "sql" "editor" "filesystem" "crypto")))
   :depends-on (:cl-readline :cl-ppcre :sqlite :sxql :cl-reexport :local-time :uiop :ironclad))

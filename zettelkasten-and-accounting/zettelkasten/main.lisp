@@ -306,12 +306,12 @@
     (if backward? :backward :forward)))
 
 
-(defun handle-dae (&key ((:raw-direction raw-direction)) ((:raw-number raw-number)) ((:closure closure)))
-  (list :direction (handle-optional-direction :type raw-direction)
-        :exponent (handle-optional-number :number raw-number :default 1)
+(defun handle-dae (&key ((:direction direction)) ((:number number)) ((:closure closure)))
+  (list :direction direction
+        :exponent (or number 1)
         :closure closure
-        :empty-expression? (and (null raw-direction)
-                                (null raw-number)
+        :empty-expression? (and (null direction)
+                                (null number)
                                 (null closure))))
 
 
@@ -323,7 +323,7 @@
 
 (defun handle-link-direction (&key ((:direction direction)))
   (let* ((backward? (member direction
-                            (list "f" "from")
+                            (list "f" "from") ; opposite is "t" or "to"
                             :test #'string=)))
     (if backward? :backward :forward)))
 
@@ -475,7 +475,7 @@
                                               (from :link)
                                               (where (:and (:= :source *current-note*)
                                                            (:= :number link-number))))))))
-    (let* ((override-note-number? (and notes-with-number (yes-or-no-p +question-note-with-number-exists+)))
+    (let* ((override-note-number? (and notes-with-number (yes-or-no-dialog :prompt-msg +question-note-with-number-exists+)))
            (new-note-body (first (edit-strings ""))))
       (cond ((string= new-note-body "")
              (format *standard-output* "~A~&" +msg-abort-note-creation+))
@@ -577,6 +577,7 @@
              (format *standard-output* "~A~&" +msg-no-notes+)))))
 
 
+;; TODO
 ;(defun command-add-link (string match)
 ;  (declare (ignore string))
 ;  (multiple-value-bind (next-in-sequence? link-number notes-with-number) (parse-new-link-parameters match)
@@ -713,205 +714,225 @@
 ;        ))
         ;(format t "Acceptable? ~A~&" (every #'acceptable-term? '("add" "some" (:r . "\\w+"))))
 
-        (add-shell-subexpressions
-          shell
-          ;;; Raw regexes - used to circumvent flaws of subexpressions
-          (:raw-optional-direction ((((:type . "forward|back(?:ward)?") :optional))
-                                    (((:type . "f|b") :optional :optionally-immediate)))
-                                   (lambda (&key ((:type type)))
-                                     type)
-                                   "Raw value of optional direction regex.")
-          (:raw-optional-number ((((:raw-number . "[1-9]\\d*") :optional :optionally-immediate)))
+        (let ((nonzero-number-rx "[1-9]\\d*"))
+
+          (add-shell-subexpressions
+            shell
+            ;;; Raw regexes - used to circumvent flaws of subexpressions
+            (:raw-optional-number '((((:raw-number . "[1-9]\\d*") :optional :optionally-immediate)))
                                   (lambda (&key ((:raw-number raw-number)))
                                     raw-number)
                                   "Raw value of optional exponent regex.")
-          (:substring (((:string . ".*?")))
-                      (lambda (&key ((:string str)))
-                        (string-trim (list #\Newline #\Space #\Tab) str))
-                      "Substring parameters")
-          ;;; Expressions - for parsing command arguments
-          (:optional-direction (((:type . :raw-optional-direction)))
-                               #'handle-optional-direction
-                               "Optional parameter for operation direction.")
-          (:optional-number (((:number . :raw-optional-number)))
-                            #'handle-optional-number
-                            "Optional parameter for number")
-          (:optional-number-with-default (((:number . :raw-optional-number)))
-                                         (lambda (&key ((:number number)))
-                                           (handle-optional-number :number number
-                                                                   :default 1))
-                                         "Optional parameter for number with default value of 1.")
-          (:optional-closure ((((:closure . "\\*") :optional :optionally-immediate)))
-                             (lambda (&key ((:closure closure)))
-                               (not (null closure)))
-                             "Optional parameter to enable concatenation of results of repeated calls to operation (Kleene star subset).")
-          (:number-list (((:numbers . "[1-9]\\d*(?:\\D+[1-9]\\d*)*")))
-                        (lambda (&key ((:numbers numbers)))
-                          (map 'list #'parse-integer (ppcre:split "\\D+" numbers)))
-                        "Number list, with at least one number.")
-          (:next-note ((((:next . "n") :optionally-immediate))
-                       ((:next . "next")))
-                      (lambda (&key &allow-other-keys)
-                        :next)
-                      "Modifier for next note in sequence")
-          (:dae (((:raw-direction . :raw-optional-direction)
-                  (:raw-number . :raw-optional-number)
-                  (:closure . :optional-closure)))
-                #'handle-dae
-                +dae-help+)
-          (:optional-link-number (((:number . :raw-optional-number))
-                                  ((:number . :next-note)))
-                                 #'handle-link-number
-                                 "Number mark for link")
-          (:optional-link-direction (((:direction . "from|to"))
-                                     (((:direction . "f|t") :optionally-immediate)))
-                                    #'handle-link-direction
-                                    "Direction for link")
-          (:optional-continue ((((:continue . "continue") :optional))
-                               (((:continue . "c") :optional :optionally-immediate)))
-                              (lambda (&key ((:continue continue)))
-                                (when continue
-                                  :continue))
-                              "Continuing modifier")
-          ;;; Selectors - literally performing some form of select statement
-          ;;;             return full tables, without filtering
-          (:constrained-note-selector (((:parameters . :dae)))
-                                      #'select-constrained-notes
-                                      "For note selection, constrained by current note.")
-          (:explicit-constrained-note-selector (((:parameters . :dae)))
-                                               (lambda (&key ((:parameters parameters)))
-                                                 (select-constrained-notes :parameters parameters
-                                                                           :give-up-on-empty t))
-                                               "For note selection, constrained by current note. Must be explicitly stated.")
-          (:global-note-selector (("gl(?:obal)?" (:substring . :substring)))
-                                 #'select-global-notes
-                                 "For global note selection. Case insensitive.")
-          ;;; Designators - allow to designate singular notes and note subsets,
-          ;;;               direct various note operators to notes on which they should be performed
-          (:current-note-designator ((((:current . "cur(?:rent)?") :optionally-immediate)))
-                                    (lambda (&key &allow-other-keys)
-                                      *current-note*)
-                                    "Currently chosen note.")
-          (:next-note-designator (((:next . :next-note)))
-                                 #'pick-next-note
-                                 "Next note in sequence.")
-          (:single-constrained-note-designator (((:selection . :constrained-note-selector)))
-                                               #'pick-notes-from-dae
-                                               "Pick one note over a constrained selection.")
-          (:single-constraint-note-designator-with-default (((:selection . :explicit-constrained-note-selector)))
-                                                           (lambda (&key ((:selection selection)))
-                                                             (pick-notes-from-dae :selection selection
-                                                                                  :default-on-empty t))
-                                                           "Pick one note over a constrained selection. Defaults to current note.")
-          (:multiple-constrained-note-designator-with-default (((:selection . :explicit-constrained-note-selector)))
+            (:substring '(((:string . ".*?")))
+                        (lambda (&key ((:string str)))
+                          (string-trim (list #\Newline #\Space #\Tab) str))
+                        "Substring parameters")
+
+            ;;; Expressions - for parsing command arguments
+            (:optional-direction '((((:type . "forward|back(?:ward)?") :optional))
+                                   (((:type . "f|b") :optional :optionally-immediate)))
+                                 #'handle-optional-direction
+                                 "Optional operation direction parameter.")
+            (:number `((((:number . ,nonzero-number-rx) :optionally-immediate)))
+                     #'handle-optional-number
+                     "Required numerical parameter.")
+            (:optional-number `((((:number . ,nonzero-number-rx) :optional :optionally-immediate)))
+                              #'handle-optional-number
+                              "Optional numerical parameter.")
+            (:optional-closure '((((:closure . "\\*") :optional :optionally-immediate)))
+                               (lambda (&key ((:closure closure)))
+                                 (not (null closure)))
+                               "Optional closure parameter. Enables result concatenation of repeated calls to operation (Kleene star subset).")
+            (:number-list '((((:numbers . "[1-9]\\d*(?:\\D+[1-9]\\d*)*") :optionally-immediate)))
+                          (lambda (&key ((:numbers numbers)))
+                            (map 'list #'parse-integer (ppcre:split "\\D+" numbers)))
+                          "Number list, with at least one number.")
+            (:next-note '((((:next . "n") :optionally-immediate))
+                          ((:next . "next")))
+                        (lambda (&key &allow-other-keys)
+                          :next)
+                        "Modifier for next note in sequence")
+            (:dae '(((:direction . :optional-direction)
+                     (:number . :optional-number)
+                     (:closure . :optional-closure)))
+                  #'handle-dae
+                  +dae-help+)
+            (:optional-link-direction '((((:direction . "from|to") :optional))
+                                        (((:direction . "f|t") :optional :optionally-immediate)))
+                                      #'handle-link-direction
+                                      "Direction for link")
+            (:optional-continue '((((:continue . "continue") :optional))
+                                  (((:continue . "c") :optional :optionally-immediate)))
+                                (lambda (&key ((:continue continue)))
+                                  (when continue
+                                    :continue))
+                                "Continuing modifier")
+
+            ;;; Selectors - literally performing some form of select statement
+            ;;;             return full tables, without filtering
+            (:constrained-note-selector '(((:parameters . :dae)))
+                                        #'select-constrained-notes
+                                        "For note selection, constrained by current note.")
+            (:explicit-constrained-note-selector '(((:parameters . :dae)))
+                                                 (lambda (&key ((:parameters parameters)))
+                                                   (select-constrained-notes :parameters parameters
+                                                                             :give-up-on-empty t))
+                                                 "For note selection, constrained by current note. Must be explicitly stated.")
+            (:global-note-selector '(("global" (:substring . :substring))
+                                     (("g" :optionally-immediate) (:substring . :substring)))
+                                   #'select-global-notes
+                                   "For global note selection. Case insensitive.")
+
+            ;;; Designators - allow to designate singular notes and note subsets,
+            ;;;               direct various note operators to notes on which they should be performed
+            (:current-note-designator '((((:current . "cur(?:rent)?") :optionally-immediate)))
+                                      (lambda (&key &allow-other-keys)
+                                        *current-note*)
+                                      "Currently chosen note.")
+            (:next-note-designator '(((:next . :next-note)))
+                                   #'pick-next-note
+                                   "Next note in sequence.")
+            (:single-constrained-note-designator '(((:selection . :constrained-note-selector)))
+                                                 #'pick-notes-from-dae
+                                                 "Pick one note over a constrained selection.")
+            (:single-constrained-note-designator-with-default '(((:selection . :explicit-constrained-note-selector)))
                                                               (lambda (&key ((:selection selection)))
                                                                 (pick-notes-from-dae :selection selection
-                                                                                     :default-on-empty t
-                                                                                     :choose-many t))
-                                                              "Pick one or more notes over a constrained selection. Defaults to current note only.")
-          (:single-constrained-note-designator-with-peeking (((:selection . :constrained-note-selector)))
+                                                                                     :default-on-empty t))
+                                                              "Pick one note over a constrained selection. Defaults to current note.")
+            (:explicit-multiple-constrained-note-designator '(((:selection . :explicit-constrained-note-selector)))
                                                             (lambda (&key ((:selection selection)))
                                                               (pick-notes-from-dae :selection selection
-                                                                                   :allow-peek t))
-                                                            "Pick one note over a constrained selection using a safer method.")
-          (:multiple-constrained-note-designator-with-peeking (((:selection . :constrained-note-selector)))
+                                                                                   :choose-many t))
+                                                            "Pick one or more notes over a constrained selection.")
+            (:multiple-constrained-note-designator-with-default '(((:selection . :explicit-constrained-note-selector)))
+                                                                (lambda (&key ((:selection selection)))
+                                                                  (pick-notes-from-dae :selection selection
+                                                                                       :default-on-empty t
+                                                                                       :choose-many t))
+                                                                "Pick one or more notes over a constrained selection. Defaults to current note only.")
+            (:single-constrained-note-designator-with-peeking '(((:selection . :constrained-note-selector)))
                                                               (lambda (&key ((:selection selection)))
                                                                 (pick-notes-from-dae :selection selection
-                                                                                     :allow-peek t
+                                                                                     :allow-peek t))
+                                                              "Pick one note over a constrained selection using a safer method.")
+            (:multiple-constrained-note-designator-with-peeking '(((:selection . :constrained-note-selector)))
+                                                                (lambda (&key ((:selection selection)))
+                                                                  (pick-notes-from-dae :selection selection
+                                                                                       :allow-peek t
+                                                                                       :choose-many t))
+                                                                "Pick one or more notes over a constrained selection using a safer method.")
+            (:single-global-note-designator-with-peeking '(((:selection . :global-note-selector)))
+                                                         #'pick-notes-from-global
+                                                         "Pick exactly one note, globally filtering by substring.")
+            (:multiple-global-note-designator-with-peeking '(((:selection . :global-note-selector)))
+                                                           (lambda (&key ((:selection selection)))
+                                                             (pick-notes-from-global :selection selection
                                                                                      :choose-many t))
-                                                              "Pick one or more notes over a constrained selection using a safer method.")
-          (:single-global-note-designator-with-peeking (((:selection . :global-note-selector)))
-                                                       #'pick-notes-from-global
-                                                       "Pick exactly one note, globally filtering by substring.")
-          (:multiple-global-note-designator-with-peeking (((:selection . :global-note-selector)))
-                                                         (lambda (&key ((:selection selection)))
-                                                           (pick-notes-from-global :selection selection
-                                                                                   :choose-many t))
-                                                         "Pick one or more notes globally filtering by substring.")
-          (:single-memory-designator ((("m" :optionally-immediate) (:number . :optional-number))
-                                      ("memo(?:ry)?" (:number . :optional-number)))
-                                     #'pick-single-memorized-note
-                                     "Memorized notes designator for single note.")
-          (:multiple-memory-designator ((("m" :optionally-immediate))
-                                        (("m" :optionally-immediate) (:numbers . :number-list))
-                                        (("m" :optionally-immediate) ((:all . "a(?:ll)?") :optionally-immediate))
-                                        ("memo(?:ry)?")
-                                        ("memo(?:ry)?" (:numbers . :number-list))
-                                        ("memo(?:ry)?" ((:all . "a(?:ll)?") :optionally-immediate)))
-                                       #'pick-memorized-notes
-                                       "Memorized notes designator.")
-          (:single-note-designator (((:note . :current-note-designator))
-                                    ((:note . :next-note-designator))
-                                    ((:note . :single-constrained-note-designator))
-                                    ((:note . :single-global-note-designator-with-peeking))
-                                    ((:note . :single-memory-designator)))
-                                   (lambda (&key ((:note note)))
-                                     note)
-                                   "Aggregate single note designator")
-          (:multiple-note-designator-with-default (((:next-note . :next-note-designator))
-                                                   ((:notes . :multiple-constrained-note-designator-with-default))
-                                                   ((:notes . :multiple-global-note-designator-with-peeking))
-                                                   ((:notes . :multiple-memory-designator)))
-                                                  (lambda (&key ((:notes notes)) ((:next-note next-note)))
-                                                    (if next-note
-                                                      (list next-note)
-                                                      notes))
-                                                  "Aggregate multiple note designator for broad operations.")
-          )
+                                                           "Pick one or more notes globally filtering by substring.")
+            (:single-memory-designator '((("m" :optionally-immediate) (:number . :optional-number))
+                                         ("memo(?:ry)?" (:number . :optional-number)))
+                                       #'pick-single-memorized-note
+                                       "Memorized notes designator for single note.")
+            (:multiple-memory-designator '((("m" :optionally-immediate))
+                                           (("m" :optionally-immediate) (:numbers . :number-list))
+                                           (("m" :optionally-immediate) ((:all . "a(?:ll)?") :optionally-immediate))
+                                           ("memo(?:ry)?")
+                                           ("memo(?:ry)?" (:numbers . :number-list))
+                                           ("memo(?:ry)?" ((:all . "a(?:ll)?") :optionally-immediate)))
+                                         #'pick-memorized-notes
+                                         "Memorized notes designator.")
+            (:single-note-designator '(((:note . :current-note-designator))
+                                       ((:note . :next-note-designator))
+                                       ((:note . :single-constrained-note-designator))
+                                       ((:note . :single-global-note-designator-with-peeking))
+                                       ((:note . :single-memory-designator)))
+                                     (lambda (&key ((:note note)))
+                                       note)
+                                     "Aggregate single note designator")
+            (:multiple-note-designator '(((:next-note . :next-note-designator))
+                                         ((:notes . :explicit-multiple-constrained-note-designator))
+                                         ((:notes . :multiple-global-note-designator-with-peeking))
+                                         ((:notes . :multiple-memory-designator)))
+                                       (lambda (&key ((:notes notes)) ((:next-note next-note)))
+                                         (if next-note
+                                           (list next-note)
+                                           notes))
+                                       "Aggregate multiple note designator for broad operations.")
+            (:multiple-note-designator-with-default '(((:next-note . :next-note-designator))
+                                                      ((:notes . :multiple-constrained-note-designator-with-default))
+                                                      ((:notes . :multiple-global-note-designator-with-peeking))
+                                                      ((:notes . :multiple-memory-designator)))
+                                                    (lambda (&key ((:notes notes)) ((:next-note next-note)))
+                                                      (if next-note
+                                                        (list next-note)
+                                                        notes))
+                                                    "Aggregate multiple note designator for broad operations. Defaults to current note.")
+            )
 
-        ;;; NOTE: current:target+memorized...
+          ;;; NOTE: current:target+memorized...
 
-        (add-shell-commands
-          shell
-          ((("home"))
-           #'command-home
-           "Go to root note")
+          (add-shell-commands
+            shell
+            ('(("home"))
+             #'command-home
+             '("Go to root note" "home"))
 
-          ((((:note . :current-note-designator))
-            ((:note . :next-note-designator))
-            ((:notes . :multiple-memory-designator)))
-           #'command-show-notes
-           "Implicitly show contents of the note.")
+            ('(((:note . :current-note-designator))
+               ((:note . :next-note-designator))
+               ((:notes . :multiple-memory-designator)))
+             #'command-show-notes
+             "<note>: Implicitly show contents of the note.")
 
-          ((("s(?:how)?" (:note . :current-note-designator))
-            ("s(?:how)?" (:note . :next-note-designator))
-            ("s(?:how)?" (:note . :single-memory-designator)))
-           #'command-show-notes
-           "Show contents of the note.")
+            ('(("s(?:how)?" (:note . :current-note-designator))
+               ("s(?:how)?" (:note . :next-note-designator))
+               ("s(?:how)?" (:note . :single-memory-designator)))
+             #'command-show-notes
+             '("Show contents of the note." "show" "s"))
 
-          ((("memorize" (:notes . :multiple-note-designator-with-default))
-            ("mz" (:notes . :multiple-note-designator-with-default)))
-           #'command-memorize
-           "Memorize notes for cumbersome operations.")
+            ('(("memorize" (:notes . :multiple-note-designator-with-default))
+               ("mz" (:notes . :multiple-note-designator-with-default)))
+             #'command-memorize
+             '("Memorize notes for cumbersome operations." "memorize" "mz"))
 
-          ((("c(?:lear)?" (:memorized-notes . :multiple-memory-designator)))
-           #'command-clear-memory
-           "Clear memorized notes.")
+            ('(("c(?:lear)?" (:memorized-notes . :multiple-memory-designator)))
+             #'command-clear-memory
+             '("Clear memorized notes." "clear" "c"))
 
-          ((("g(?:oto)?" (:note . :single-note-designator)))
-           #'command-goto
-           "Go to some note from this one.")
+            ('(("g(?:oto)?" (:note . :single-note-designator)))
+             #'command-goto
+             '("Go to some note from this one." "goto" "g"))
 
-          ((("l(?:inks)?" (:selection . :constrained-note-selector)))
-           #'command-links
-           "Show links from this note with specified parameters.")
+            ('(("l(?:inks)?" (:selection . :constrained-note-selector)))
+             #'command-links
+             '("Show links from this note with specified parameters." "links" "l"))
 
-          ((("add" "note" (:link-number . :optional-link-number) (:continue . :optional-continue))
-            ("an" (:link-number . :optional-link-number) (:continue . :optional-continue)))
-           #'command-add-note
-           "Add new note.")
+            ('(("add" "note" (:link-number . :optional-number) (:continue . :optional-continue))
+               ("an" (:link-number . :optional-number) (:continue . :optional-continue)))
+             #'command-add-note
+             '("Add new note." "add note" "an"))
 
-          ((("remove" "notes" (:notes . :multiple-constrained-note-designator-with-peeking)))
-           #'command-remove-notes
-           "Remove notes (cannot be reverted).")
+            ('(("remove" "notes" (:notes . :multiple-constrained-note-designator-with-peeking)))
+             #'command-remove-notes
+             '("Remove notes (cannot be reverted)." "remove notes"))
 
-          ((("collect" "lost"))
-           #'command-collect-lost
-           "Add links from this note to all lost (unreachable) notes.")
+            ('(("collect" "lost"))
+             #'command-collect-lost
+             '("Add links from this note to all lost (unreachable) notes." "collect lost"))
 
-          ;((("add" "link" (:link-number . :optional-link-number)
-
-          )
+            ('(("add" "link" (:link-number . :number) (:link-direction . :optional-link-direction) (:note . :single-note-designator))
+               ("add" "links?" (:link-direction . :optional-link-direction) (:notes . :multiple-note-designator))
+               ("al" (:link-number . :number) (:link-direction . :optional-link-direction) (:note . :single-note-designator))
+               ("al" (:link-direction . :optional-link-direction) (:notes . :multiple-note-designator)))
+             (lambda (&key ((:link-direction link-direction)) ((:link-number link-number)) ((:note note)) ((:notes notes)))
+               (cond (note
+                       (format t "D: ~S, NUMBER: ~A, NOTE: ~S~&" link-direction link-number note)
+                       (list-notes (list note)))
+                     (:else
+                       (format t "D: ~S, NOTES: ~S~&" link-direction notes)
+                       (list-notes notes))))
+             '("Some test run" "add link" "add links" "al"))
+            ))
         )
 
 

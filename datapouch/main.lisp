@@ -52,7 +52,7 @@
     (d.sql:open-db *database-path*)
     (d.sql:use-foreign-keys t) ; XXX: Because FUCK YOU foreign key default support
     (unless (d.sql:check-integrity :fast (not d.crypto:*advise-full-sqlite-integrity-check*))
-      (format *standard-output* "===== WARNING: Sqlite internal integrity check has failed. It is *HIGHLY* advised to reload correct backup. =====~&"))))
+      (format *standard-output* "===== WARNING: Sqlite internal integrity check has failed. =====~%=====   It is *HIGHLY* advised to reload correct backup.   =====~&"))))
 
 
 (defun finalize-sqlite ()

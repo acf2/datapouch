@@ -23,19 +23,34 @@
                                         :collect (list :when id index))))))
 
 
+(defun print-note (text &optional (last? t))
+  (format *standard-output* "~A~&~@[~%~]" text (not last?)))
+
+
 (defun show-note (note)
   (let* ((answer (when note (get-note-by-id note)))
          (text (second (first answer))))
     (if text
-      (format *standard-output* "~A~&" text)
+      (print-note text)
       (error +intermsg-cannot-find-id+))))
 
 
-(defun show-notes (notes)
+(defun list-notes (notes)
   (let* ((answer (when notes (get-notes-by-id notes)))
          (texts (map 'list #'rest answer)))
     (if texts
       (pretty-print-table '("Notes") texts)
+      (error +intermsg-cannot-find-id+))))
+
+
+(defun show-notes (notes &key ((:print-note-fun print-note-fun) #'print-note))
+  (let* ((answer (when notes (get-notes-by-id notes)))
+         (texts (map 'list #'rest answer)))
+    (if texts
+      (loop :for note-texts := texts :then (rest note-texts)
+            :for note-text := (first (first note-texts))
+            :while note-text
+            :do (funcall print-note-fun note-text (null (rest note-texts))))
       (error +intermsg-cannot-find-id+))))
 
 
