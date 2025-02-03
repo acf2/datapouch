@@ -138,7 +138,7 @@
 
 ;; Try to look at this variable, before doing anything rash.
 ;; repl-fun depends on internal functions heavily,
-;; so it is likely to be broken, when SBCL is updated.
+;; so it is likely to be broken, when this part of SBCL is updated.
 (defparameter *heretical-repl-available* t)
 
 

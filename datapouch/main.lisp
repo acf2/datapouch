@@ -71,7 +71,7 @@
                                                              #'init-sqlite)
                                                        *init-hooks*)
                                                :from-end t))
-  (setf sb-ext:*exit-hooks* (remove-duplicates (append sb-ext:*exit-hooks*
+  (setf sb-ext:*exit-hooks* (remove-duplicates (append sb-ext:*exit-hooks* ; TODO move to end of the list
                                                        *exit-hooks*
                                                        (list #'finalize-readline
                                                              #'finalize-sqlite

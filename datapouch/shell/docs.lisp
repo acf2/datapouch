@@ -53,7 +53,7 @@
     (loop :for command :in (sort with-doc-forms
                                  #'string<
                                  :key (lambda (command)
-                                        (string-upcase (first (docs command)))))
+                                        (string-upcase (second (docs command)))))
           :do (print-expression-brief-help command))
     (when with-just-docs
       (format *standard-output* "~%Commands without designated names:~&")
@@ -72,10 +72,10 @@
         (lambda (&key ((:command-form command-form) nil))
           (if command-form
             (let ((expr (gethash command-form (doc-table shell))))
-              (if expr
+              (if expt
                 (print-expression-help expr shell)
                 (format *standard-output* "Command form not found: ~A~&" command-form)))
             (print-expressions-docs complete-expressions)))
-        (list "help" "Show list of all available commands, and then interactively show detailed docs about one command"))
+        (list "Show list of all available commands, and then interactively show detailed docs about one command" "help"))
       ;TODO help-unnamed
       )))
