@@ -27,9 +27,11 @@
 (defparameter +msg-no-notes+ "There is no notes meeting this criteria.")
 (defparameter +msg-abort-note-creation+ "Aborted.")
 (defparameter +msg-abort-note-deletion+ "Aborted.")
-(defparameter +msg-link-exists+ "Link already exists.")
+(defparameter +msg-link-exists+ "Link already exists~@[, numbered ~A~].")
+(defparameter +msg-link-with-number-exists+ "This number is already assigned to a link.")
 
 (defparameter +errfmt-generic-sqlite-error+ "~A~&~%Operation aborted.~&")
 
-(defparameter +intermsg-cannot-find-id+ "INTERNAL: No note with such ID~&")
+(defparameter +intermsg-cannot-find-id+ "INTERNAL: No note with such ID.~&")
+(defparameter +intermsg-no-notes-given+ "INTERNAL: No note ID was supplied to function.~&")
 

@@ -302,7 +302,7 @@
 (defun handle-optional-direction (&key ((:type type)))
   (let* ((backward? (member type
                             (list "b" "back" "backward")
-                            :test #'string=)))
+                            :test #'string-equal)))
     (if backward? :backward :forward)))
 
 
@@ -513,6 +513,48 @@
                  new-links)))
 
 
+(defun command-add-link (&key ((:link-direction link-direction))
+                              ((:link-number link-number))
+                              ((:note note))
+                              ((:notes notes)))
+  (cond (note ; only one note is given, number could be provided too
+          ;(format t "D: ~S, NUMBER: ~A, NOTE: ~S~&" link-direction link-number note)
+          (let* ((source-note (if (eq link-direction :forward)
+                                *current-note*
+                                note))
+                 (destination-note (if (eq link-direction :forward)
+                                     note
+                                     *current-note*))
+                 (existing-link (first (select '(:source :destination :number)
+                                               (from :link)
+                                               (where (:and (:= :source source-note)
+                                                            (:= :destination destination-note))))))
+                 (link-with-this-number (and link-number (first (select '(:source :destination :number)
+                                                                        (from :link)
+                                                                        (where (:= :number link-number)))))))
+            (cond (existing-link (format *standard-output* +msg-link-exists+ (third existing-link)))
+                  (link-with-this-number (format *standard-output* +msg-link-with-number-exists+))
+                  (:else
+                    (insert-into :link
+                                 '(:source :destination :number)
+                                 (list source-note destination-note (or link-number :null)))))))
+        (notes ; many notes 
+          ;(format t "D: ~S, NOTES: ~S~&" link-direction notes)
+          (let* ((source-notes (if (eq link-direction :forward)
+                                 (list *current-note*)
+                                 notes))
+                 (destination-notes (if (eq link-direction :forward)
+                                      notes
+                                      (list *current-note*))))
+            (insert-into :link (:source :destination)
+                         (loop :for source :in source-notes
+                               :append (loop :for destination :in destination-notes
+                                             :collect (list source destination)))
+                         (on-conflict-do-nothing '(:source :destination)))))
+        (:else ; error, should not be possible
+          (format *standard-output* +intermsg-no-notes-given+))))
+
+
 ;;; OLD (FOR REWORK)
 
 (defun parse-directed-args (match)
@@ -547,12 +589,6 @@
     (edit-notes (where (:= :id *current-note*)))))
 
 
-(defun command-home-old (string match)
-  (declare (ignore string match))
-  (when (select :* (from :note) (where (:= :id 0)))
-    (set-current-note 0)))
-
-
 (defun command-back (string match)
   (declare (ignore string match))
   (let ((old-note *current-note*)
@@ -577,8 +613,7 @@
              (format *standard-output* "~A~&" +msg-no-notes+)))))
 
 
-;; TODO
-;(defun command-add-link (string match)
+;(defun old-command-add-link (string match)
 ;  (declare (ignore string))
 ;  (multiple-value-bind (next-in-sequence? link-number notes-with-number) (parse-new-link-parameters match)
 ;    (declare (ignore next-in-sequence?))
@@ -622,31 +657,6 @@
 ;  nil)
 
 
-;;; +++++  COMMANDS  +++++
-;;;   ===  Syntax  ===
-;;;     Just /command
-;;;     Each command has unique syntax, but they can be combined.
-;;;
-;;;   ===  Basics  ===
-;;;     New command system works through combination of different commands.
-;;;     For clarity, commands that select some  notes are called "designators",
-;;;              and commands that act on these notes are called "operators".
-;;;
-;;;     They are all the same: some operators can use results of other operators.
-;;;     But this distinction makes understanding easier for me.
-;;;
-;;;   ===  Designators  ===
-;;;     cur[rent]
-;;;       Selects currently chosen note.
-;;;       Usually operators select current note by default, but it can be selected explicitly.
-;;;
-;;;     n[ext]
-;;;       Select next note in stated sequence.
-;;;       (Next note in sequence is explicitly labeled as "the next one" or with sign "->",
-;;;        internally it is represented by link with number 0.)
-;;;
-;;;     DAE single-note
-;;;
 ;;;   ===  Operations  ===
 ;;;
 ;;; TODO: Memory ops
@@ -924,16 +934,18 @@
                ("add" "links?" (:link-direction . :optional-link-direction) (:notes . :multiple-note-designator))
                ("al" (:link-number . :number) (:link-direction . :optional-link-direction) (:note . :single-note-designator))
                ("al" (:link-direction . :optional-link-direction) (:notes . :multiple-note-designator)))
-             (lambda (&key ((:link-direction link-direction)) ((:link-number link-number)) ((:note note)) ((:notes notes)))
-               (cond (note
-                       (format t "D: ~S, NUMBER: ~A, NOTE: ~S~&" link-direction link-number note)
-                       (list-notes (list note)))
-                     (:else
-                       (format t "D: ~S, NOTES: ~S~&" link-direction notes)
-                       (list-notes notes))))
+             #'command-add-link
              '("Some test run" "add link" "add links" "al"))
             ))
         )
+
+;             (lambda (&key ((:link-direction link-direction)) ((:link-number link-number)) ((:note note)) ((:notes notes)))
+;               (cond (note
+;                       (format t "D: ~S, NUMBER: ~A, NOTE: ~S~&" link-direction link-number note)
+;                       (list-notes (list note)))
+;                     (:else
+;                       (format t "D: ~S, NOTES: ~S~&" link-direction notes)
+;                       (list-notes notes))))
 
 
 ;         (exponent-arguments )
