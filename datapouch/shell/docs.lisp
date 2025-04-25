@@ -72,7 +72,7 @@
         (lambda (&key ((:command-form command-form) nil))
           (if command-form
             (let ((expr (gethash command-form (doc-table shell))))
-              (if expt
+              (if expr
                 (print-expression-help expr shell)
                 (format *standard-output* "Command form not found: ~A~&" command-form)))
             (print-expressions-docs complete-expressions)))
