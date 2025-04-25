@@ -42,6 +42,7 @@
   (let ((new-regex (make-instance 'regex)))
     (with-slots (expr groups) regex
       (with-slots ((new-expr expr) (new-groups groups)) new-regex
+        ;; NB: When one group encompasses the other, it preceedes the other in group list
         (setf new-expr (format nil "(?<~A>~A)" name expr))
         (setf new-groups (cons name groups))))
     new-regex))
@@ -211,3 +212,163 @@
 
 (defun list-group-names (groups)
   (map 'list #'car groups))
+
+
+(defgeneric scan-to-group-table (regex string)
+  (:documentation "Scan regex with named groups and make a table out of match indices"))
+
+(defgeneric scan-to-group-tree (regex string)
+  (:documentation "Scan regex with named groups to tree of matches (represented as a list)"))
+
+
+; Example (for my fragile memory):
+;   "aa asdf ff ss dd"
+;   "aa" "asdf" "ff" "ss" "dd"
+; Result:
+;   "aa" (:g3 (:g2 (:g1 "asdf")) "ff") "ss" (:g1 "dd")
+; Method:
+;   Make (imaginary) table, group order IS IMPORTANT
+;
+; index | ending groups | starting groups | string that starts
+; ------+---------------+-----------------+-------------------
+;     0 |       -       |         -       |      "aa"
+;     2 |       -       |     g3,g2,g1    |     "asdf"
+;     6 |     g2,g1     |         -       |      "ff"
+;     8 |      g3       |         -       |      "ss"
+;    10 |       -       |        g1       |      "dd"
+;    12 |      g1       |         -       |       -
+;
+;   Then go sequentially through the table in a function
+;   Function must have a some sort of stack to remember context and accumulator for result
+;   (And maybe some sort of context argument for making recursive calls in bulk)
+;   Stack is S, Accumulator is A
+;
+; 0: No endings; no starts; string "aa"
+;    Add "aa" to accumulator
+;      S -> (), A: ("aa")
+; 2: No endings; g3, g2, g1 start (in that order), string "asdf"
+;    Call self with g3, to call - g2 g1
+;      S -> (g3), A: ()
+;    Call self with g2, to call - g1
+;      S -> (g2 g3), A: ()
+;    Call self with g1, nothing to call
+;      S -> (g1 g2 g3), A: ()
+;    Add "asdf" to accumulator
+;      S -> (g1 g2 g3), A: ("asdf")
+; 6: g2, g1 ends; no starts; string "ff"
+;   [Checking ending groups in reverse order]
+;     S -> (g1 g2 g3), A: ("asdf")
+;   Ending call:
+;     Is g1 on top of stack? Yes.
+;   Return: (:group "g1" "asdf")
+;     S -> (g2 g3), A: ((:group "g1" "asdf"))
+;   Ending call:
+;     Is g2 on top of stack? Yes.
+;   Return: (:group "g2" (:group "g1" "asdf"))
+;     S -> (g3), A: ((:group "g2" (:group "g1" "asdf")))
+;   Add "ff" to accumulator
+;     S -> (g3), A: ((:group "g2" (:group "g1" "asdf")) "ff")
+; 8: g3 ends; no starts; string "ss"
+;   Ending call:
+;     Is g3 on top of stack? Yes.
+;   Return: (:group "g3" (:group "g2" (:group "g1" "asdf")) "ff")
+;     S -> (), A: ("aa" (:group "g3" (:group "g2" (:group "g1" "asdf")) "ff"))
+;   Add "ss" to accumulator
+;     S -> (), A: ("aa" (:group "g3" (:group "g2" (:group "g1" "asdf")) "ff") "ss")
+; 10: No endings; g1 starts; string "dd"
+;    Call self with g1, nothing to call
+;      S -> (g1), A: ()
+;   Add "dd" to accumulator
+;      S -> (g1), A: ("dd")
+; 12: g1 ends; no starts; no string
+;   Ending call:
+;     Is g1 on top of stack? Yes.
+;   Return: (:group "g1" "dd")
+;     S -> (), A: ("aa" (:group "g3" (:group "g2" (:group "g1" "asdf")) "ff") "ss" (:group "g1" "dd))
+;
+; Result: ("aa" (:group "g3" (:group "g2" (:group "g1" "asdf")) "ff") "ss" (:group "g1" "dd))
+
+
+(defun group-by-numeric-parameter (value-collection parameter-collection)
+  (flet ((lift (value parameter) (list (list parameter value)))
+         (less (one another) (< (first (first one)) (first (first another))))
+         ;; For this reduce must be a left fold
+         ;; one - ((N1 ...) (N2 ...) ... (NK ...))
+         ;; another - ((M1 ...))
+         (join-two (one another) (if (= (first (first (last one))) (first (first another)))
+                                   (append (butlast one)
+                                           (list (cons (first (first (last one)))
+                                                       (append
+                                                         (rest (first (last one)))
+                                                         (rest (first another))))))
+                                   (append one another))))
+    (reduce #'join-two (sort (map 'list #'lift value-collection parameter-collection)
+                             #'less))))
+
+
+(defmethod scan-to-group-table ((sc regex-scanner) (str string))
+  (multiple-value-bind (match-start match-end group-starts group-ends) (funcall (scanner sc) str 0 (length str))
+    (if (= (length group-starts) 0) ; no groups in scanner
+      (list (list :index 0
+                  :ending-groups nil
+                  :starting-groups nil
+                  :piece str))
+      (let* ((groups (loop :for group :in (groups sc)
+                           :for i := 0 :then (1+ i)
+                           :collect (list group i)))
+             (separation-points (sort (remove-duplicates (append (list match-start match-end)
+                                                                 (coerce group-starts 'list)
+                                                                 (coerce group-ends 'list)))
+                                      #'<))
+             (piece-assoc (map 'list (lambda (start end)
+                                       (list start
+                                             (subseq str start end)))
+                               separation-points
+                               (rest separation-points)))
+             (groups-starting-from (group-by-numeric-parameter groups group-starts))
+             (groups-ending-on (group-by-numeric-parameter groups group-ends)))
+        (loop :for point :in separation-points
+              :collect (list :index point
+                             :ending-groups (rest (assoc point groups-ending-on))
+                             :starting-groups (rest (assoc point groups-starting-from))
+                             :piece (second (assoc point piece-assoc))))))))
+
+
+(defun construct-hierical-tree (table group-stack)
+  (loop
+    :with iteration-result
+    :with context := table
+    :for current-context := (first context)
+    :for starting-position := (member (first group-stack)
+                                            (getf current-context :starting-groups)
+                                            :test #'equal)
+    :for starting-list := (or (rest starting-position)
+                              (and (null starting-position)
+                                   (getf current-context :starting-groups)))
+    ;; null ending: unique for top call (with empty group-stack))
+    :if (null context)
+    :return (values resulting-tree nil)
+    :end
+    ;; checking if groups should be closed (and their result returned)
+    :when (member (first group-stack) (getf current-context :ending-groups) :test #'equal)
+    :return (values (list* :group (first (first group-stack)) resulting-tree)
+                    context)
+    :end
+    ;; open group (and collect result of the call)
+    :if starting-list
+    :do (multiple-value-setq (iteration-result context)
+          (construct-hierical-tree context (cons (first starting-list)
+                                                 group-stack)))
+    :else
+    ;; collect term
+    :do (setf iteration-result (getf current-context :piece)
+              context (rest context))
+    :end
+    :when iteration-result
+    :collect iteration-result :into resulting-tree
+    :end))
+
+
+(defmethod scan-to-group-tree ((sc regex-scanner) (str string))
+  (let ((table (scan-to-group-table sc str)))
+    (nth-value 0 (construct-hierical-tree table nil))))
