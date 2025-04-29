@@ -22,6 +22,10 @@
            :initform nil)))
 
 
+(defmethod scan ((sc regex) (target-string string) &key start end &allow-other-keys)
+  (ppcre:scan (expr sc) target-string :start (or start 0) :end (or end (length target-string))))
+
+
 (defgeneric wrap-in-noncapturing-group (regex))
 
 
@@ -146,12 +150,14 @@
            (concat third-regex separator-regex (interchange separator-regex first-regex second-regex))))
 
 
+;;; [DEPRECATED]
 (defgeneric scan-named-groups (regex str)
   (:documentation "Find named groups in string"))
 
 
 ;;; Returns T if string matches, nil if not
 ;;; Returns second value - assoc-list with matches
+;;; [DEPRECATED]
 (defmethod scan-named-groups ((regex regex) (str string))
   (let* ((scan-result (multiple-value-list (ppcre:scan-to-strings (expr regex) str)))
          (match (first scan-result))
@@ -187,8 +193,23 @@
     new-scanner))
 
 
+(defmethod scan ((sc regex-scanner) (target-string string) &key start end &allow-other-keys)
+  (funcall (scanner sc) target-string (or start 0) (or end (length target-string))))
+
+
+;;; Returns assoc-list with matches
+(defun match-to-assoc (str group-list match-start match-end group-starts group-ends)
+  (declare (ignore match-end))
+  (when match-start
+    (loop :for i :from 0 :to (1- (length group-list))
+          :for group-name :in group-list
+          :when (aref group-starts i)
+          :collect (cons group-name (subseq str (aref group-starts i) (aref group-ends i))))))
+
+
 ;;; Returns T if string matches, nil if not
 ;;; Returns second value - assoc-list with matches
+;;; [DEPRECATED]
 (defmethod scan-named-groups ((sc regex-scanner) (str string))
   (multiple-value-bind (match-start match-end group-starts group-ends) (funcall (scanner sc) str 0 (length str))
     (declare (ignore match-end))
@@ -214,11 +235,11 @@
   (map 'list #'car groups))
 
 
-(defgeneric scan-to-group-table (regex string)
-  (:documentation "Scan regex with named groups and make a table out of match indices"))
-
-(defgeneric scan-to-group-tree (regex string)
-  (:documentation "Scan regex with named groups to tree of matches (represented as a list)"))
+;(defgeneric match-to-group-table (regex string)
+;  (:documentation "Scan regex with named groups and make a table out of match indices"))
+;
+;(defgeneric match-to-group-tree (regex string)
+;  (:documentation "Scan regex with named groups to tree of matches (represented as a list)"))
 
 
 ; Example (for my fragile memory):
@@ -306,32 +327,31 @@
                              #'less))))
 
 
-(defmethod scan-to-group-table ((sc regex-scanner) (str string))
-  (multiple-value-bind (match-start match-end group-starts group-ends) (funcall (scanner sc) str 0 (length str))
-    (if (= (length group-starts) 0) ; no groups in scanner
-      (list (list :index 0
-                  :ending-groups nil
-                  :starting-groups nil
-                  :piece str))
-      (let* ((groups (loop :for group :in (groups sc)
-                           :for i := 0 :then (1+ i)
-                           :collect (list group i)))
-             (separation-points (sort (remove-duplicates (append (list match-start match-end)
-                                                                 (coerce group-starts 'list)
-                                                                 (coerce group-ends 'list)))
-                                      #'<))
-             (piece-assoc (map 'list (lambda (start end)
-                                       (list start
-                                             (subseq str start end)))
-                               separation-points
-                               (rest separation-points)))
-             (groups-starting-from (group-by-numeric-parameter groups group-starts))
-             (groups-ending-on (group-by-numeric-parameter groups group-ends)))
-        (loop :for point :in separation-points
-              :collect (list :index point
-                             :ending-groups (rest (assoc point groups-ending-on))
-                             :starting-groups (rest (assoc point groups-starting-from))
-                             :piece (second (assoc point piece-assoc))))))))
+(defun match-to-group-table (str group-list match-start match-end group-starts group-ends)
+  (if (= (length group-starts) 0) ; no groups in scanner
+    (list (list :index 0
+                :ending-groups nil
+                :starting-groups nil
+                :piece str))
+    (let* ((groups (loop :for group :in group-list
+                         :for i := 0 :then (1+ i)
+                         :collect (list group i)))
+           (separation-points (sort (remove-duplicates (append (list match-start match-end)
+                                                               (coerce group-starts 'list)
+                                                               (coerce group-ends 'list)))
+                                    #'<))
+           (piece-assoc (map 'list (lambda (start end)
+                                     (list start
+                                           (subseq str start end)))
+                             separation-points
+                             (rest separation-points)))
+           (groups-starting-from (group-by-numeric-parameter groups group-starts))
+           (groups-ending-on (group-by-numeric-parameter groups group-ends)))
+      (loop :for point :in separation-points
+            :collect (list :index point
+                           :ending-groups (rest (assoc point groups-ending-on))
+                           :starting-groups (rest (assoc point groups-starting-from))
+                           :piece (second (assoc point piece-assoc)))))))
 
 
 (defun construct-hierical-tree (table group-stack)
@@ -369,6 +389,6 @@
     :end))
 
 
-(defmethod scan-to-group-tree ((sc regex-scanner) (str string))
-  (let ((table (scan-to-group-table sc str)))
+(defun match-to-group-tree (str group-list match-start match-end group-starts group-ends)
+  (let ((table (match-to-group-table str group-list match-start match-end group-starts group-ends)))
     (nth-value 0 (construct-hierical-tree table nil))))

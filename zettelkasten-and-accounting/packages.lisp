@@ -62,7 +62,7 @@
     ;#:choose-note-interactive
     ;#:choose-link-interactive
     ;; Main exports
-    #:add-zettelkasten-commands
+    #:get-zettelkasten-commands
     #:zettelkasten-init-hook))
 
 

@@ -31,11 +31,10 @@
 
 
 (defun add-all-commands ()
-  (let ((zac-shell (make-instance 'd.shell:shell)))
-    (add-help-to-shell zac-shell)
-    (zac.box:add-zettelkasten-commands zac-shell)
-    (setf *commands*
-          (generate-commands-from-shell zac-shell))))
+  ;(let ((zac-shell (make-instance 'd.shell:shell)))
+    ;(add-help-to-shell zac-shell)
+    ;(zac.box:add-zettelkasten-commands zac-shell)
+    (setf *commands* (get-zettelkasten-commands)))
 
 ;          (generate-commands
 ;            (list (make-shell-command '("init")

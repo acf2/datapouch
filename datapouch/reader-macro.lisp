@@ -4,15 +4,23 @@
 (in-package :datapouch.reader-macro)
 
 
-;; Command regex can be an object of either regex or regex-scanner classes
-;; Command handler must be a function and have at least two arguments:
-;;   1. String argument, for full string containing command and arguments
-;;   2. List of conses (string . string), for list of named regex matches
+;; Command regex can be an object of either d.regex:regex or
+;; d.regex:regex-scanner class (or analogous one, that implements scan
+;; mechanic). If group mode is enabled (default), command-handler will get the
+;; group tree from regex-support. If group mode is disabled, command-handler
+;; will get group assoc. Additionally, if full-string-is-needed is set, then
+;; the first position argument will be a full match string.
 (defclass command ()
   ((command-regex :initarg :regex
                   :reader command-regex)
    (command-handler :initarg :handler
-                    :reader command-handler)))
+                    :reader command-handler)
+   (group-mode :initarg :group-mode
+               :initform t
+               :reader group-mode)
+   (full-string-is-needed :initarg :full-string
+                          :initform nil
+                          :reader full-string)))
 
 
 ;; list of command objects
@@ -42,18 +50,47 @@
 (defun command-reader-macro (stream char)
   (let* ((command-string (read-line-to-semicolon-or-newline stream))
          (command-bundle (loop :for command :in *commands*
-                               :for (match groups) = (multiple-value-list (scan-named-groups (command-regex command) command-string))
-                               :when match
-                               :return (list command groups)))
+                               :for groups := (groups (command-regex command))
+                               :for (match-start match-end group-starts group-ends) = (multiple-value-list (scan (command-regex command) command-string))
+                               :when match-start
+                               :return (list command (funcall (if (group-mode command)
+                                                                #'match-to-group-tree
+                                                                #'match-to-assoc)
+                                                              command-string
+                                                              groups
+                                                              match-start
+                                                              match-end
+                                                              group-starts
+                                                              group-ends))))
          (command (first command-bundle))
          (match (second command-bundle)))
     (if command
       ;; well, yes, it could've been done more flexible to cover cases with need for in-reader computations
       ;; but i don care. it's hard to juggle characters with read/unread, when error handling arises
-      `(funcall ,(command-handler command) ,command-string ',match) 
+      (if (full-string command)
+        `(funcall ,(command-handler command) ,command-string ',match) 
+        `(funcall ,(command-handler command) ',match))
       (progn
         (return-to-stream command-string stream)
         (find-symbol (string char) :cl)))))
+
+
+;; DEPRECATED
+;(defun old-command-reader-macro (stream char)
+;  (let* ((command-string (read-line-to-semicolon-or-newline stream))
+;         (command-bundle (loop :for command :in *commands*
+;                               :for (match groups) = (multiple-value-list (scan-named-groups (command-regex command) command-string))
+;                               :when match
+;                               :return (list command groups)))
+;         (command (first command-bundle))
+;         (match (second command-bundle)))
+;    (if command
+;      ;; well, yes, it could've been done more flexible to cover cases with need for in-reader computations
+;      ;; but i don care. it's hard to juggle characters with read/unread, when error handling arises
+;      `(funcall ,(command-handler command) ,command-string ',match) 
+;      (progn
+;        (return-to-stream command-string stream)
+;        (find-symbol (string char) :cl)))))
 
 
 (defun install-command-reader-macro (&key ((:character character) #\/) ((:readtable table) *custom-readtable*))

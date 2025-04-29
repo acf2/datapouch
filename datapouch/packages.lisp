@@ -33,11 +33,14 @@
            #:combine
            #:interchange
            #:interchange-three
-           #:scan-named-groups
+           #:scan
+           #:scan-named-groups ;; DEPRECATED
            #:get-group #:is-group #:list-group-names
            #:regex-scanner #:scanner
            #:make-scanner
-           ))
+           #:match-to-assoc
+           #:match-to-group-table
+           #:match-to-group-tree))
 
 
 (defpackage :datapouch.cli
@@ -172,30 +175,12 @@
                 #:*debug-output*
                 #:list-existing*)
   (:export 
-    ;; S-form
-    #:acceptable-regex?
-    #:simple-regex-group?
-    #:named-regex-group?
-    #:acceptable-regex-group?
-    #:simple-argument?
-    #:acceptable-modifier-for-argument?
-    #:argument-with-modifiers?
-    #:acceptable-term?
-    #:make-command-s-form-scanner
-    ;; Expression
-    #:subexpression-argument?
-    #:acceptable-argument?
-    #:acceptable-expression-s-form?
-    #:acceptable-built-expression-s-form?
-    #:shell-expression #:shell
-    #:built-shell-expression-shard #:built-shell
-    #:define-subexpression #:define-command
-    #:build-expression #:build-shell
-    #:make-shell-expression
-    #:generate-commands-from-shell
-    #:add-shell-subexpressions
-    #:add-shell-commands
-    #:add-help-to-shell))
+    #:expression #:regex-group #:name #:handler #:config
+    #:expression-config #:use-nongroup-argument #:allow-traversal
+    #:create-expression #:set-expression #:get-expression
+    #:lexicon
+    #:make-command-handler
+    #:set-expressions #:make-commands))
 
 
 (defpackage :datapouch.main
