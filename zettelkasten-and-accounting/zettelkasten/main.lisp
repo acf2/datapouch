@@ -676,7 +676,7 @@
   (let ((zk-lex (make-instance 'lexicon)))
     (set-expressions
       zk-lex
-      `(:name "\\w+" ,(lambda (name) (list :name name)) :use-nongroup-arguments t))
+      `(:name "\\w+" ,(lambda (name) (list :name name)) "Name regex" :use-nongroup-arguments t))
     (make-commands
       zk-lex
       `(,(concat "^\\s*" "[Hh]ello" "\\s+" (regex-group (get-expression zk-lex :name)) "\\s*$")

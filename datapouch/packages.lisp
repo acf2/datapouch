@@ -34,7 +34,6 @@
            #:interchange
            #:interchange-three
            #:scan
-           #:scan-named-groups ;; DEPRECATED
            #:get-group #:is-group #:list-group-names
            #:regex-scanner #:scanner
            #:make-scanner
@@ -210,8 +209,7 @@
                 #:combine
                 #:make-named-group
                 #:get-group
-                #:is-group
-                #:scan-named-groups)
+                #:is-group)
   (:export #:*max-string-length*
            #:*wrap-marker*
            #:*table-metaformat*

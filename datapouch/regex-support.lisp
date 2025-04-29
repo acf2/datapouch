@@ -104,11 +104,7 @@
 
 
 (defun concat (&rest regexes)
-  (reduce (lambda (x y)
-            (cond ((null x) y)
-                  ((null y) x)
-                  (:else (concat-two x y))))
-          regexes))
+  (reduce #'concat-two (remove nil regexes)))
 
 
 (defun combine (&rest regexes)
@@ -150,29 +146,6 @@
            (concat third-regex separator-regex (interchange separator-regex first-regex second-regex))))
 
 
-;;; [DEPRECATED]
-(defgeneric scan-named-groups (regex str)
-  (:documentation "Find named groups in string"))
-
-
-;;; Returns T if string matches, nil if not
-;;; Returns second value - assoc-list with matches
-;;; [DEPRECATED]
-(defmethod scan-named-groups ((regex regex) (str string))
-  (let* ((scan-result (multiple-value-list (ppcre:scan-to-strings (expr regex) str)))
-         (match (first scan-result))
-         (groups (and match (second scan-result))))
-    (if match
-      (values t
-              (remove-if #'null
-                         (map 'list
-                              (lambda (match key)
-                                (and match (cons key match)))
-                              groups
-                              (groups regex))))
-      (values nil nil))))
-
-
 (defclass regex-scanner ()
   ((scanner :reader scanner
             :initform nil)
@@ -207,20 +180,6 @@
           :collect (cons group-name (subseq str (aref group-starts i) (aref group-ends i))))))
 
 
-;;; Returns T if string matches, nil if not
-;;; Returns second value - assoc-list with matches
-;;; [DEPRECATED]
-(defmethod scan-named-groups ((sc regex-scanner) (str string))
-  (multiple-value-bind (match-start match-end group-starts group-ends) (funcall (scanner sc) str 0 (length str))
-    (declare (ignore match-end))
-    (if match-start
-      (values t (loop :for i :from 0 :to (1- (length (groups sc)))
-                      :for group-name :in (groups sc)
-                      :when (aref group-starts i)
-                      :collect (cons group-name (subseq str (aref group-starts i) (aref group-ends i)))))
-      (values nil nil))))
-
-
 (defmacro get-group (name groups)
   `(rest (assoc (string ,name) ,groups :test #'string=)))
 
@@ -233,13 +192,6 @@
 
 (defun list-group-names (groups)
   (map 'list #'car groups))
-
-
-;(defgeneric match-to-group-table (regex string)
-;  (:documentation "Scan regex with named groups and make a table out of match indices"))
-;
-;(defgeneric match-to-group-tree (regex string)
-;  (:documentation "Scan regex with named groups to tree of matches (represented as a list)"))
 
 
 ; Example (for my fragile memory):
@@ -313,7 +265,7 @@
 (defun group-by-numeric-parameter (value-collection parameter-collection)
   (flet ((lift (value parameter) (list (list parameter value)))
          (less (one another) (< (first (first one)) (first (first another))))
-         ;; For this reduce must be a left fold
+         ;; For this, reduce must be a left fold
          ;; one - ((N1 ...) (N2 ...) ... (NK ...))
          ;; another - ((M1 ...))
          (join-two (one another) (if (= (first (first (last one))) (first (first another)))

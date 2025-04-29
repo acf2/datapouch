@@ -75,23 +75,5 @@
         (find-symbol (string char) :cl)))))
 
 
-;; DEPRECATED
-;(defun old-command-reader-macro (stream char)
-;  (let* ((command-string (read-line-to-semicolon-or-newline stream))
-;         (command-bundle (loop :for command :in *commands*
-;                               :for (match groups) = (multiple-value-list (scan-named-groups (command-regex command) command-string))
-;                               :when match
-;                               :return (list command groups)))
-;         (command (first command-bundle))
-;         (match (second command-bundle)))
-;    (if command
-;      ;; well, yes, it could've been done more flexible to cover cases with need for in-reader computations
-;      ;; but i don care. it's hard to juggle characters with read/unread, when error handling arises
-;      `(funcall ,(command-handler command) ,command-string ',match) 
-;      (progn
-;        (return-to-stream command-string stream)
-;        (find-symbol (string char) :cl)))))
-
-
 (defun install-command-reader-macro (&key ((:character character) #\/) ((:readtable table) *custom-readtable*))
   (set-macro-character character #'command-reader-macro t table))
