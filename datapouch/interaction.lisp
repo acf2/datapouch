@@ -4,30 +4,32 @@
 (in-package :datapouch.interaction)
 
 
-;;; Generalized dialog with user
-;;; Args:
-;;;   query-fun is a function with one optional argument, that prints query message for the user
-;;;     At least once this function will be called with no arguments at all
-;;;     Arguments:
-;;;       1) Previous erroneous user input
-;;;   input-handler is a function of one argument, that handles user input
-;;;     Arguments:
-;;;       1) User input
-;;;     Must return two values:
-;;;       1) Is user input accepted, or user must be queried again? (t/nil)
-;;;       2) Filtered user input to be returned from dialog
-;;;   prompt-fun is a function, that is used as prompt for read-form (read read-form docs)
-;;;   raw-input is a flag
-;;;     Essentially, it determines, will lisp reader be used on user input, or not
-;;;     Values:
-;;;       nil, then read-form will be used to read the form
-;;;       t, then pure readline wrapper function will be used without any kind of reader
-;;;
-;;; NOTE: Wrap whole SBCL in continuation, put it in query-fun and base my whole application on this dialog function? Nah, too difficult. But tempting.
+;;; NOTE: Wrap whole SBCL in continuation, put it in query-fun and base my
+;;;       whole application on this dialog function?
+;;;       Nah, too difficult. But tempting.
 (defun dialog (&key ((:query-fun query-fun) nil)
                     ((:input-handler input-handler) nil)
                     ((:prompt-fun prompt-fun) *prompt-fun*)
                     ((:raw-input raw-input) nil))
+  "Generalized dialog with user.
+Arguments:
+ QUERY-FUN is a function with one optional argument, that prints query message
+ for the user.
+   At least once this function will be called with no arguments at all
+   Arguments:
+     1) Previous erroneous user input.
+ INPUT-HANDLER is a function of one argument, that handles user input
+   Arguments:
+     1) User input.
+   Must return two values:
+     1) Is user input accepted, or not and user must be queried again? (T/NIL),
+     2) Filtered user input to be returned from dialog.
+ PROMPT-FUN is a function, that is used as prompt for READ-FORM or readline.
+ RAW-INPUT is a flag
+   Essentially, it determines, will lisp reader be used on user input, or not
+   Values:
+     NIL, then READ-FORM will be used to read the form
+     T, then pure readline wrapper function will be used without any kind of reader"
   (let ((read-fun (if raw-input #'d.cli:readline #'d.cli:read-form)))
     (when query-fun
       (funcall query-fun))
@@ -42,11 +44,12 @@
 
 
 (defun yes-or-no-dialog (&key ((:prompt-msg prompt-msg) nil)
-                              ((:error-msg error-msg) "Please type \"yes\" for yes or \"no\" for no.")
                               ((:yes-choice affirmative) "yes")
                               ((:no-choice negative) "no")
+                              ((:error-msg error-msg) (format nil "Please type ~S for yes or ~S for no." affirmative negative))
                               ((:test test-fun) #'string-equal)
                               ((:prompt-format prompt-format) "~@[~A ~](~(~A~) or ~(~A~)) "))
+  "Rewrite of YES-OR-NO-P with a bit finer control."
   (dialog :query-fun (lambda (&optional error-input)
                        (when error-input
                          (format *standard-output* "~A~&" error-msg)))
@@ -66,6 +69,13 @@
 
 
 (defun wrap-string (string)
+  (declare (special *max-string-length* *wrap-marker*))
+  "This function tries to wrap STRING around *MAX-STRING-LENGTH* characters
+smartly. It uses the fact that string could have a natural newline somewhere
+before character limit is reached, and therefore could be wrapped there. If
+this fails, it tries to wrap the string on a space, rather than cut the word in
+two. Also, it calculates length of *WRAP-MARKER*, and if string could be
+fitted tightly without marker - it will do it."
   (let* ((first-newline-position (position #\newline string))
          (single-line? (and (or (null first-newline-position)
                                 (= first-newline-position (1- (length string))))

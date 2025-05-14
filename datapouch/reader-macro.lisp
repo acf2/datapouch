@@ -15,6 +15,9 @@
                   :reader command-regex)
    (command-handler :initarg :handler
                     :reader command-handler)
+   (docs :initarg :docs
+         :type string
+         :reader docs)
    (group-mode :initarg :group-mode
                :initform t
                :reader group-mode)

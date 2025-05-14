@@ -21,4 +21,4 @@
                ;; Weight diary
 
                (:file "main" :depends-on ("packages" "zettelkasten/main" "bookkeeping")))
-  :depends-on (:datapouch))
+  :depends-on (:datapouch :datapouch-comgen))

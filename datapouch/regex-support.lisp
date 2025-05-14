@@ -19,7 +19,40 @@
   ((expr :reader expr
          :initarg :expr)
    (groups :reader groups
+           :initarg :groups
            :initform nil)))
+
+
+(defun list-of-regexes-p (list)
+  "Return t if LIST is non nil and contains only d.regex:regex objects."
+  (and (consp list)
+       (every (lambda (x) (typep x 'regex))
+              list)))
+
+
+(deftype list-of-regexes ()
+  `(satisfies list-of-regexes-p))
+
+
+(deftype relaxed-regex ()
+  `(or nil string regex))
+
+
+(defun list-of-relaxed-regexes-p (list)
+  "Return t if LIST is non nil and contains d.regex:regex objects or strings."
+  (and (consp list)
+       (every (lambda (x) (or (null x)
+                              (stringp x)
+                              (typep x 'regex)))
+              list)))
+
+
+(deftype list-of-relaxed-regexes ()
+  `(satisfies list-of-relaxed-regexes-p))
+
+
+(defmacro regex-from-string (string)
+  `(make-instance 'regex :expr ,string))
 
 
 (defmethod scan ((sc regex) (target-string string) &key start end &allow-other-keys)
@@ -30,12 +63,9 @@
 
 
 (defmethod wrap-in-noncapturing-group ((regex regex))
-  (let ((new-regex (make-instance 'regex)))
-    (with-slots (expr groups) regex
-      (with-slots ((new-expr expr) (new-groups groups)) new-regex
-        (setf new-groups (copy-list groups))
-        (setf new-expr (format nil "(?:~A)" expr))))
-    new-regex))
+  (make-instance 'regex
+                 :expr (format nil "(?:~A)" (expr regex))
+                 :groups (copy-list (groups regex))))
 
 
 (defgeneric make-named-group (name regex)
@@ -43,21 +73,14 @@
 
 
 (defmethod make-named-group ((name string) (regex regex))
-  (let ((new-regex (make-instance 'regex)))
-    (with-slots (expr groups) regex
-      (with-slots ((new-expr expr) (new-groups groups)) new-regex
-        ;; NB: When one group encompasses the other, it preceedes the other in group list
-        (setf new-expr (format nil "(?<~A>~A)" name expr))
-        (setf new-groups (cons name groups))))
-    new-regex))
+  (make-instance 'regex
+                 ;; NB: When one group encompasses the other, it preceedes the other in group list
+                 :expr (format nil "(?<~A>~A)" name (expr regex))
+                 :groups (cons name (groups regex))))
 
 
 (defmethod make-named-group ((name string) (regex string))
-  (let ((new-regex (make-instance 'regex)))
-      (with-slots ((new-expr expr) (new-groups groups)) new-regex
-        (setf new-expr (format nil "(?<~A>~A)" name regex))
-        (setf new-groups (list name)))
-    new-regex))
+  (make-named-group name (regex-from-string regex)))
 
 
 (defmethod make-named-group ((name symbol) regex)
@@ -69,81 +92,113 @@
 
 
 (defmethod concat-two ((one regex) (another regex))
-  (let ((new-regex (make-instance 'regex)))
-    (with-slots ((one-expr expr) (one-groups groups)) one
-      (with-slots ((another-expr expr) (another-groups groups)) another
-        (with-slots ((new-expr expr) (new-groups groups)) new-regex
-          (setf new-expr (format nil "~A~A" one-expr another-expr))
-          (setf new-groups (append one-groups another-groups)))))
-    new-regex))
+  (make-instance 'regex
+                 :expr (format nil "~A~A" (expr one) (expr another))
+                 :groups (append (groups one) (groups another))))
 
 
 (defmethod concat-two ((one regex) (another string))
-  (let ((new-regex (make-instance 'regex)))
-    (with-slots ((one-expr expr) (one-groups groups)) one
-      (with-slots ((new-expr expr) (new-groups groups)) new-regex
-        (setf new-expr (format nil "~A~A" one-expr another))
-        (setf new-groups (copy-list one-groups))))
-    new-regex))
+  (concat-two one (regex-from-string another)))
 
 
 (defmethod concat-two ((one string) (another regex))
-  (let ((new-regex (make-instance 'regex)))
-    (with-slots ((another-expr expr) (another-groups groups)) another
-      (with-slots ((new-expr expr) (new-groups groups)) new-regex
-        (setf new-expr (format nil "~A~A" one another-expr))
-        (setf new-groups (copy-list another-groups))))
-    new-regex))
+  (concat-two (regex-from-string one) another))
 
 
 (defmethod concat-two ((one string) (another string))
-  (let ((new-regex (make-instance 'regex)))
-    (with-slots ((new-expr expr) (new-groups groups)) new-regex
-      (setf new-expr (format nil "~A~A" one another)))
-    new-regex))
+  (concat-two (regex-from-string one)
+              (regex-from-string another)))
 
 
-(defun concat (&rest regexes)
+(declaim (ftype (function (list-of-relaxed-regexes)) concat-many))
+(defun concat-many (regexes)
   (reduce #'concat-two (remove nil regexes)))
 
 
-(defun combine (&rest regexes)
-  (flet ((combine-two (one-regex another-regex)
-           (let ((new-regex (make-instance 'regex)))
-             (with-slots ((one-expr expr) (one-groups groups)) one-regex
-               (with-slots ((another-expr expr) (another-groups groups)) another-regex
-                 (with-slots ((new-expr expr) (new-groups groups)) new-regex
-                   (setf new-expr (format nil "~A|~A" one-expr another-expr))
-                   (setf new-groups (append one-groups another-groups)))))
-             new-regex)))
-    (wrap-in-noncapturing-group (reduce #'combine-two (map 'list (lambda (wannabe-regex)
-                                                                   (if (typep wannabe-regex 'regex)
-                                                                     wannabe-regex
-                                                                     (make-instance 'regex :expr wannabe-regex)))
-                                                           regexes)))))
+(defmacro concat (&rest regexes)
+  `(concat-many (list ,@regexes)))
 
 
-(defgeneric interchange (separator-regex one-regex another-regex)
-  (:documentation "Make regex that matches two separated regexes in any order"))
+(defgeneric combine-two (one-regex another-regex)
+  (:documentation "Combine two regexes"))
 
 
-(defmethod interchange ((separator regex) (one regex) (another regex))
-  (let ((new-regex (make-instance 'regex)))
-    (with-slots ((sep-expr expr) (sep-groups groups)) separator
-      (with-slots ((one-expr expr) (one-groups groups)) one
-        (with-slots ((another-expr expr) (another-groups groups)) another
-          (with-slots ((new-expr expr) (new-groups groups)) new-regex
-            (setf new-expr (format nil "(?:~A~A~A|~2@*~A~1@*~A~@*~A)" one-expr sep-expr another-expr))
-            (setf new-groups (append one-groups sep-groups another-groups
-                                     another-groups sep-groups one-groups))))))
-    new-regex))
+(defmethod combine-two ((one regex) (another regex))
+  (make-instance 'regex
+                 :expr (format nil "~A|~A" (expr one) (expr another))
+                 :groups (append (groups one) (groups another))))
 
 
-(defun interchange-three (separator-regex first-regex second-regex third-regex)
-  "Make regex that matches three separated regexes in any order"
-  (combine (concat first-regex separator-regex (interchange separator-regex second-regex third-regex))
-           (concat second-regex separator-regex (interchange separator-regex first-regex third-regex))
-           (concat third-regex separator-regex (interchange separator-regex first-regex second-regex))))
+(defmethod combine-two ((one regex) (another string))
+  (combine-two one (regex-from-string another)))
+
+
+(defmethod combine-two ((one string) (another regex))
+  (combine-two (regex-from-string one) another))
+
+
+(defmethod combine-two ((one string) (another string))
+  (combine-two (regex-from-string one)
+               (regex-from-string another)))
+
+
+(declaim (ftype (function (list-of-relaxed-regexes)) combine-many))
+(defun combine-many (regexes)
+  (wrap-in-noncapturing-group (reduce #'combine-two (remove nil regexes))))
+
+
+(defmacro combine (&rest regexes)
+  `(combine-many (list ,@regexes)))
+
+
+(declaim (ftype (function (list-of-relaxed-regexes
+                            &key
+                            (:separator-regex relaxed-regex)
+                            (:start-regex relaxed-regex)
+                            (:end-regex relaxed-regex)
+                            (:null-regex relaxed-regex)))
+                concat-separated))
+(defun concat-separated (regexes &key
+                                 ((:separator-regex sep-rx) nil)
+                                 ((:start-regex start-rx) nil)
+                                 ((:end-regex end-rx) nil)
+                                 ((:null-regex null-rx) nil))
+  "This function returns concatenation of regexes (either in form of
+D.REGEX:REGEX, STRING or NIL) separated by SEPARATOR-REGEX. Separator can be
+NIL. START-REGEX and END-REGEX are used respectively for the start and the end.
+NULL-REGEX is used if all regexes are NIL."
+  (let ((nonnil-regexes (remove nil regexes)))
+    (if (null nonnil-regexes)
+      null-rx
+      (concat start-rx
+              (concat-many
+                     (cons (first nonnil-regexes)
+                           (loop :for regex :in (rest nonnil-regexes)
+                                 :collect sep-rx
+                                 :collect regex)))
+              end-rx))))
+
+
+(declaim (ftype (function (list-of-relaxed-regexes
+                            &key
+                            (:explicit boolean)
+                            (:separator-regex relaxed-regex)))
+                optional-concat))
+(defun optional-concat (regexes &key ((:explicit explicit) nil) ((:separator-regex sep-rx) nil))
+  (let ((nonnil-regexes (remove nil regexes)))
+    (when nonnil-regexes
+      (combine-many
+        (loop :for regex-list := nonnil-regexes :then (rest regex-list)
+              :while regex-list
+              :collect (if (= (length regex-list) 1)
+                         (if explicit
+                           (first regex-list)
+                           (concat (wrap-in-noncapturing-group (first regex-list)) "?"))
+                         (concat-many (loop :for regex :in regex-list
+                                            :for first-regex := t :then nil
+                                            :collect (if first-regex
+                                                       regex
+                                                       (concat sep-rx (wrap-in-noncapturing-group regex) "?"))))))))))
 
 
 (defclass regex-scanner ()
@@ -151,6 +206,21 @@
             :initform nil)
    (groups :reader groups
            :initform nil)))
+
+
+(declaim (ftype (function (relaxed-regex relaxed-regex relaxed-regex)) interchange))
+(defun interchange (separator one another)
+  (make-instance 'regex
+                 :expr (format nil "(?:~A~A~A|~2@*~A~1@*~A~@*~A)" (expr one) (expr separator) (expr another))
+                 :groups (append (groups one) (groups separator) (groups another)
+                                 (groups another) (groups separator) (groups one))))
+
+
+(defun interchange-three (separator-regex first-regex second-regex third-regex)
+  "Make regex that matches three separated regexes in any order"
+  (combine (concat first-regex separator-regex (interchange separator-regex second-regex third-regex))
+           (concat second-regex separator-regex (interchange separator-regex first-regex third-regex))
+           (concat third-regex separator-regex (interchange separator-regex first-regex second-regex))))
 
 
 (defgeneric make-scanner (regex)

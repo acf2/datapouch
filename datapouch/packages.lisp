@@ -16,6 +16,7 @@
            #:rotate
            #:repeat-string
            #:member-of
+           #:list-of-strings
            #:get-keys-from-hash-table
            #:check-directed-graph-for-cycles
            #:cartesian-product))
@@ -31,8 +32,8 @@
            #:concat-two
            #:concat
            #:combine
-           #:interchange
-           #:interchange-three
+           #:concat-separated #:optional-concat
+           #:interchange #:interchange-three
            #:scan
            #:get-group #:is-group #:list-group-names
            #:regex-scanner #:scanner
@@ -167,9 +168,9 @@
            #:edit-strings))
 
 
-(defpackage :datapouch.shell
+(defpackage :datapouch.expressions
   (:use #:cl #:d.rmacro)
-  (:nicknames :d.shell)
+  (:nicknames :d.expr)
   (:import-from :d.aux
                 #:*debug-output*
                 #:list-existing*)
@@ -178,6 +179,7 @@
     #:expression-config #:use-nongroup-argument #:allow-traversal
     #:create-expression #:set-expression #:get-expression
     #:lexicon
+    #:make-result #:return-match
     #:make-command-handler
     #:set-expressions #:make-commands))
 
@@ -245,6 +247,6 @@
 (cl-reexport:reexport-from :datapouch.crypto)
 (cl-reexport:reexport-from :datapouch.editor)
 (cl-reexport:reexport-from :datapouch.interaction)
-(cl-reexport:reexport-from :datapouch.shell)
+(cl-reexport:reexport-from :datapouch.expressions)
 (cl-reexport:reexport-from :datapouch.main)
 (in-package :cl-user)

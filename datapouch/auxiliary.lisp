@@ -48,6 +48,18 @@
        (member ,element ,lst ,@rest))))
 
 
+;; Taken from lisp cookbook
+;; https://lispcookbook.github.io/cl-cookbook/type.html#declaring-the-type-of-variables
+(defun list-of-strings-p (list)
+  "Return t if LIST is non nil and contains only strings."
+  (and (consp list)
+       (every #'stringp list)))
+
+
+(deftype list-of-strings ()
+  `(satisfies list-of-strings-p))
+
+
 (defun get-keys-from-hash-table (hash-table)
   (loop :for k :being :the :hash-key :in hash-table
         :collect k))

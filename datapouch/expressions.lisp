@@ -1,8 +1,8 @@
-;;;; shell.lisp
+;;;; expressions.lisp
 ;;; Primitive command building system
 
 
-(in-package :datapouch.shell)
+(in-package :datapouch.expressions)
 
 
 (defclass expression-config ()
@@ -53,9 +53,9 @@ GROUP-TREE-TRAVERSAL recursive calls for this specific expression."))
    (config :initarg :config
            :type expression-config
            :reader config)
-   (documentation :initarg :documentation
-                  :type string
-                  :reader :documentation))
+   (docs :initarg :docs
+         :type string
+         :reader docs))
   (:documentation
     "EXPRESSION objects are used to represent reusable regular expressions with
 their respective handler functions.
@@ -77,7 +77,7 @@ CONFIG is the settings for GROUP-TREE-TRAVERSAL function.
 
 DOCUMENTATION is self-explanatory."))
 
-(defun create-expression (name regex user-handler documentation &key (use-nongroup-arguments nil) (allow-traversal t))
+(defun create-expression (name regex user-handler docs &key (use-nongroup-arguments nil) (allow-traversal t))
   (declare (type (or string keyword) name)
            (type (or string d.regex:regex) regex)
            (type function user-handler)
@@ -90,13 +90,13 @@ EXPRESSION and EXPRESSION-CONFIG documentation."
                  :regex (d.regex:make-named-group (string name)
                                                         regex)
                  :user-handler user-handler
-                 :documentation documentation
+                 :docs docs
                  :config (make-instance 'expression-config
                                         :use-nongroup-arguments use-nongroup-arguments
                                         :allow-traversal allow-traversal)))
 
 
-(defgeneric set-expression (lexicon name regex user-handler documentation &key use-nongroup-arguments allow-traversal)
+(defgeneric set-expression (lexicon name regex user-handler docs &key use-nongroup-arguments allow-traversal)
   (:documentation
     "Set expression in lexicon to new value. Expression is superseded, if
 (EQUAL old-name new-name)."))
@@ -117,7 +117,7 @@ EXPRESSION and EXPRESSION-CONFIG documentation."
 Could be interpreted as a context for GROUP-TREE-TRAVERSAL function."))
 
 
-(defmethod set-expression ((lexicon lexicon) name regex user-handler documentation &key (use-nongroup-arguments nil) (allow-traversal t))
+(defmethod set-expression ((lexicon lexicon) name regex user-handler docs &key (use-nongroup-arguments nil) (allow-traversal t))
   (declare (type (or string keyword) name)
            (type (or string d.regex:regex) regex)
            (type function user-handler)
@@ -128,7 +128,7 @@ Could be interpreted as a context for GROUP-TREE-TRAVERSAL function."))
           (create-expression name
                              regex
                              user-handler
-                             documentation
+                             docs
                              :use-nongroup-arguments use-nongroup-arguments
                              :allow-traversal allow-traversal))))
 
@@ -150,8 +150,25 @@ That structure is implied to be another regex group match, processed by another
 expression, hence the name. And yes, this predicate defines, how return values
 of user-handlers should be structured for it to work as 'group arguments'."
   (and (listp lst)
-       (eq (type-of (first lst)) 'keyword)
+       (typep (first lst) 'keyword)
        (= (length lst) 2)))
+
+
+(defun make-result (name value)
+  (declare (type (or string keyword) name))
+  "This function formattes the result of an expression to be recognised by
+another expression with USE-NONGROUP-ARGUMENTS set to NIL. Essentially it
+mirrors the PROCESSED-GROUP? predicate: if changed, they must be changed
+simultaneously."
+  (list name value))
+
+
+(defun return-match (name)
+  (declare (type (or string keyword) name))
+  "RETURN-MATCH makes a function, that simply returns the match, that is the
+single term. Very useful."
+  (lambda (arg)
+    (make-result name arg)))
 
 
 (defun funcall-group-list-with-filtering (lexicon user-handler group-tree &key use-nongroup-arguments allow-traversal)
@@ -194,12 +211,6 @@ and the corresponding group was found in lexicon, then more:
              group-tree)))))
 
 
-(defun set-expressions (lexicon &rest expression-definitions)
-  "This function is used to call SET-EXPRESSION in bulk."
-  (loop :for expression-definition :in expression-definitions
-        :do (apply #'set-expression lexicon expression-definition)))
-
-
 (defun make-command-handler (lexicon user-handler &key (use-nongroup-arguments nil) (allow-traversal t))
   "This function is used to create handlers for D.RMACRO:COMMAND class.
 When creating your own commands, this is the question - how to connect them to
@@ -217,15 +228,43 @@ this should be the default."
                                        :use-nongroup-arguments use-nongroup-arguments)))
 
 
-(defun make-command (lexicon regex handler &rest other &key &allow-other-keys)
+(defun make-command (lexicon regex handler docs &rest other &key &allow-other-keys)
   "This function wraps D.RMACRO:COMMAND creation with the use of MAKE-COMMAND-HANDLER in
 one call."
   (make-instance 'd.rmacro:command
-                 :regex regex
-                 :handler (apply #'make-command-handler lexicon handler other)))
+                 :regex (typecase regex
+                          (d.regex:regex regex)
+                          (d.regex:regex-scanner regex)
+                          (t (make-instance 'd.regex:regex :expr regex)))
+                 :handler (apply #'make-command-handler lexicon handler other)
+                 :docs docs))
 
 
-(defun make-commands (lexicon &rest command-definitions)
-  "This function is used to call MAKE-COMMAND in bulk."
-  (loop :for command-definition :in command-definitions
-        :collect (apply #'make-command lexicon command-definition)))
+(defmacro set-expressions (lexicon &rest expression-definitions)
+  "This function is used to call SET-EXPRESSION in bulk."
+  `(progn
+     ,@(loop :for expression-definition :in expression-definitions
+             :collect `(set-expression ,lexicon ,@expression-definition))))
+
+
+(defmacro make-commands (lexicon &rest command-definitions)
+  "Syntactic sugar to ease the use of make-command."
+  `(list
+     ,@(loop :for command-definition :in command-definitions
+             :for regex-list := (first command-definition)
+             :for handler := (second command-definition)
+             :for docs := (third command-definition)
+             :for options := (cdddr command-definition)
+             :collect `(make-command ,lexicon
+                                     (d.regex:concat-separated (list ,@(map 'list (lambda (term)
+                                                                                    (if (typep term 'keyword)
+                                                                                      `(regex-group (get-expression ,lexicon ,term))
+                                                                                      term))
+                                                                            regex-list))
+                                                               :separator-regex "\\s+"
+                                                               :start-regex "^\\s*"
+                                                               :end-regex "\\s*$"
+                                                               :null-regex "^\\s*$")
+                                     ,handler
+                                     ,docs
+                                     ,@options))))

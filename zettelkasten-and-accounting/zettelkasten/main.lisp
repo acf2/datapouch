@@ -290,6 +290,16 @@
 ;;; /edit (/e) - open text editor for current note
 
 
+
+;;; NEW EXPRESSION HANDLERS
+
+(defun handle-direction (direction)
+  (let* ((backward? (member direction
+                            (list "b" "back" "backward")
+                            :test #'string-equal)))
+    (make-result :direction (if backward? :backward :forward))))
+
+
 ;;; SUBEXPRESSION HANDLERS
 
 
@@ -671,38 +681,179 @@
   possible closure \"Closure\" is the Kleene star: union of all repeated
   applications in 1..N at once.")
 
+      ;TODO:
+      ;`(:words "(?:\\w+,)*\\w+" ,(lambda (tags) nil) "List of delimited words" :use-nongroup-arguments t)
+;         (tag-arguments `((,(concat "\\+" (make-named-group :ptags tags-rx)) :optional)
+;                          (,(concat "-" (make-named-group :ntags tags-rx)) :optional)))
+
+
+
+;(defun optional-concat (regexes &key ((:explicit explicit) nil) ((:separator-regex sep-rx) nil))
+;  (apply #'combine
+;         (loop :for regex-list := regexes :then (rest regex-list)
+;               :while regex-list
+;               :collect (if (= (length regex-list) 1)
+;                          (if explicit
+;                            (first regex-list)
+;                            (concat (wrap-in-noncapturing-group (first regex-list)) "?"))
+;                          (apply #'concat (loop :for regex :in regex-list
+;                                                :for first-regex := t :then nil
+;                                                :collect (if first-regex
+;                                                           regex
+;                                                           (concat sep-rx (wrap-in-noncapturing-group regex) "?"))))))))
+
+;; optional-combine -> alexandria:map-permutations optional-concat
+
 
 (defun get-zettelkasten-commands ()
   (let ((zk-lex (make-instance 'lexicon)))
-    (set-expressions
-      zk-lex
-      `(:name "\\w+" ,(lambda (name) (list :name name)) "Name regex" :use-nongroup-arguments t))
-    (make-commands
-      zk-lex
-      `(,(concat "^\\s*" "[Hh]ello" "\\s+" (regex-group (get-expression zk-lex :name)) "\\s*$")
-         ,(lambda (&key name)
-            (format t "Greetings, ~:(~A~)~&" name))))))
-         ;(substring-rx ".*")
-         ;(substring-arguments `(((:substring . ,substring-rx) :optional)))
-;         (tags-rx "(?:\\w+,)*\\w+")
-;         (tag-arguments `((,(concat "\\+" (make-named-group :ptags tags-rx)) :optional)
-;                          (,(concat "-" (make-named-group :ntags tags-rx)) :optional)))
-;         (exponent-arguments `(((:exponent . "[1-9]\\d*") :optional)))
-;         (short-exponent-arguments `(((:exponent . "[1-9]\\d*") :optional :optionally-immediate)))
-;         (link-type-arguments `(((:type . "forward|back") :optional)))
-;         (short-link-type-arguments `(((:type . "f|b") :optional :immediate)))
-;         (link-arguments `(,@link-type-arguments
-;                           ,@exponent-arguments
-;                           ((:closure . "\\*") :optional :immediate)
-;                           ,@tag-arguments
-;                           ,@substring-arguments))
-;         (short-link-arguments `(,@short-link-type-arguments
-;                                 ,@short-exponent-arguments
-;                                 ((:closure . "\\*") :optional :immediate)
-;                                 ,@tag-arguments
-;                                 ,@substring-arguments))
-;         (new-link-number `(((:number . "\\d+|next") :optional)))
-;         (new-link-number-short `(((:number . "\\d+|n") :optional :immediate)))
+    (flet ((get-rx (keyword-name) (regex-group (get-expression zk-lex keyword-name))))
+      (set-expressions
+        zk-lex
+        (:substring ".*?"
+                     (return-match :substring)
+                     "Lazy substring"
+                     :use-nongroup-arguments t)
+        (:word "\\w+"
+                (return-match :word)
+                "Any single word"
+                :use-nongroup-arguments t)
+        (:exponent "[1-9]\\d*"
+                    (lambda (exponent)
+                       (make-result :exponent (parse-integer exponent)))
+                    "Exponent (number)"
+                    :use-nongroup-arguments t)
+
+        (:direction "forward|back(?:ward)?"
+                     #'handle-direction
+                     "Direction"
+                     :use-nongroup-arguments t)
+        (:short-direction "f|b"
+                           #'handle-direction
+                           "Short direction"
+                           :use-nongroup-arguments t)
+        (:closure "\\*"
+                  (return-match :closure)
+                  "Sign for operation closure (Kleene star subset)"
+                  :use-nongroup-arguments t)
+        (:new-link-next-sign "n(?:ext)?"
+                              (return-match :next)
+                              "Sign for making new note the next note of current one"
+                              :use-nongroup-arguments t)
+        )
+
+      (with-slots ((el d.expr::expression-lookup)) zk-lex
+        (format t "Hashes:~&")
+        (loop :for hk :being :the :hash-key :in el
+              :do (format t "Hash: ~A~&Expr: ~A~&" hk (get-expression zk-lex hk))))
+
+      (set-expressions
+        zk-lex
+        (:dae (optional-concat (list (get-rx :direction)
+                                     (get-rx :exponent)
+                                     (get-rx :closure))
+                               :separator-regex "\\s+")
+              #'handle-dae
+              +dae-help+)
+
+
+
+;        `(:short-dae ,(optional-concat (list (get-rx :short-direction)
+;                                             (get-rx :exponent)
+;                                             (get-rx :closure)))
+;                     #'handle-dae
+;                     +dae-help+)
+;        `(:explicit-dae (,optional-concat (list (get-rx :direction)
+;                                                (get-rx :exponent)
+;                                                (get-rx :closure))
+;                                          :explicit t
+;                                          :separator-regex "\\s+")
+;                        #'handle-dae
+;                        +dae-help+)
+;        `(:explicit-short-dae ,(optional-concat (list (get-rx :short-direction)
+;                                                      (get-rx :exponent)
+;                                                      (get-rx :closure))
+;                                                :explicit t)
+;                              #'handle-dae
+;                              +dae-help+)
+        )
+
+      (make-commands
+        zk-lex
+        (("[Hh]ello" :word)
+         (lambda (&key word)
+           (format t "Greetings, ~:(~A~)~&" word))
+         "docs")
+        (("home") #'command-home "docs")
+;         (goto-rxs `(("goto" ,@link-arguments)       ; /goto [forward][:<N>][*] [<substring>] | /goto back[:<N>][*] [<substring>]
+;                     ("g" ,@short-link-arguments)))  ; /g[f][<N>][*] [<substring>] | /gb[<N>][*] [<substring>]
+
+;            (:dae '(((:direction . :optional-direction)
+;                     (:number . :optional-number)
+;                     (:closure . :optional-closure)))
+;                  #'handle-dae
+;                  +dae-help+)
+
+;            (:constrained-note-selector '(((:parameters . :dae)))
+;                                        #'select-constrained-notes
+;                                        "For note selection, constrained by current note.")
+;            (:explicit-constrained-note-selector '(((:parameters . :dae)))
+;                                                 (lambda (&key ((:parameters parameters)))
+;                                                   (select-constrained-notes :parameters parameters
+;                                                                             :give-up-on-empty t))
+;                                                 "For note selection, constrained by current note. Must be explicitly stated.")
+;            (:global-note-selector '(("global" (:substring . :substring))
+;                                     (("g" :optionally-immediate) (:substring . :substring)))
+;                                   #'select-global-notes
+;                                   "For global note selection. Case insensitive.")
+
+;            (:single-constrained-note-designator '(((:selection . :constrained-note-selector)))
+;                                                 #'pick-notes-from-dae
+;                                                 "Pick one note over a constrained selection.")
+
+;            (:single-global-note-designator-with-peeking '(((:selection . :global-note-selector)))
+;                                                         #'pick-notes-from-global
+;                                                         "Pick exactly one note, globally filtering by substring.")
+
+;            (:single-memory-designator '((("m" :optionally-immediate) (:number . :optional-number))
+;                                         ("memo(?:ry)?" (:number . :optional-number)))
+;                                       #'pick-single-memorized-note
+;                                       "Memorized notes designator for single note.")
+
+;            (:single-note-designator '(((:note . :current-note-designator))
+;                                       ((:note . :next-note-designator))
+;                                       ((:note . :single-constrained-note-designator))
+;                                       ((:note . :single-global-note-designator-with-peeking))
+;                                       ((:note . :single-memory-designator)))
+;                                     (lambda (&key ((:note note)))
+;                                       note)
+;                                     "Aggregate single note designator")
+
+;            ('(("g(?:oto)?" (:note . :single-note-designator)))
+;             #'command-goto
+;             '("Go to some note from this one." "goto" "g"))
+      )
+      )))
+
+
+
+
+; +       (exponent-arguments `(((:exponent . "[1-9]\\d*") :optional)))
+; +       (short-exponent-arguments `(((:exponent . "[1-9]\\d*") :optional :optionally-immediate)))
+; +       (link-type-arguments `(((:type . "forward|back") :optional)))
+; +       (short-link-type-arguments `(((:type . "f|b") :optional :immediate)))
+; +       (link-arguments `(,@link-type-arguments
+; +                         ,@exponent-arguments
+; +                         ((:closure . "\\*") :optional :immediate)
+; +                         ,@tag-arguments
+; +                         ,@substring-arguments))
+; +       (short-link-arguments `(,@short-link-type-arguments
+; +                               ,@short-exponent-arguments
+; +                               ((:closure . "\\*") :optional :immediate)
+; +                               ,@tag-arguments
+; +                               ,@substring-arguments))
+; +       (new-link-number `(((:number . "\\d+|next") :optional)))
+; +       (new-link-number-short `(((:number . "\\d+|n") :optional :immediate)))
 ;         (goto-rxs `(("goto" ,@link-arguments)       ; /goto [forward][:<N>][*] [<substring>] | /goto back[:<N>][*] [<substring>]
 ;                     ("g" ,@short-link-arguments)))  ; /g[f][<N>][*] [<substring>] | /gb[<N>][*] [<substring>]
 ;         (search-rxs `("s(?:earch)?"                                                             ; /s[earch] [+tag,tag,...] [-tag,tag,...] <substring>
