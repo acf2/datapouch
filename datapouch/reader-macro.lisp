@@ -4,12 +4,12 @@
 (in-package :datapouch.reader-macro)
 
 
-;; Command regex can be an object of either d.regex:regex or
-;; d.regex:regex-scanner class (or analogous one, that implements scan
-;; mechanic). If group mode is enabled (default), command-handler will get the
-;; group tree from regex-support. If group mode is disabled, command-handler
-;; will get group assoc. Additionally, if full-string-is-needed is set, then
-;; the first position argument will be a full match string.
+;; Command regex is an object d.regex:regex-scanner class (or analogous one,
+;; that implements scan mechanic). If group mode is enabled (default),
+;; command-handler will get the group tree from regex-support. If group mode is
+;; disabled, command-handler will get group assoc. Additionally, if
+;; full-string-is-needed is set, then the first position argument will be a
+;; full match string.
 (defclass command ()
   ((command-regex :initarg :regex
                   :reader command-regex)
@@ -53,14 +53,14 @@
 (defun command-reader-macro (stream char)
   (let* ((command-string (read-line-to-semicolon-or-newline stream))
          (command-bundle (loop :for command :in *commands*
-                               :for groups := (groups (command-regex command))
-                               :for (match-start match-end group-starts group-ends) = (multiple-value-list (scan (command-regex command) command-string))
+                               :for (match-start match-end group-starts group-ends) := (multiple-value-list (scan (command-regex command) command-string))
                                :when match-start
                                :return (list command (funcall (if (group-mode command)
                                                                 #'match-to-group-tree
                                                                 #'match-to-assoc)
                                                               command-string
-                                                              groups
+                                                              (group-list (command-regex command))
+                                                              (group-map (command-regex command))
                                                               match-start
                                                               match-end
                                                               group-starts

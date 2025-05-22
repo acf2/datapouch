@@ -41,12 +41,11 @@ GROUP-TREE-TRAVERSAL recursive calls for this specific expression."))
 
 
 (defclass expression ()
-  ((name :initarg :name
-         :type (or string keyword)
-         :reader name)
+  ((expression-type :initarg :expression-type
+                    :type string
+                    :reader expression-type)
    (regex-group :initarg :regex
-                :type d.regex:regex
-                :reader regex-group)
+                :type d.regex:regex)
    (user-handler :initarg :user-handler
                  :type function
                  :reader user-handler)
@@ -60,54 +59,49 @@ GROUP-TREE-TRAVERSAL recursive calls for this specific expression."))
     "EXPRESSION objects are used to represent reusable regular expressions with
 their respective handler functions.
 
-NAME is both the id of expression, which later could be used in
+EXPRESSION-NAME is both the id of expression, which later could be used in
 hash-table to find it, and the name of named regex group, which will be
 wrapped around regex passed by user.
 
-REGEX-GROUP is the regex group of the expression. CREATE-EXPRESSION
-function automatically wraps passed regex in an appropriately named group,
-but INITILIZE-INSTANCE does not.
+REGEX-GROUP is the regex of the expression. The named group is not created when
+set, but rather when user requires it. For each call of GET-NAMED-REGEX-GROUP
+a unique info could be passed along with regex.
 
 USER-HANDLER is user handler. It should be able to handle a regex match of
-REGEX-GROUP. By default it must be a function, that accepts only keyword
-arguments, but changing CONFIG may change that. Return value could be anything,
-but checking the documentation of PROCESSED-GROUP? is highly recommended.
+REGEX-GROUP. By default it must be a function, that accepts one positional
+(regex group info) and other keyword arguments, but changing CONFIG may change
+that. Return value could be anything, but checking the documentation of
+PROCESSED-GROUP? is highly recommended.
 
 CONFIG is the settings for GROUP-TREE-TRAVERSAL function.
 
 DOCUMENTATION is self-explanatory."))
 
-(defun create-expression (name regex user-handler docs &key (use-nongroup-arguments nil) (allow-traversal t))
-  (declare (type (or string keyword) name)
-           (type (or string d.regex:regex) regex)
-           (type function user-handler)
-           (type boolean use-nongroup-arguments allow-traversal))
+
+(defgeneric get-named-regex-group (expression &optional info)
+  (:documentation "Get named regex group from an EXPRESSION instance."))
+
+
+(declaim (ftype (function ((or string keyword)
+                           (or string d.regex:regex)
+                           function
+                           string
+                           &key
+                           (:use-nongroup-arguments boolean)
+                           (:allow-traversal boolean)))
+                create-expression))
+(defun create-expression (expression-type regex user-handler docs &key (use-nongroup-arguments nil) (allow-traversal t))
   "CREATE-EXRESSION eliminates some boilerplate for user, when creating new
 expression, and checks argument types. For the meaning of arguments refer to
 EXPRESSION and EXPRESSION-CONFIG documentation."
   (make-instance 'expression
-                 :name (string name)
-                 :regex (d.regex:make-named-group (string name)
-                                                        regex)
+                 :expression-type (string expression-type)
+                 :regex regex
                  :user-handler user-handler
                  :docs docs
                  :config (make-instance 'expression-config
                                         :use-nongroup-arguments use-nongroup-arguments
                                         :allow-traversal allow-traversal)))
-
-
-(defgeneric set-expression (lexicon name regex user-handler docs &key use-nongroup-arguments allow-traversal)
-  (:documentation
-    "Set expression in lexicon to new value. Expression is superseded, if
-(EQUAL old-name new-name)."))
-
-
-(defgeneric get-expression (lexicon name)
-  (:documentation "Get expression from lexicon, that is identified by NAME."))
-
-
-(defgeneric group-tree-traversal (lexicon group-tree)
-  (:documentation "Generic for group-tree traversal. Refer to methods for documentation."))
 
 
 (defclass lexicon ()
@@ -117,15 +111,29 @@ EXPRESSION and EXPRESSION-CONFIG documentation."
 Could be interpreted as a context for GROUP-TREE-TRAVERSAL function."))
 
 
-(defmethod set-expression ((lexicon lexicon) name regex user-handler docs &key (use-nongroup-arguments nil) (allow-traversal t))
-  (declare (type (or string keyword) name)
+(defgeneric set-expression (lexicon expression-type regex user-handler docs &key use-nongroup-arguments allow-traversal)
+  (:documentation
+    "Set expression in lexicon to new value. Expression is superseded, if
+(EQUAL old-type new-type)."))
+
+
+(defgeneric get-expression (lexicon expression-type)
+  (:documentation "Get expression from lexicon, that is identified by EXPRESSION-TYPE."))
+
+
+(defgeneric group-tree-traversal (lexicon group-tree)
+  (:documentation "Generic for group-tree traversal. Refer to methods for documentation."))
+
+
+(defmethod set-expression ((lexicon lexicon) expression-type regex user-handler docs &key (use-nongroup-arguments nil) (allow-traversal t))
+  (declare (type (or string keyword) expression-type)
            (type (or string d.regex:regex) regex)
            (type function user-handler)
            (type boolean use-nongroup-arguments allow-traversal))
   "Method for LEXICON objects. Checks argument types."
   (with-slots (expression-lookup) lexicon
-    (setf (gethash (string name) expression-lookup)
-          (create-expression name
+    (setf (gethash (string expression-type) expression-lookup)
+          (create-expression expression-type
                              regex
                              user-handler
                              docs
@@ -133,47 +141,67 @@ Could be interpreted as a context for GROUP-TREE-TRAVERSAL function."))
                              :allow-traversal allow-traversal))))
 
 
-(defmethod get-expression ((lexicon lexicon) name)
-  (declare (type (or string keyword) name))
+(defmethod get-expression ((lexicon lexicon) expression-type)
+  (declare (type (or string keyword) expression-type))
   "Method for LEXICON objects. Checks argument types."
   (with-slots (expression-lookup) lexicon
-    (gethash (string name) expression-lookup)))
+    (gethash (string expression-type) expression-lookup)))
 
 
-(defun processed-group? (lst)
-  "PROCESSED-GROUP? is a predicate, that checks if a term in group-tree has a
-certain structure. This structure is a list with precisely two elements,
-first of which have to be a keyword. These elements will be used later in a
-user-handler call, as a keyword arguments, when USE-NONGROUP-ARGUMENTS is set
-to NIL.
-That structure is implied to be another regex group match, processed by another
-expression, hence the name. And yes, this predicate defines, how return values
-of user-handlers should be structured for it to work as 'group arguments'."
-  (and (listp lst)
-       (typep (first lst) 'keyword)
-       (= (length lst) 2)))
+(defmethod get-named-regex-group ((expression expression) &optional info)
+  (with-slots (expression-type regex-group) expression
+    (d.regex:make-named-group expression-type
+                              regex-group
+                              info)))
 
 
+(declaim (ftype (function (lexicon (or string keyword) &optional t)) get-from-lexicon))
+(defun get-from-lexicon (lexicon expression-type &optional info)
+  "A shortcut function to get appropriate regex group from lexicon with chosen
+contextual info."
+  (let ((expression (get-expression lexicon expression-type)))
+    (when expression
+      (get-named-regex-group expression info))))
+
+
+(defclass named-result ()
+  ((name :initarg :name
+         :accessor result-name
+         :type keyword)
+   (value :initarg :value
+          :accessor result-value
+          :type t)))
+
+
+(declaim (ftype (function ((or keyword string) t)) make-result))
 (defun make-result (name value)
-  (declare (type (or string keyword) name))
   "This function formattes the result of an expression to be recognised by
-another expression with USE-NONGROUP-ARGUMENTS set to NIL. Essentially it
-mirrors the PROCESSED-GROUP? predicate: if changed, they must be changed
-simultaneously."
-  (list name value))
+another expression with USE-NONGROUP-ARGUMENTS set to NIL."
+  (make-instance 'named-result
+                 :name name
+                 :value value))
 
 
+(declaim (ftype (function ((or keyword string))) return-match))
 (defun return-match (name)
-  (declare (type (or string keyword) name))
-  "RETURN-MATCH makes a function, that simply returns the match, that is the
-single term. Very useful."
-  (lambda (arg)
+  "RETURN-MATCH makes a function, that simply returns single term match for
+expressions with USE-NONGROUP-ARGUMENTS."
+  (lambda (_ arg)
+    (declare (ignore _))
     (make-result name arg)))
 
 
-(defun funcall-group-list-with-filtering (lexicon user-handler group-tree &key use-nongroup-arguments allow-traversal)
+(declaim (ftype (function (keyword t)) return-named-match))
+(defun return-named-match (name arg)
+  "This function returns single term match, naming it with a keyword, passed in regex info."
+  (make-result name arg))
+
+
+(declaim (ftype (function (lexicon function t t &key (:use-nongroup-arguments boolean) (:allow-traversal boolean)))
+                funcall-group-list-with-filtering))
+(defun funcall-group-list-with-filtering (lexicon user-handler group-info group-tree &key use-nongroup-arguments allow-traversal)
   "A reusable piece of code, that incapsulates expression config checks and
-corresponding transformations."
+  corresponding transformations."
   (let* ((all-arguments (if allow-traversal
                           (map 'list (lambda (term)
                                        (group-tree-traversal lexicon term))
@@ -181,36 +209,49 @@ corresponding transformations."
                           group-tree))
          (filtered-arguments (if use-nongroup-arguments 
                                all-arguments
-                               (reduce #'append (remove-if-not #'processed-group? all-arguments)))))
-    (apply user-handler filtered-arguments)))
+                               (reduce #'append (map 'list
+                                                     (lambda (named-result)
+                                                       (list (result-name named-result)
+                                                             (result-value named-result)))
+                                                     (remove-if-not (lambda (term)
+                                                                      (typep term 'named-result))
+                                                                    all-arguments))))))
+    (apply user-handler group-info filtered-arguments)))
 
 
 (defmethod group-tree-traversal ((lexicon lexicon) group-tree)
   "This is the GROUP-TREE-TRAVERSAL for LEXICON class.
 Processing goes like this:
 1) If it's just a term, return it.
-2) If it's a list, without a certain structure - recurse for each of the
-elements.
-3) If it's a list with regex group match structure, i.e. (:group \"name\" ...),
-and the corresponding group was found in lexicon, then more:
-3.1) If traversal is allowed, then recurse for each of the elements first.
-3.2) Then, if only group arguments is allowed - filter all other arguments.
-3.3) And only then make a call to user-handler with these arguments."
-  (if (not (listp group-tree))
+2) If it's a list, then it was a group in regex.
+2.1) If corresponding expression is found in lexicon, then more:
+2.1.1) If traversal is allowed, then recurse for each of the elements first.
+2.1.2) Then, if only group arguments is allowed - filter all other arguments.
+2.1.3) And only then make a call to user-handler with user info and these
+arguments.
+2.2) If corresponding expression is not found, then it's a free, 'dangling'
+group. Leave it as is, but recurse further."
+  (if (not (listp group-tree)) ; List means it was a (named) group
     group-tree
-    (let ((expression (when (eq (first group-tree) :group)
-                        (get-expression lexicon (second group-tree)))))
+    (let ((expression (get-expression lexicon (first group-tree))))
       (if expression
         (funcall-group-list-with-filtering lexicon
                                            (user-handler expression)
-                                           (cddr group-tree)
+                                           (second group-tree)
+                                           (third group-tree)
                                            :allow-traversal (allow-traversal (config expression))
                                            :use-nongroup-arguments (use-nongroup-arguments (config expression)))
-        (map 'list (lambda (term)
-                     (group-tree-traversal lexicon term))
-             group-tree)))))
+        ;; Sometimes it's just a group, and have no attached handler.
+        ;; Leave everything as intact as it could be, but recurse further.
+        (list (first group-tree)
+              (second group-tree)
+                (map 'list (lambda (term)
+                             (group-tree-traversal lexicon term))
+                     (third group-tree)))))))
 
 
+(declaim (ftype (function (lexicon function &key (:use-nongroup-arguments boolean) (:allow-traversal boolean)))
+                make-command-handler))
 (defun make-command-handler (lexicon user-handler &key (use-nongroup-arguments nil) (allow-traversal t))
   "This function is used to create handlers for D.RMACRO:COMMAND class.
 When creating your own commands, this is the question - how to connect them to
@@ -222,7 +263,10 @@ Can only be used for commands in GROUP-MODE and with disabled FULL-STRING use -
 this should be the default."
   (lambda (group-tree)
     (funcall-group-list-with-filtering lexicon
-                                       user-handler
+                                       (lambda (_ &rest rest)
+                                         (declare (ignore _))
+                                         (apply user-handler rest))
+                                       nil
                                        group-tree
                                        :allow-traversal allow-traversal
                                        :use-nongroup-arguments use-nongroup-arguments)))
@@ -233,9 +277,9 @@ this should be the default."
 one call."
   (make-instance 'd.rmacro:command
                  :regex (typecase regex
-                          (d.regex:regex regex)
                           (d.regex:regex-scanner regex)
-                          (t (make-instance 'd.regex:regex :expr regex)))
+                          (d.regex:regex (d.regex:make-scanner regex))
+                          (t (d.regex:make-scanner (d.regex:regex-from-string regex))))
                  :handler (apply #'make-command-handler lexicon handler other)
                  :docs docs))
 
@@ -257,8 +301,9 @@ one call."
              :for options := (cdddr command-definition)
              :collect `(make-command ,lexicon
                                      (d.regex:concat-separated (list ,@(map 'list (lambda (term)
-                                                                                    (if (typep term 'keyword)
-                                                                                      `(regex-group (get-expression ,lexicon ,term))
+                                                                                    (if (and (listp term)
+                                                                                             (typep (first term) 'keyword))
+                                                                                      `(get-from-lexicon ,lexicon ,(first term) ,(rest term))
                                                                                       term))
                                                                             regex-list))
                                                                :separator-regex "\\s+"

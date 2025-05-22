@@ -53,12 +53,17 @@
                :output :interactive))
 
 
-(defparameter *editor-interface* #'vim-editor-interface)
+(defparameter +default-editor-interface+ #'vim-editor-interface)
+(defparameter *editor-interface* nil)
 
 
 (defun edit-paths (&rest paths)
-  (funcall *editor-interface* paths))
+  (funcall (or *editor-interface*
+               +default-editor-interface+)
+           paths))
 
 
 (defun edit-strings (&rest texts)
-  (call-editor-for-many *editor-interface* texts))
+  (call-editor-for-many (or *editor-interface*
+                            +default-editor-interface+)
+                        texts))

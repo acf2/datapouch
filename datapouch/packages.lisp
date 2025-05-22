@@ -17,6 +17,7 @@
            #:repeat-string
            #:member-of
            #:list-of-strings
+           #:concat-keyword
            #:get-keys-from-hash-table
            #:check-directed-graph-for-cycles
            #:cartesian-product))
@@ -26,7 +27,8 @@
   (:use #:cl #:cl-ppcre)
   (:nicknames :d.regex)
   (:export #:allow-named-registers
-           #:regex #:expr #:groups
+           #:regex #:tree #:group-map
+           #:regex-from-string
            #:wrap-in-noncapturing-group
            #:make-named-group
            #:concat-two
@@ -36,7 +38,7 @@
            #:interchange #:interchange-three
            #:scan
            #:get-group #:is-group #:list-group-names
-           #:regex-scanner #:scanner
+           #:regex-scanner #:scanner #:group-list
            #:make-scanner
            #:match-to-assoc
            #:match-to-group-table
@@ -175,11 +177,13 @@
                 #:*debug-output*
                 #:list-existing*)
   (:export 
-    #:expression #:regex-group #:name #:handler #:config
+    #:expression #:get-named-regex-group #:expression-type #:handler #:config #:docs
     #:expression-config #:use-nongroup-argument #:allow-traversal
     #:create-expression #:set-expression #:get-expression
     #:lexicon
-    #:make-result #:return-match
+    #:get-from-lexicon ; XXX: ???
+    ;#:named-result #:result-name #:result-value ; XXX: ???
+    #:make-result #:return-match #:return-named-match
     #:make-command-handler
     #:set-expressions #:make-commands))
 

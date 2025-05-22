@@ -707,7 +707,7 @@
 
 (defun get-zettelkasten-commands ()
   (let ((zk-lex (make-instance 'lexicon)))
-    (flet ((get-rx (keyword-name) (regex-group (get-expression zk-lex keyword-name))))
+    (flet ((get-rx (keyword-name &optional info) (get-from-lexicon zk-lex keyword-name info)))
       (set-expressions
         zk-lex
         (:substring ".*?"
@@ -715,13 +715,13 @@
                      "Lazy substring"
                      :use-nongroup-arguments t)
         (:word "\\w+"
-                (return-match :word)
-                "Any single word"
-                :use-nongroup-arguments t)
-        (:exponent "[1-9]\\d*"
-                    (lambda (exponent)
-                       (make-result :exponent (parse-integer exponent)))
-                    "Exponent (number)"
+               #'return-named-match
+               "Any single word"
+               :use-nongroup-arguments t)
+        (:number "[1-9]\\d*"
+                    (lambda (name num)
+                      (make-result name (parse-integer num)))
+                    "Any number not starting with zero"
                     :use-nongroup-arguments t)
 
         (:direction "forward|back(?:ward)?"
@@ -750,7 +750,7 @@
       (set-expressions
         zk-lex
         (:dae (optional-concat (list (get-rx :direction)
-                                     (get-rx :exponent)
+                                     (get-rx :number :exponent)
                                      (get-rx :closure))
                                :separator-regex "\\s+")
               #'handle-dae
@@ -780,9 +780,9 @@
 
       (make-commands
         zk-lex
-        (("[Hh]ello" :word)
-         (lambda (&key word)
-           (format t "Greetings, ~:(~A~)~&" word))
+        (("[Hh]ello" (:word . :name))
+         (lambda (&key name)
+           (format t "Greetings, ~:(~A~)~&" name))
          "docs")
         (("home") #'command-home "docs")
 ;         (goto-rxs `(("goto" ,@link-arguments)       ; /goto [forward][:<N>][*] [<substring>] | /goto back[:<N>][*] [<substring>]

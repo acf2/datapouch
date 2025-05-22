@@ -60,6 +60,12 @@
   `(satisfies list-of-strings-p))
 
 
+(defun concat-keyword (&rest symbols)
+  (intern (apply #'concatenate 'string
+                 symbols)
+          "KEYWORD"))
+
+
 (defun get-keys-from-hash-table (hash-table)
   (loop :for k :being :the :hash-key :in hash-table
         :collect k))

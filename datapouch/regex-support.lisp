@@ -14,13 +14,88 @@
 (defun allow-named-registers (&optional (flag t))
   (setf ppcre:*allow-named-registers* flag))
 
-
+#|
 (defclass regex ()
   ((expr :reader expr
          :initarg :expr)
    (groups :reader groups
            :initarg :groups
-           :initform nil)))
+           :initform nil)
+   (info :reader info
+         :initarg :info
+         :initform nil)))
+|#
+
+
+(defclass group-id ()
+  ((name :type string
+         :reader name
+         :initarg :name)
+   (index :type integer
+          :reader index
+          :initarg :index)))
+
+
+(declaim (ftype (function (string integer)) make-group-id))
+(defun make-group-id (group-name group-index)
+  (make-instance 'group-id
+                 :name group-name
+                 :index group-index))
+
+
+(declaim (ftype (function (group-id)) bake-group-id))
+(defun bake-group-id (group-id)
+  (format nil "~A.~A" (name group-id) (index group-id)))
+
+
+(defclass regex ()
+  ((tree :type list
+         :reader tree
+         :initarg :tree)
+   (group-map :type list ; assoc (group-id group-name group-context)
+              :reader group-map
+              :initarg :group-map
+              :initform nil)))
+
+
+(defun bake-regex-tree (regex-tree)
+  (typecase regex-tree
+    (group-id (bake-group-id regex-tree))
+    (list (map 'list #'bake-regex-tree regex-tree))
+    (t regex-tree)))
+
+
+(defun bake-group-map (group-map)
+  (map 'list (lambda (mapping)
+               (cons (bake-group-id (first mapping))
+                     (rest mapping)))
+       group-map))
+
+
+(declaim (ftype (function (group-id integer)) shift-group-id-index))
+(defun shift-group-id-index (group-id offset)
+  (make-group-id (name group-id)
+                 (+ (index group-id) offset)))
+
+
+;; TODO: make type for regex tree
+(declaim (ftype (function (t integer)) shift-group-indices-in-tree))
+(defun shift-group-indices-in-tree (regex-tree offset)
+  (typecase regex-tree
+    (group-id (shift-group-id-index regex-tree offset))
+    (list (map 'list (lambda (x)
+                       (shift-group-indices-in-tree x offset))
+               regex-tree))
+    (t regex-tree)))
+
+
+;; TODO: make type for group-map
+(declaim (ftype (function (t integer)) shift-group-map-indices))
+(defun shift-group-map-indices (group-map offset)
+  (map 'list (lambda (group-mapping)
+               (cons (shift-group-id-index (first group-mapping) offset)
+                     (rest group-mapping)))
+       group-map))
 
 
 (defun list-of-regexes-p (list)
@@ -51,12 +126,13 @@
   `(satisfies list-of-relaxed-regexes-p))
 
 
-(defmacro regex-from-string (string)
-  `(make-instance 'regex :expr ,string))
+(declaim (ftype (function (string)) regex-from-string))
+(defun regex-from-string (string)
+  (make-instance 'regex :tree (ppcre:parse-string string)))
 
 
 (defmethod scan ((sc regex) (target-string string) &key start end &allow-other-keys)
-  (ppcre:scan (expr sc) target-string :start (or start 0) :end (or end (length target-string))))
+  (ppcre:scan (bake-regex-tree (tree sc)) target-string :start (or start 0) :end (or end (length target-string))))
 
 
 (defgeneric wrap-in-noncapturing-group (regex))
@@ -64,27 +140,37 @@
 
 (defmethod wrap-in-noncapturing-group ((regex regex))
   (make-instance 'regex
-                 :expr (format nil "(?:~A)" (expr regex))
-                 :groups (copy-list (groups regex))))
+                 :tree (list :group (tree regex))
+                 :group-map (group-map regex)))
 
 
-(defgeneric make-named-group (name regex)
+(defgeneric make-optional (regex))
+
+
+(defmethod make-optional ((regex regex))
+  (make-instance 'regex
+                 :tree (list :greedy-repetition 0 1 (tree regex))
+                 :group-map (group-map regex)))
+
+
+(defgeneric make-named-group (name regex &optional info)
   (:documentation "Make named matching group"))
 
 
-(defmethod make-named-group ((name string) (regex regex))
-  (make-instance 'regex
-                 ;; NB: When one group encompasses the other, it preceedes the other in group list
-                 :expr (format nil "(?<~A>~A)" name (expr regex))
-                 :groups (cons name (groups regex))))
+(defmethod make-named-group ((name string) (regex regex) &optional info)
+  (let ((group-id (make-group-id name (length (group-map regex)))))
+    (make-instance 'regex
+                   :tree (list :named-register group-id (tree regex))
+                   :group-map (cons (list group-id :name name :info info)
+                                    (group-map regex)))))
 
 
-(defmethod make-named-group ((name string) (regex string))
-  (make-named-group name (regex-from-string regex)))
+(defmethod make-named-group ((name string) (regex string) &optional info)
+  (make-named-group name (regex-from-string regex) info))
 
 
-(defmethod make-named-group ((name symbol) regex)
-  (make-named-group (string name) regex))
+(defmethod make-named-group ((name symbol) regex &optional info)
+  (make-named-group (string name) regex info))
 
 
 (defgeneric concat-two (one-regex another-regex)
@@ -92,9 +178,13 @@
 
 
 (defmethod concat-two ((one regex) (another regex))
-  (make-instance 'regex
-                 :expr (format nil "~A~A" (expr one) (expr another))
-                 :groups (append (groups one) (groups another))))
+  (let ((offset (length (group-map one))))
+    (make-instance 'regex
+                   :tree (list :sequence
+                               (tree one)
+                               (shift-group-indices-in-tree (tree another) offset))
+                   :group-map (append (group-map one)
+                                      (shift-group-map-indices (group-map another) offset)))))
 
 
 (defmethod concat-two ((one regex) (another string))
@@ -124,9 +214,13 @@
 
 
 (defmethod combine-two ((one regex) (another regex))
-  (make-instance 'regex
-                 :expr (format nil "~A|~A" (expr one) (expr another))
-                 :groups (append (groups one) (groups another))))
+  (let ((offset (length (group-map one))))
+    (make-instance 'regex
+                   :tree (list :alternation
+                               (tree one)
+                               (shift-group-indices-in-tree (tree another) offset))
+                   :group-map (append (group-map one)
+                                      (shift-group-map-indices (group-map another) offset)))))
 
 
 (defmethod combine-two ((one regex) (another string))
@@ -185,7 +279,11 @@ NULL-REGEX is used if all regexes are NIL."
                             (:separator-regex relaxed-regex)))
                 optional-concat))
 (defun optional-concat (regexes &key ((:explicit explicit) nil) ((:separator-regex sep-rx) nil))
-  (let ((nonnil-regexes (remove nil regexes)))
+  (let ((nonnil-regexes (map 'list (lambda (rx)
+                                     (typecase rx
+                                       (regex rx)
+                                       (string (regex-from-string rx))))
+                             (remove nil regexes))))
     (when nonnil-regexes
       (combine-many
         (loop :for regex-list := nonnil-regexes :then (rest regex-list)
@@ -193,34 +291,39 @@ NULL-REGEX is used if all regexes are NIL."
               :collect (if (= (length regex-list) 1)
                          (if explicit
                            (first regex-list)
-                           (concat (wrap-in-noncapturing-group (first regex-list)) "?"))
+                           (make-optional (wrap-in-noncapturing-group (first regex-list))))
                          (concat-many (loop :for regex :in regex-list
                                             :for first-regex := t :then nil
                                             :collect (if first-regex
                                                        regex
-                                                       (concat sep-rx (wrap-in-noncapturing-group regex) "?"))))))))))
-
-
-(defclass regex-scanner ()
-  ((scanner :reader scanner
-            :initform nil)
-   (groups :reader groups
-           :initform nil)))
+                                                       (concat sep-rx (make-optional (wrap-in-noncapturing-group regex))))))))))))
 
 
 (declaim (ftype (function (relaxed-regex relaxed-regex relaxed-regex)) interchange))
 (defun interchange (separator one another)
-  (make-instance 'regex
-                 :expr (format nil "(?:~A~A~A|~2@*~A~1@*~A~@*~A)" (expr one) (expr separator) (expr another))
-                 :groups (append (groups one) (groups separator) (groups another)
-                                 (groups another) (groups separator) (groups one))))
+  (wrap-in-noncapturing-group (combine (concat one separator another)
+                                       (concat another separator one))))
 
 
 (defun interchange-three (separator-regex first-regex second-regex third-regex)
   "Make regex that matches three separated regexes in any order"
-  (combine (concat first-regex separator-regex (interchange separator-regex second-regex third-regex))
-           (concat second-regex separator-regex (interchange separator-regex first-regex third-regex))
-           (concat third-regex separator-regex (interchange separator-regex first-regex second-regex))))
+  (wrap-in-noncapturing-group
+    (combine (concat first-regex separator-regex (interchange separator-regex second-regex third-regex))
+             (concat second-regex separator-regex (interchange separator-regex first-regex third-regex))
+             (concat third-regex separator-regex (interchange separator-regex first-regex second-regex)))))
+
+
+(defclass regex-scanner ()
+  ((scanner :reader scanner ; TODO: scanner type?
+            :initarg :scanner
+            :initform nil)
+   (group-map :type list
+              :reader group-map
+              :initarg :group-map)
+   (group-list :type list
+               :reader group-list
+               :initarg :group-list
+               :initform nil)))
 
 
 (defgeneric make-scanner (regex)
@@ -228,28 +331,49 @@ NULL-REGEX is used if all regexes are NIL."
 
 
 (defmethod make-scanner ((regex regex))
-  (let ((new-scanner (make-instance 'regex-scanner))
-        (compilation-result (multiple-value-list (ppcre:create-scanner (expr regex)))))
-    (with-slots ((scanner-object scanner) (group-list groups)) new-scanner
-      (setf scanner-object (first compilation-result))
-      (setf group-list (second compilation-result)))
-    new-scanner))
+  (multiple-value-bind (new-scanner register-list) (ppcre:create-scanner (bake-regex-tree (tree regex)))
+    (let* ((index-assoc (loop :for register :in register-list
+                              :for i := 0 :then (1+ i)
+                              :collect (cons register i)))
+           (scanner-group-map (loop :for group-mapping :in (bake-group-map (group-map regex))
+                                    :collect (list* (first group-mapping)
+                                                    :group-index (rest (assoc (first group-mapping)
+                                                                              index-assoc
+                                                                              :test #'equal))
+                                                    (rest group-mapping)))))
+      (make-instance 'regex-scanner
+                     :scanner new-scanner
+                     :group-map scanner-group-map
+                     :group-list register-list))))
 
 
 (defmethod scan ((sc regex-scanner) (target-string string) &key start end &allow-other-keys)
   (funcall (scanner sc) target-string (or start 0) (or end (length target-string))))
 
 
-;;; Returns assoc-list with matches
-(defun match-to-assoc (str group-list match-start match-end group-starts group-ends)
+(defparameter +make-group-result-default+ (lambda (group-name group-info match)
+                                            (list group-name group-info match)))
+(defparameter *make-group-result-fun* nil)
+
+
+;;; Returns assoc-list with matches and info
+(defun match-to-assoc (str group-list group-map match-start match-end group-starts group-ends)
   (declare (ignore match-end))
   (when match-start
     (loop :for i :from 0 :to (1- (length group-list))
           :for group-name :in group-list
           :when (aref group-starts i)
-          :collect (cons group-name (subseq str (aref group-starts i) (aref group-ends i))))))
+          :collect (funcall (or *make-group-result-fun*
+                                +make-group-result-default+)
+                            group-name
+                            (assoc group-name group-map :test #'equal)
+                            (subseq str
+                                    (aref group-starts i)
+                                    (aref group-ends i))))))
 
 
+;; NOTE: Work only for groups with unique name
+;;       Otherwise? Filter group list yourself.
 (defmacro get-group (name groups)
   `(rest (assoc (string ,name) ,groups :test #'string=)))
 
@@ -349,15 +473,15 @@ NULL-REGEX is used if all regexes are NIL."
                              #'less))))
 
 
-(defun match-to-group-table (str group-list match-start match-end group-starts group-ends)
+(defun match-to-group-table (str group-list group-map match-start match-end group-starts group-ends)
   (if (= (length group-starts) 0) ; no groups in scanner
     (list (list :index 0
                 :ending-groups nil
                 :starting-groups nil
                 :piece str))
-    (let* ((groups (loop :for group :in group-list
+    (let* ((groups (loop :for group-name :in group-list
                          :for i := 0 :then (1+ i)
-                         :collect (list group i)))
+                         :collect (list group-name i (rest (assoc group-name group-map :test #'equal)))))
            (separation-points (sort (remove-duplicates (append (list match-start match-end)
                                                                (coerce group-starts 'list)
                                                                (coerce group-ends 'list)))
@@ -377,40 +501,47 @@ NULL-REGEX is used if all regexes are NIL."
 
 
 (defun construct-hierical-tree (table group-stack)
-  (loop
-    :with iteration-result
-    :with context := table
-    :for current-context := (first context)
-    :for starting-position := (member (first group-stack)
-                                            (getf current-context :starting-groups)
-                                            :test #'equal)
-    :for starting-list := (or (rest starting-position)
-                              (and (null starting-position)
-                                   (getf current-context :starting-groups)))
-    ;; null ending: unique for top call (with empty group-stack))
-    :if (null context)
-    :return (values resulting-tree nil)
-    :end
-    ;; checking if groups should be closed (and their result returned)
-    :when (member (first group-stack) (getf current-context :ending-groups) :test #'equal)
-    :return (values (list* :group (first (first group-stack)) resulting-tree)
-                    context)
-    :end
-    ;; open group (and collect result of the call)
-    :if starting-list
-    :do (multiple-value-setq (iteration-result context)
-          (construct-hierical-tree context (cons (first starting-list)
-                                                 group-stack)))
-    :else
-    ;; collect term
-    :do (setf iteration-result (getf current-context :piece)
-              context (rest context))
-    :end
-    :when iteration-result
-    :collect iteration-result :into resulting-tree
-    :end))
+  (flet ((group-equal (one another) (and (equal (first one) (first another))
+                                         (equal (second one) (second another)))))
+    (loop
+      :with iteration-result
+      :with context := table
+      :for current-context := (first context)
+      :for starting-position := (member (first group-stack)
+                                        (getf current-context :starting-groups)
+                                        :test #'group-equal)
+      :for starting-list := (or (rest starting-position)
+                                (and (null starting-position)
+                                     (getf current-context :starting-groups)))
+      ;; null ending: unique for top call (with empty group-stack))
+      :if (null context)
+      :return (values resulting-tree nil)
+      :end
+      ;; checking if groups should be closed (and their result returned)
+      :when (member (first group-stack) (getf current-context :ending-groups) :test #'group-equal)
+      :return (let ((group-record (first group-stack)))
+                (values (funcall (or *make-group-result-fun*
+                                     +make-group-result-default+)
+                                 (getf (third group-record) :name)
+                                 (getf (third group-record) :info)
+                                 resulting-tree)
+                        context))
+      :end
+      ;; open group (and collect result of the call)
+      :if starting-list
+      :do (multiple-value-setq (iteration-result context)
+            (construct-hierical-tree context (cons (first starting-list)
+                                                   group-stack)))
+      :else
+      ;; collect term
+      :do (setf iteration-result (getf current-context :piece)
+                context (rest context))
+      :end
+      :when iteration-result
+      :collect iteration-result :into resulting-tree
+      :end)))
 
 
-(defun match-to-group-tree (str group-list match-start match-end group-starts group-ends)
-  (let ((table (match-to-group-table str group-list match-start match-end group-starts group-ends)))
+(defun match-to-group-tree (str group-list group-map match-start match-end group-starts group-ends)
+  (let ((table (match-to-group-table str group-list group-map match-start match-end group-starts group-ends)))
     (nth-value 0 (construct-hierical-tree table nil))))

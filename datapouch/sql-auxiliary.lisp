@@ -5,11 +5,10 @@
 
 
 (defun make-name (&key ((:table table) nil) ((:index index) nil) ((:column column) nil))
-  (intern (concatenate 'string
-                       (when table (symbol-name table))
-                       (when index (write-to-string index))
-                       (when column (concatenate 'string "." (symbol-name column))))
-          "KEYWORD"))
+  (d.aux:concat-keyword
+    (when table (symbol-name table))
+    (when index (write-to-string index))
+    (when column (concatenate 'string "." (symbol-name column)))))
 
 
 ;;; Kinda bad interface, if you ask me

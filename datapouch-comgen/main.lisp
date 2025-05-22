@@ -6,16 +6,18 @@
 (defclass isle ()
   ((regex :initarg :regex
           :type (or d.regex:regex string)) ; :name -> :name ("NAME")
-   (short-regex :initarg :short
-                :type (or null d.regex:regex string)
-                :initform nil) ; :name -> "short-NAME"
    (autocomplete :initarg :autocomplete ; first one is the canonnical form (short form expands into this)
-                 :type (or null list-of-strings)
+                 :type (or boolean list-of-strings)
                  :initform nil)         ; Long expressions have prefix autocomplete: they could be autocompleted when there is a prefix with non-NIL autocomplete
    (samples :initarg :samples
             :type list-of-strings) ; + autocomplete
+   (short-regex :initarg :short
+                :type (or boolean d.regex:regex string)
+                :initform nil) ; :name -> "short-NAME"
+   (short-samples :initarg :short-samples
+                  :type (or t list-of-strings))
    (docform :initarg :docform
-            :type (or null string)
+            :type (or boolean string)
             :initform nil)))
 
 
@@ -30,13 +32,15 @@
 
 (defmethod initialize-instance :after ((isle isle) &key &allow-other-keys)
   (with-slots (regex short-regex autocomplete samples docform) isle
+    (when (eq autocomplete t)
+      (setf autocomplete (list regex)))
+    (setf samples (append autocomplete samples))
     (when (eq short-regex t)
       (setf short-regex regex))
+    (when (eq short-samples t)
+      (setf short-samples (list short-regex)))
     (when (eq docform t)
-      (setf docform regex))
-    (setf samples (append autocomplete samples))))
-
-
+      (setf docform regex))))
 
 
     ;;; 1) simultaneous short expression definition (Long + short forms, defined in one place)
