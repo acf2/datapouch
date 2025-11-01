@@ -4,6 +4,13 @@
 (in-package :cl-user)
 
 
+(defpackage :datapouch.interface
+  (:use #:cl)
+  (:nicknames :d.iface)
+  (:export #:concat-two #:concat-many #:concat
+           #:combine-two #:combine-many #:combine))
+
+
 (defpackage :datapouch.auxiliary
   (:use #:cl)
   (:nicknames :d.aux)
@@ -24,16 +31,13 @@
 
 
 (defpackage :datapouch.regex-support
-  (:use #:cl #:cl-ppcre)
+  (:use #:cl #:cl-ppcre #:d.iface)
   (:nicknames :d.regex)
   (:export #:allow-named-registers
            #:regex #:tree #:group-map
            #:regex-from-string
            #:wrap-in-noncapturing-group
            #:make-named-group
-           #:concat-two
-           #:concat
-           #:combine
            #:concat-separated #:optional-concat
            #:interchange #:interchange-three
            #:scan
@@ -241,6 +245,7 @@
 
 
 (in-package :datapouch)
+(cl-reexport:reexport-from :datapouch.interface)
 (cl-reexport:reexport-from :datapouch.auxiliary)
 (cl-reexport:reexport-from :datapouch.regex-support)
 (cl-reexport:reexport-from :datapouch.cli)

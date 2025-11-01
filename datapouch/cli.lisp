@@ -149,7 +149,7 @@
 ;;;      ...not this abomination.
 (defun repl-fun-with-readline (noprint-global)
   (declare (special *noprint-prompt* *noprint-result*))
-  ;(/show0 "entering REPL") ; TBD: Make this work, at least. Its sb-int:/show0
+  ;(/show0 "entering REPL") ; TODO: Make this work, at least. It's sb-int:/show0
   (let* ((*noprint-prompt* (or noprint-global *noprint-prompt*)) ; Yup, readline uses it
          (*noprint-result* (or noprint-global *noprint-result*)))
     (loop

@@ -1,5 +1,7 @@
 ;;;; reader-macro.lisp
 
+;;; Shallow reader-macro support
+
 
 (in-package :datapouch.reader-macro)
 

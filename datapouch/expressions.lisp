@@ -237,8 +237,8 @@ group. Leave it as is, but recurse further."
       (if expression
         (funcall-group-list-with-filtering lexicon
                                            (user-handler expression)
-                                           (second group-tree)
-                                           (third group-tree)
+                                           (second group-tree) ; group info
+                                           (third group-tree) ; group tree
                                            :allow-traversal (allow-traversal (config expression))
                                            :use-nongroup-arguments (use-nongroup-arguments (config expression)))
         ;; Sometimes it's just a group, and have no attached handler.

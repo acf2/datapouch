@@ -173,11 +173,7 @@
   (make-named-group (string name) regex info))
 
 
-(defgeneric concat-two (one-regex another-regex)
-  (:documentation "Concatenate two regexes"))
-
-
-(defmethod concat-two ((one regex) (another regex))
+(defmethod d.iface:concat-two ((one regex) (another regex))
   (let ((offset (length (group-map one))))
     (make-instance 'regex
                    :tree (list :sequence
@@ -187,33 +183,20 @@
                                       (shift-group-map-indices (group-map another) offset)))))
 
 
-(defmethod concat-two ((one regex) (another string))
+(defmethod d.iface:concat-two ((one regex) (another string))
   (concat-two one (regex-from-string another)))
 
 
-(defmethod concat-two ((one string) (another regex))
+(defmethod d.iface:concat-two ((one string) (another regex))
   (concat-two (regex-from-string one) another))
 
 
-(defmethod concat-two ((one string) (another string))
+(defmethod d.iface:concat-two ((one string) (another string))
   (concat-two (regex-from-string one)
               (regex-from-string another)))
 
 
-(declaim (ftype (function (list-of-relaxed-regexes)) concat-many))
-(defun concat-many (regexes)
-  (reduce #'concat-two (remove nil regexes)))
-
-
-(defmacro concat (&rest regexes)
-  `(concat-many (list ,@regexes)))
-
-
-(defgeneric combine-two (one-regex another-regex)
-  (:documentation "Combine two regexes"))
-
-
-(defmethod combine-two ((one regex) (another regex))
+(defmethod d.iface:combine-two ((one regex) (another regex))
   (let ((offset (length (group-map one))))
     (make-instance 'regex
                    :tree (list :alternation
@@ -223,26 +206,17 @@
                                       (shift-group-map-indices (group-map another) offset)))))
 
 
-(defmethod combine-two ((one regex) (another string))
+(defmethod d.iface:combine-two ((one regex) (another string))
   (combine-two one (regex-from-string another)))
 
 
-(defmethod combine-two ((one string) (another regex))
+(defmethod d.iface:combine-two ((one string) (another regex))
   (combine-two (regex-from-string one) another))
 
 
-(defmethod combine-two ((one string) (another string))
+(defmethod d.iface:combine-two ((one string) (another string))
   (combine-two (regex-from-string one)
                (regex-from-string another)))
-
-
-(declaim (ftype (function (list-of-relaxed-regexes)) combine-many))
-(defun combine-many (regexes)
-  (wrap-in-noncapturing-group (reduce #'combine-two (remove nil regexes))))
-
-
-(defmacro combine (&rest regexes)
-  `(combine-many (list ,@regexes)))
 
 
 (declaim (ftype (function (list-of-relaxed-regexes
