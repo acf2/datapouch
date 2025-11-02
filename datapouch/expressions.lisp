@@ -18,25 +18,24 @@
     "EXPRESSION-CONFIG objects contain different settings for GROUP-TREE-TRAVERSAL.
 From user viewpoint, they modify expression behavior in some way.
 
-USE-NONGROUP-ARGUMENTS, default NIL: Usually expression passes only some of
-the regex match to it's handler. Passable elements are determined by
-predicate PROCESSED-GROUP?, defined below. Such elements are not expected
-to appear inside 'raw' regex match, but rather produced by other
-expressions, that were called before current one. This setting removes this
-restriction, and forces expression to pass all the content of a match to
-user handler. In turn, user handler now must handle all possible arguments,
-not only neat keyword ones.
+USE-ONLY-NAMED-RESULTS, default T: Without this, expression will pass all the
+content of a match to it's handler. It is required only for the lowliest level
+of expresisons, and handling that kind of arguments is somewhat cumbersome.
+This setting restricts type of passed objects to the NAMED-RESULT type. Such
+elements are not expected to appear inside 'raw' regex match, but rather
+produced by other expressions, that were called before the current one. In
+turn, now user handler can ignore irrelevant information and be less complex.
 
 Example:
-  Processed group list before user handler call: (1 2 '(:num 3) 4)
-  Call with (EQ USE-NONGROUP-ARGUMENTS NIL):
+  Processed group list before user handler call: (1 2 <NAMED-RESULT :num 3> 4)
+  Call with (EQ USE-ONLY-NAMED-RESULTS T):
     (FUNCALL user-handler :num 3)
-  Call with (EQ USE-NONGROUP-ARGUMENTS T):
-    (FUNCALL user-handler 1 2 '(:num 3) 4)
+  Call with (EQ USE-NONGROUP-ARGUMENTS NIL):
+    (FUNCALL user-handler 1 2 <NAMED-RESULT :num 3> 4)
 
-ALLOW-TRAVERSAL, default T. Allows for GROUP-TREE-TRAVERSAL to try to
-process each of the elements of regex match with other expressions, before
-passing it to current expression. Setting it to NIL effectively disables
+ALLOW-TRAVERSAL, default T. Allows for GROUP-TREE-TRAVERSAL to try to process
+each of the elements of regex match with other expressions, before passing it
+to the current expression. Setting it to NIL effectively disables
 GROUP-TREE-TRAVERSAL recursive calls for this specific expression."))
 
 
