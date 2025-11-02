@@ -26,7 +26,7 @@
                           :fill-pointer 0
                           :adjustable t)))
     (loop :for char = (peek-char nil stream t nil t)
-          :until (member char stop-characters :text #'eql)
+          :until (member char stop-characters :test #'eql)
           :do (vector-push-extend (read-char stream) line))
     (coerce line 'simple-string)))
 
@@ -45,12 +45,13 @@
     (loop :for callback :in *rmacro-callbacks*
           :for (success resulting-form) := (multiple-value-list (funcall callback command-string))
           :when success
-          :do (return-from command-reader-macro resulting-form))
+          :do (return-from command-reader-macro resulting-form)
+          :end)
     ;; If no rmacro callback has been called with success - return all chars back
     (progn
       (return-to-stream command-string stream)
       (find-symbol (string char) :cl))))
 
 
-(defun install-command-reader-macro (&key ((:character character) #\/) ((:readtable table))
+(defun install-command-reader-macro (&key ((:character character) #\/) ((:readtable table)))
   (set-macro-character character #'command-reader-macro t table))

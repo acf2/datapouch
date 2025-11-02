@@ -34,7 +34,7 @@
   ;(let ((zac-shell (make-instance 'd.shell:shell)))
     ;(add-help-to-shell zac-shell)
     ;(zac.box:add-zettelkasten-commands zac-shell)
-    (setf *commands* (get-zettelkasten-commands)))
+    (setf *rmacro-callbacks* (get-zettelkasten-commands)))
 
 ;          (generate-commands
 ;            (list (make-shell-command '("init")

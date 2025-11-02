@@ -79,7 +79,7 @@
                                                        *post-unload-hooks*)
                                                :from-end t))
   (d.regex:allow-named-registers)
-  (d.rmacro:install-command-reader-macro d.cli:*custom-readtable*)
+  (d.rmacro:install-command-reader-macro :readtable d.cli:*custom-readtable*)
   (setf sb-ext:*invoke-debugger-hook* #'debugger-hook)
   (setf sb-int:*repl-prompt-fun* (constantly ""))
   (setf sb-int:*repl-read-form-fun* (d.cli:get-repl-read-form)) ; Best leave it to remain third to last

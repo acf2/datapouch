@@ -275,13 +275,13 @@ this should be the default."
 (defun make-command (lexicon regex handler docs &rest other &key &allow-other-keys)
   "This function wraps D.RMACRO:COMMAND creation with the use of MAKE-COMMAND-HANDLER in
 one call."
-  (make-instance 'd.rmacro:command
-                 :regex (typecase regex
-                          (d.regex:regex-scanner regex)
-                          (d.regex:regex (d.regex:make-scanner regex))
-                          (t (d.regex:make-scanner (d.regex:regex-from-string regex))))
-                 :handler (apply #'make-command-handler lexicon handler other)
-                 :docs docs))
+  (d.rmacro.aux:make-rmacro-callback
+    (d.rmacro.aux:make-regex-parser
+      (typecase regex
+        (d.regex:regex-scanner regex)
+        (d.regex:regex (d.regex:make-scanner regex))
+        (t (d.regex:make-scanner (d.regex:regex-from-string regex)))))
+    (apply #'make-command-handler lexicon handler other)))
 
 
 (defmacro set-expressions (lexicon &rest expression-definitions)
