@@ -682,7 +682,7 @@
   applications in 1..N at once.")
 
       ;TODO:
-      ;`(:words "(?:\\w+,)*\\w+" ,(lambda (tags) nil) "List of delimited words" :use-nongroup-arguments t)
+      ;`(:words "(?:\\w+,)*\\w+" ,(lambda (tags) nil) "List of delimited words" :use-only-named-results nil)
 ;         (tag-arguments `((,(concat "\\+" (make-named-group :ptags tags-rx)) :optional)
 ;                          (,(concat "-" (make-named-group :ntags tags-rx)) :optional)))
 
@@ -713,33 +713,33 @@
         (:substring ".*?"
                      (return-match :substring)
                      "Lazy substring"
-                     :use-nongroup-arguments t)
+                     :use-only-named-results nil)
         (:word "\\w+"
                #'return-named-match
                "Any single word"
-               :use-nongroup-arguments t)
+               :use-only-named-results nil)
         (:number "[1-9]\\d*"
                     (lambda (name num)
                       (make-result name (parse-integer num)))
                     "Any number not starting with zero"
-                    :use-nongroup-arguments t)
+                    :use-only-named-results nil)
 
         (:direction "forward|back(?:ward)?"
                      #'handle-direction
                      "Direction"
-                     :use-nongroup-arguments t)
+                     :use-only-named-results nil)
         (:short-direction "f|b"
                            #'handle-direction
                            "Short direction"
-                           :use-nongroup-arguments t)
+                           :use-only-named-results nil)
         (:closure "\\*"
                   (return-match :closure)
                   "Sign for operation closure (Kleene star subset)"
-                  :use-nongroup-arguments t)
+                  :use-only-named-results nil)
         (:new-link-next-sign "n(?:ext)?"
                               (return-match :next)
                               "Sign for making new note the next note of current one"
-                              :use-nongroup-arguments t)
+                              :use-only-named-results nil)
         )
 
       (with-slots ((el d.expr::expression-lookup)) zk-lex
