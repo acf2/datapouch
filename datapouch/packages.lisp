@@ -69,13 +69,19 @@
 
 
 (defpackage :datapouch.reader-macro
-  (:use #:cl #:d.cli #:d.regex)
+  (:use #:cl)
   (:nicknames :d.rmacro)
-  (:export #:command #:command-regex #:command-handler
-           #:*commands*
-           #:command-reader-macro
+  (:export #:*rmacro-callbacks*
+           #:*stop-characters*
            #:install-command-reader-macro
-           #:read-line-to-semicolon-or-newline))
+           #:read-line-up-to))
+
+
+(defpackage :datapouch.reader-macro.auxiliary
+  (:use #:cl #:d.regex)
+  (:nicknames :d.rmacro.aux)
+  (:export #:make-regex-parser
+           #:make-rmacro-callback))
 
 
 (defpackage :datapouch.filesystem

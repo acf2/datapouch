@@ -1,4 +1,4 @@
-;;;; sql-auxiliary.lisp
+;;;; sql/auxiliary.lisp
 
 
 (in-package :datapouch.sql.auxiliary)
