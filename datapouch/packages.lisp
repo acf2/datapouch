@@ -21,9 +21,12 @@
            #:append-lists
            #:map-append
            #:rotate
-           #:repeat-string
-           #:member-of
            #:list-of-strings
+           #:repeat-string
+           #:prefix?
+           #:common-prefix
+           #:add-to-assoc!
+           #:member-of
            #:concat-keyword
            #:get-keys-from-hash-table
            #:check-directed-graph-for-cycles
@@ -65,7 +68,8 @@
            #:restore-bracketed-paste
            #:get-repl-read-form
            #:*heretical-repl-available*
-           #:repl-fun-with-readline))
+           #:repl-fun-with-readline
+           #:register-datapouch-autocomplete))
 
 
 (defpackage :datapouch.reader-macro
@@ -74,6 +78,7 @@
   (:export #:*rmacro-callbacks*
            #:*stop-characters*
            #:install-command-reader-macro
+           #:install-command-reader-autoprint-hook
            #:read-line-up-to))
 
 

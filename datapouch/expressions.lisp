@@ -174,8 +174,8 @@ contextual info."
 
 (declaim (ftype (function ((or keyword string) t)) make-result))
 (defun make-result (name value)
-  "This function formattes the result of an expression to be recognised by
-another expression with USE-NONGROUP-ARGUMENTS set to NIL."
+  "This function formattes the result of an expression to be recognized by
+another expression with USE-ONLY-NAMED-RESULTS set to T."
   (make-instance 'named-result
                  :name name
                  :value value))
@@ -184,7 +184,7 @@ another expression with USE-NONGROUP-ARGUMENTS set to NIL."
 (declaim (ftype (function ((or keyword string))) return-match))
 (defun return-match (name)
   "RETURN-MATCH makes a function, that simply returns single term match for
-expressions with USE-NONGROUP-ARGUMENTS."
+expressions without USE-ONLY-NAMED-RESULTS."
   (lambda (_ arg)
     (declare (ignore _))
     (make-result name arg)))

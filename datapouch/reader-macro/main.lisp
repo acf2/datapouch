@@ -55,3 +55,9 @@
 
 (defun install-command-reader-macro (&key ((:character character) #\/) ((:readtable table)))
   (set-macro-character character #'command-reader-macro t table))
+
+
+(defun install-command-reader-autoprint-hook (&key ((:character character) #\/))
+  (rl:register-hook :pre-input (lambda ()
+                                 (rl:insert-text (string character))
+                                 (rl:redisplay))))

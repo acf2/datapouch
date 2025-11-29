@@ -6,7 +6,7 @@
 
 ;;; Four alphanumeric characters is enough for 36 ^ 4 = 1679616 IDs. Which is quite large number.
 (defparameter *zettelkasten-prompt-character-count* 4)
-(defparameter *zettelkasten-prompt-nil-stub* "----")
+(defparameter *zettelkasten-prompt-nil-stub* (repeat-string *zettelkasten-prompt-character-count* "-"))
 (defparameter *zettelkasten-prompt-ceiling* (expt 36 *zettelkasten-prompt-character-count*))
 (defparameter *zettelkasten-prompt-prime* 1679609) ; First prime less than ceiling
 (defparameter *zettelkasten-prompt-primitive-root* 839888) ; "Pretty" primitive root, handpicked
@@ -30,7 +30,7 @@
 
 
 ;;; Try to make some permament ID for notes, but do not show their true number
-;;; (for these perfectionists, who cannot stand automatic sequential ID numbering, like me)
+;;; (for those perfectionists, who cannot stand automatic sequential ID numbering, like me)
 (defun get-prompt ()
   (format nil
           (format nil

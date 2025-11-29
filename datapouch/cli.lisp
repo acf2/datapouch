@@ -1,4 +1,4 @@
-;;;; datapouch-cli.lisp
+;;;; datapouch/cli.lisp
 
 
 (in-package :datapouch.cli)
@@ -185,3 +185,39 @@
               (terpri)))) ;; NOTE: ALL THIS HERESY, FOR NEED OF A ONE LITTLE LINE OF CODE
         ;; If we started stepping in the debugger we want to stop now.
         (sb-impl::disable-stepping)))))
+
+
+;;; Assoc with strings. Each string - one possible word for autocompletion.
+(defparameter *autocomplete-tree* nil)
+
+
+; complete function is used to generate list of possible completions for given
+; partially entered word. The function must be able to take three arguments:
+; partially entered word, start index of the word in *line-buffer*, and end
+; index of the word in the buffer. The function must return a list where first
+; element is the actual completion (or part of completion if two or more
+; completions share common prefix) and the rest arguments are possible
+; completions. 
+
+
+(defun register-datapouch-autocomplete ()
+  (let ((word-separator-scanner (ppcre:create-scanner `(:greedy-repetition 1 nil (:char-class ,@+default-space-characters+)))))
+    (rl:register-function :complete
+                          (lambda (partial-word word-start-index word-end-index)
+                            ;; XXX: Iteration 0: Just make it work, screw the guidelines
+                            (labels ((traverse-tree (tree path) (if (or (not (listp path)) (null path))
+                                                                  tree
+                                                                  (traverse-tree (rest (assoc (first path) tree :test #'equal)) (rest path)))))
+                              (let* ((words (map 'list 
+                                                 (lambda (element)
+                                                   (if (listp element)
+                                                     (first element)
+                                                     element))
+                                                 (traverse-tree *autocomplete-tree*
+                                                                (ppcre:split word-separator-scanner (subseq rl:*line-buffer* 0 word-start-index)))))
+                                     (filtered-words (remove-if-not (lambda (candidate)
+                                                                      (d.aux:prefix? partial-word candidate))
+                                                                    words)))
+                                (if (rest filtered-words)
+                                  (cons (d.aux:common-prefix filtered-words) filtered-words)
+                                  filtered-words)))))))

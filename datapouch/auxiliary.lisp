@@ -38,16 +38,6 @@
     (apply #'map 'list #'list list-of-lists)))
 
 
-(defmacro repeat-string (times str)
-  `(format nil "~V@{~A~:*~}" ,times ,str))
-
-
-(defmacro member-of (lst &rest rest &key &allow-other-keys)
-  (let ((element (gensym)))
-    `(lambda (,element)
-       (member ,element ,lst ,@rest))))
-
-
 ;; Taken from lisp cookbook
 ;; https://lispcookbook.github.io/cl-cookbook/type.html#declaring-the-type-of-variables
 (defun list-of-strings-p (list)
@@ -58,6 +48,38 @@
 
 (deftype list-of-strings ()
   `(satisfies list-of-strings-p))
+
+
+(defmacro repeat-string (times str)
+  `(format nil "~V@{~A~:*~}" ,times ,str))
+
+
+(declaim (ftype (function (string string &key (:test function))) prefix?))
+(defun prefix? (prefix str &key ((:test test) #'equal))
+  (funcall test prefix (subseq str 0 (min (length str) (length prefix)))))
+
+
+(declaim (ftype (function ((or null list-of-strings) &key (:test function))) common-prefix))
+(defun common-prefix (list-of-strings &key ((:test test) #'char=))
+  (let ((prefix-length (loop :for char-tuple in (d.aux:rotate list-of-strings)
+                             :while (apply test char-tuple)
+                             :counting t)))
+    (and list-of-strings (subseq (first list-of-strings) 0 prefix-length))))
+
+ 
+(defun add-to-assoc! (assoc key elem &key ((:test test) #'equal))
+  (let ((cell (assoc key assoc :test test)))
+    (if cell
+      (progn
+        (rplacd cell (pushnew elem (cdr cell) :test test))
+        assoc)
+      (cons (list key elem) assoc))))
+
+
+(defmacro member-of (lst &rest rest &key &allow-other-keys)
+  (let ((element (gensym)))
+    `(lambda (,element)
+       (member ,element ,lst ,@rest))))
 
 
 (defun concat-keyword (&rest symbols)
