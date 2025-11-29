@@ -89,6 +89,15 @@
            #:make-rmacro-callback))
 
 
+(defpackage :datapouch.application
+  (:use #:cl)
+  (:nicknames :d.app)
+  (:export #:*application-stack*
+           #:application
+           #:app-read-form
+           #:get-app-repl-read-form))
+
+
 (defpackage :datapouch.filesystem
   (:use #:cl #:uiop)
   (:nicknames :d.fs)
@@ -261,6 +270,7 @@
 (cl-reexport:reexport-from :datapouch.regex-support)
 (cl-reexport:reexport-from :datapouch.cli)
 (cl-reexport:reexport-from :datapouch.reader-macro)
+(cl-reexport:reexport-from :datapouch.application)
 (cl-reexport:reexport-from :datapouch.sql)
 (cl-reexport:reexport-from :datapouch.sql.auxiliary)
 (cl-reexport:reexport-from :datapouch.filesystem)

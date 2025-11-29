@@ -778,11 +778,24 @@
 ;                              +dae-help+)
         )
 
+      (let ((dicemode (make-instance 'application
+                                     :rmacro-callbacks (make-commands zk-lex
+                                                                      (("throw" (:number . :dice))
+                                                                       (lambda (&key dice)
+                                                                         (format t "Result: ~A~&" (1+ (random dice)))
+                                                                         (pop *application-stack*))
+                                                                       "docs"))
+                                     :prompt-fun (constantly "THROW-DICE $ "))))
+
       (make-commands
         zk-lex
         (("[Hh]ello" (:word . :name))
          (lambda (&key name)
            (format t "Greetings, ~:(~A~)~&" name))
+         "docs")
+        (("[Dd]ice")
+         (lambda ()
+           (push dicemode *application-stack*))
          "docs")
         (("home") #'command-home "docs")
 ;         (goto-rxs `(("goto" ,@link-arguments)       ; /goto [forward][:<N>][*] [<substring>] | /goto back[:<N>][*] [<substring>]
@@ -832,6 +845,7 @@
 ;            ('(("g(?:oto)?" (:note . :single-note-designator)))
 ;             #'command-goto
 ;             '("Go to some note from this one." "goto" "g"))
+      )
       )
       )))
 

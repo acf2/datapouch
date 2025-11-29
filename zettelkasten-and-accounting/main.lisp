@@ -30,11 +30,14 @@
   (zac.box.db:create-zettelkasten))
 
 
-(defun add-all-commands ()
+(defun make-zac-app ()
   ;(let ((zac-shell (make-instance 'd.shell:shell)))
     ;(add-help-to-shell zac-shell)
     ;(zac.box:add-zettelkasten-commands zac-shell)
-    (setf *rmacro-callbacks* (get-zettelkasten-commands)))
+    (pushnew (make-instance 'd.app:application
+                            :rmacro-callbacks (get-zettelkasten-commands)
+                            :prompt-fun #'custom-prompt-fun)
+             d.app:*application-stack*))
 
 ;          (generate-commands
 ;            (list (make-shell-command '("init")
@@ -51,11 +54,10 @@
 
 (defun make-zac (&rest args)
   (setf d.cli:*noprint-result* nil) ; At least for now
-  (setf d.cli:*prompt-fun* #'custom-prompt-fun)
   (setf d.main:*preload-hooks* (append d.main:*preload-hooks*
                                        (list #'parse-command-line-arguments)))
   (setf d.main:*init-hooks* (append d.main:*init-hooks*
                                     (list (lambda () (setf *package* (find-package "ZAC.USER")))
                                           #'zettelkasten-init-hook)))
-  (add-all-commands)
+  (make-zac-app)
   (apply #'d.main:make-image args))

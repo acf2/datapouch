@@ -119,7 +119,7 @@
       (terpri *standard-output*)
       (setf there-is-no-fresh-line-now nil))
     (handler-case
-      (multiple-value-bind (form eof new-buffer) (funcall parametrized-read-form)
+      (multiple-value-bind (form eof new-buffer) (funcall parametrized-read-form *buffer*)
         (cond (eof
                 (terpri out)
                 (sb-ext:quit))
