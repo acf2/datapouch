@@ -60,13 +60,13 @@
            #:*buffer*
            #:*add-fresh-line-after-each-result-print*
            #:*prompt-fun*
-           #:*custom-readtable*
+           #:*datapouch-readtable*
            #:*noprint-result* #:*noprint-prompt*
            #:readline
            #:read-form
            #:disable-bracketed-paste
            #:restore-bracketed-paste
-           #:get-repl-read-form
+           #:get-parametrized-repl-read-form
            #:*heretical-repl-available*
            #:repl-fun-with-readline
            #:register-datapouch-autocomplete))

@@ -17,7 +17,7 @@
 (defparameter *add-fresh-line-after-each-result-print* nil)
 
 
-(defparameter *custom-readtable* (copy-readtable *readtable*))
+(defparameter *datapouch-readtable* (copy-readtable *readtable*))
 
 
 (defparameter *noprint-result* t)
@@ -112,16 +112,14 @@
 ;;;       e.g. when debugger is called without new repl, additional new line is outputted
 ;;;       To fix this, revert there-is-no-fresh-line-now to global/special and add debug hook
 (let (there-is-no-fresh-line-now)
-(defun get-repl-read-form ()
+(defun get-parametrized-repl-read-form (parametrized-read-form)
   (lambda (in out)
     (declare (ignore in))
     (when there-is-no-fresh-line-now
       (terpri *standard-output*)
       (setf there-is-no-fresh-line-now nil))
     (handler-case
-      (multiple-value-bind (form eof new-buffer)
-        (let ((*readtable* *custom-readtable*))
-          (read-form *buffer* *prompt-fun*))
+      (multiple-value-bind (form eof new-buffer) (funcall parametrized-read-form)
         (cond (eof
                 (terpri out)
                 (sb-ext:quit))

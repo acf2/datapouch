@@ -79,10 +79,13 @@
                                                        *post-unload-hooks*)
                                                :from-end t))
   (d.regex:allow-named-registers)
-  (d.rmacro:install-command-reader-macro :readtable d.cli:*custom-readtable*)
+  (d.rmacro:install-command-reader-macro :readtable d.cli:*datapouch-readtable*)
   (setf sb-ext:*invoke-debugger-hook* #'debugger-hook)
   (setf sb-int:*repl-prompt-fun* (constantly ""))
-  (setf sb-int:*repl-read-form-fun* (d.cli:get-repl-read-form)) ; Best leave it to remain third to last
+  (setf sb-int:*repl-read-form-fun* (d.cli:get-parametrized-repl-read-form
+                                      (lambda ()
+                                        (let ((*readtable* d.cli:*datapouch-readtable*))
+                                          (d.cli:read-form d.cli:*buffer* d.cli:*prompt-fun*))))) ; Best leave it to remain third to last
   (if d.cli:*heretical-repl-available*
     (setf sb-impl::*repl-fun-generator* (constantly #'d.cli:repl-fun-with-readline))
     (setf d.cli:*add-fresh-line-after-each-result-print* t))
