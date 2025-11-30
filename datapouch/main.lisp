@@ -80,6 +80,7 @@
                                                :from-end t))
   (d.regex:allow-named-registers)
   (d.rmacro:install-command-reader-macro :readtable d.cli:*datapouch-readtable*)
+  ;(d.rmacro:install-command-reader-autoprint-hook) ; disable for now
   (setf sb-ext:*invoke-debugger-hook* #'debugger-hook)
   (setf sb-int:*repl-prompt-fun* (constantly ""))
   ;(setf sb-int:*repl-read-form-fun* (d.cli:get-parametrized-repl-read-form
