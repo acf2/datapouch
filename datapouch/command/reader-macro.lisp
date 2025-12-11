@@ -1,9 +1,9 @@
-;;;; reader-macro/main.lisp
+;;;; command/reader-macro.lisp
 
 ;;; Shallow reader-macro support
 
 
-(in-package :datapouch.reader-macro)
+(in-package :datapouch.command.reader-macro)
 
 
 ;;; List of callbacks.

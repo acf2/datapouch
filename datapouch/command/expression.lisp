@@ -1,8 +1,9 @@
-;;;; expressions.lisp
+;;;; command/expression.lisp
+
 ;;; Primitive command building system
 
 
-(in-package :datapouch.expressions)
+(in-package :datapouch.command.expression)
 
 
 (defclass expression-config ()
@@ -274,8 +275,8 @@ this should be the default."
 (defun make-command (lexicon regex handler docs &rest other &key &allow-other-keys)
   "This function wraps D.RMACRO:COMMAND creation with the use of MAKE-COMMAND-HANDLER in
 one call."
-  (d.rmacro.aux:make-rmacro-callback
-    (d.rmacro.aux:make-regex-parser
+  (d.c.aux:make-rmacro-callback
+    (d.c.aux:make-regex-parser
       (typecase regex
         (d.regex:regex-scanner regex)
         (d.regex:regex (d.regex:make-scanner regex))

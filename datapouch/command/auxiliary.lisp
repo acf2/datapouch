@@ -1,10 +1,10 @@
-;;;; reader-macro/auxiliary.lisp
+;;;; command/auxiliary.lisp
 
 
-;;; Basic convenience for reader macros
+;;; Basic convenience for all command packages
 
 
-(in-package :datapouch.reader-macro.auxiliary)
+(in-package :datapouch.command.auxiliary)
 
 
 (defun make-regex-parser (regex &key ((:group-mode group-mode) t))

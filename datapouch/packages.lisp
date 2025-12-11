@@ -72,7 +72,7 @@
            #:register-datapouch-autocomplete))
 
 
-(defpackage :datapouch.reader-macro
+(defpackage :datapouch.command.reader-macro
   (:use #:cl)
   (:nicknames :d.rmacro)
   (:export #:*rmacro-callbacks*
@@ -82,11 +82,34 @@
            #:read-line-up-to))
 
 
-(defpackage :datapouch.reader-macro.auxiliary
+(defpackage :datapouch.command.auxiliary
   (:use #:cl #:d.regex)
-  (:nicknames :d.rmacro.aux)
+  (:nicknames :d.c.aux)
   (:export #:make-regex-parser
            #:make-rmacro-callback))
+
+
+(defpackage :datapouch.command.expression
+  (:use #:cl #:d.rmacro)
+  (:nicknames :d.expr)
+  (:import-from :d.aux
+                #:*debug-output*
+                #:list-existing*)
+  (:export
+    #:expression #:get-named-regex-group #:expression-type #:handler #:config #:docs
+    #:expression-config #:use-nongroup-argument #:allow-traversal
+    #:create-expression #:set-expression #:get-expression
+    #:lexicon
+    #:get-from-lexicon ; XXX: ???
+    ;#:named-result #:result-name #:result-value ; XXX: ???
+    #:make-result #:return-match #:return-named-match
+    #:make-command-handler
+    #:set-expressions #:make-commands))
+
+
+(defpackage :datapouch.command.pattern
+  (:use #:cl)
+  (:nicknames :d.ptrn))
 
 
 (defpackage :datapouch.application
@@ -194,24 +217,6 @@
            #:edit-strings))
 
 
-(defpackage :datapouch.expressions
-  (:use #:cl #:d.rmacro)
-  (:nicknames :d.expr)
-  (:import-from :d.aux
-                #:*debug-output*
-                #:list-existing*)
-  (:export 
-    #:expression #:get-named-regex-group #:expression-type #:handler #:config #:docs
-    #:expression-config #:use-nongroup-argument #:allow-traversal
-    #:create-expression #:set-expression #:get-expression
-    #:lexicon
-    #:get-from-lexicon ; XXX: ???
-    ;#:named-result #:result-name #:result-value ; XXX: ???
-    #:make-result #:return-match #:return-named-match
-    #:make-command-handler
-    #:set-expressions #:make-commands))
-
-
 (defpackage :datapouch.main
   (:use #:cl #:uiop #:d.fs #:d.edit)
   (:nicknames :d.main)
@@ -267,16 +272,25 @@
 (in-package :datapouch)
 (cl-reexport:reexport-from :datapouch.interface)
 (cl-reexport:reexport-from :datapouch.auxiliary)
+
 (cl-reexport:reexport-from :datapouch.regex-support)
-(cl-reexport:reexport-from :datapouch.cli)
-(cl-reexport:reexport-from :datapouch.reader-macro)
+
+(cl-reexport:reexport-from :datapouch.command.reader-macro)
+(cl-reexport:reexport-from :datapouch.command.auxiliary)
+(cl-reexport:reexport-from :datapouch.command.expression)
+(cl-reexport:reexport-from :datapouch.command.pattern)
+
 (cl-reexport:reexport-from :datapouch.application)
+
 (cl-reexport:reexport-from :datapouch.sql)
 (cl-reexport:reexport-from :datapouch.sql.auxiliary)
+
 (cl-reexport:reexport-from :datapouch.filesystem)
 (cl-reexport:reexport-from :datapouch.crypto)
+
+(cl-reexport:reexport-from :datapouch.cli)
 (cl-reexport:reexport-from :datapouch.editor)
 (cl-reexport:reexport-from :datapouch.interaction)
-(cl-reexport:reexport-from :datapouch.expressions)
+
 (cl-reexport:reexport-from :datapouch.main)
 (in-package :cl-user)
