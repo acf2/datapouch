@@ -519,3 +519,67 @@ NULL-REGEX is used if all regexes are NIL."
 (defun match-to-group-tree (str group-list group-map match-start match-end group-starts group-ends)
   (let ((table (match-to-group-table str group-list group-map match-start match-end group-starts group-ends)))
     (nth-value 0 (construct-hierical-tree table nil))))
+
+
+(declaim (ftype (function ((or regex regex-scanner) list-of-strings)) regex-allows-all-samples))
+(defun regex-allows-all-samples (regex samples)
+  (reduce (lambda (x y) (and x y))
+          (map 'list (lambda (sample)
+                       (multiple-value-bind (start end) (scan regex sample)
+                         (and start (= start 0) end (= end (length sample)))))
+               samples)))
+
+
+(declaim (ftype (function ((or regex regex-scanner) list-of-strings)) regex-denies-all-samples))
+(defun regex-denies-all-samples (regex samples)
+  (not (reduce (lambda (x y) (or x y))
+               (map 'list (lambda (sample)
+                            (multiple-value-bind (start end) (scan regex sample)
+                              (and start (= start 0) end (= end (length sample)))))
+                    samples))))
+
+
+(defclass sampled-regex ()
+  ((regex :initarg :regex
+          :reader regex
+          :type (or d.regex:regex d.regex:regex-scanner)) ; :name -> :name ("NAME")
+   (samples :initarg :samples
+            :reader samples
+            :type list-of-strings)))
+
+
+(define-condition sampled-regex-error (error)
+  ((reason :initarg :reason :reader reason)))
+
+
+(defun make-sampled-regex (regex samples)
+  (if (regex-allows-all-samples regex samples)
+    (make-instance 'sampled-regex :regex regex :samples samples)
+    (error 'sampled-regex-error :reason "Samples could not be matched by regex")))
+
+
+(defun list-of-sampled-regexes-p (list)
+  "Return T if LIST is non NIL and contains only D.REGEX:SAMPLED-REGEX objects."
+  (and (consp list)
+       (every (lambda (x) (typep x 'sampled-regex))
+              list)))
+
+
+(deftype list-of-sampled-regexes ()
+  `(satisfies list-of-sampled-regexes-p))
+
+
+; NOTE: Maybe list of regexes or regex-scanners?
+(declaim (ftype (function (list-of-sampled-regexes)) find-incompatible-sampled-regexes))
+(defun find-incompatible-sampled-regexes (sampled-regexes)
+  (loop :for sampled-regex :in sampled-regexes
+        :for incompatibilities := (loop :for target-sampled-regex :in sampled-regexes
+                                        :for same := (eq sampled-regex target-sampled-regex)
+                                        :for regex := (regex sampled-regex)
+                                        :for samples := (samples target-sampled-regex)
+                                        :when (and (not same) (not (regex-denies-all-samples regex samples)))
+                                        :collect target-sampled-regex
+                                        :end)
+        :when incompatibilities
+        :collect (cons sampled-regex incompatibilities)
+        :end))

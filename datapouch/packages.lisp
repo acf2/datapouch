@@ -36,6 +36,8 @@
 (defpackage :datapouch.regex-support
   (:use #:cl #:cl-ppcre #:d.iface)
   (:nicknames :d.regex)
+  (:import-from :d.aux
+                #:list-of-strings)
   (:export #:allow-named-registers
            #:regex #:tree #:group-map
            #:regex-from-string
@@ -49,7 +51,10 @@
            #:make-scanner
            #:match-to-assoc
            #:match-to-group-table
-           #:match-to-group-tree))
+           #:match-to-group-tree
+           #:regex-allows-all-samples
+           #:regex-denies-all-samples
+           #:find-incompatible-sampled-regexes))
 
 
 (defpackage :datapouch.cli
