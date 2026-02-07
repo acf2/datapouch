@@ -67,8 +67,8 @@ REGEX-GROUP is the regex of the expression. The named group is not created when
 set, but rather when user requires it. For each call of GET-NAMED-REGEX-GROUP
 a unique info could be passed along with regex.
 
-USER-HANDLER is user handler. It should be able to handle a regex match of
-REGEX-GROUP. By default it must be a function, that accepts one positional
+USER-HANDLER should be able to handle a regex match of
+REGEX-GROUP. By default it must be a function, that accepts one positional argument
 (regex group info) and other keyword arguments, but changing CONFIG may change
 that. Return value could be anything, but checking NAMED-RESULT class and the
 code of FUNCALL-GROUP-LIST-WITH-FILTERING function is highly recommended.
@@ -76,6 +76,15 @@ code of FUNCALL-GROUP-LIST-WITH-FILTERING function is highly recommended.
 CONFIG is the settings for GROUP-TREE-TRAVERSAL function.
 
 DOCUMENTATION is self-explanatory."))
+
+
+(defclass named-result ()
+  ((name :initarg :name
+         :accessor result-name
+         :type keyword)
+   (value :initarg :value
+          :accessor result-value
+          :type t)))
 
 
 (defgeneric get-named-regex-group (expression &optional info)
@@ -111,7 +120,7 @@ EXPRESSION and EXPRESSION-CONFIG documentation."
 Could be interpreted as a context for GROUP-TREE-TRAVERSAL function."))
 
 
-(defgeneric set-expression (lexicon expression-type regex user-handler docs &key use-only-named-results allow-traversal)
+(defgeneric put-expression (lexicon expression)
   (:documentation
     "Set expression in lexicon to new value. Expression is superseded, if
 (EQUAL old-type new-type)."))
@@ -125,20 +134,10 @@ Could be interpreted as a context for GROUP-TREE-TRAVERSAL function."))
   (:documentation "Generic for group-tree traversal. Refer to methods for documentation."))
 
 
-(defmethod set-expression ((lexicon lexicon) expression-type regex user-handler docs &key (use-only-named-results t) (allow-traversal t))
-  (declare (type (or string keyword) expression-type)
-           (type (or string d.regex:regex) regex)
-           (type function user-handler)
-           (type boolean use-only-named-results allow-traversal))
-  "Method for LEXICON objects. Checks argument types."
+(defmethod put-expression ((lexicon lexicon) (expression expression))
   (with-slots (expression-lookup) lexicon
-    (setf (gethash (string expression-type) expression-lookup)
-          (create-expression expression-type
-                             regex
-                             user-handler
-                             docs
-                             :use-only-named-results use-only-named-results
-                             :allow-traversal allow-traversal))))
+    (with-slots (expression-type) expression
+      (setf (gethash (string expression-type) expression-lookup) expression))))
 
 
 (defmethod get-expression ((lexicon lexicon) expression-type)
@@ -155,6 +154,29 @@ Could be interpreted as a context for GROUP-TREE-TRAVERSAL function."))
                               info)))
 
 
+(declaim (ftype (function (lexicon
+                            (or string keyword)
+                            (or string d.regex:regex)
+                            function
+                            string
+                            &key
+                            (:use-only-named-results boolean)
+                            (:allow-traversal boolean)))
+                set-in-lexicon))
+(defun set-in-lexicon (lexicon expression-type regex user-handler docs &key (use-only-named-results t) (allow-traversal t))
+  "A shortcut function to add or reset regex group to lexicon with chosen
+handler, documentation and processing parameters. Refer to EXPRESSION-CONFIG
+docs for parameter meaning."
+  (with-slots (expression-lookup) lexicon
+    (setf (gethash (string expression-type) expression-lookup)
+          (create-expression expression-type
+                             regex
+                             user-handler
+                             docs
+                             :use-only-named-results use-only-named-results
+                             :allow-traversal allow-traversal))))
+
+
 (declaim (ftype (function (lexicon (or string keyword) &optional t)) get-from-lexicon))
 (defun get-from-lexicon (lexicon expression-type &optional info)
   "A shortcut function to get appropriate regex group from lexicon with chosen
@@ -162,15 +184,6 @@ contextual info."
   (let ((expression (get-expression lexicon expression-type)))
     (when expression
       (get-named-regex-group expression info))))
-
-
-(defclass named-result ()
-  ((name :initarg :name
-         :accessor result-name
-         :type keyword)
-   (value :initarg :value
-          :accessor result-value
-          :type t)))
 
 
 (declaim (ftype (function ((or keyword string) t)) make-result))
@@ -251,16 +264,14 @@ group. Leave it as is, but recurse further."
 
 
 (declaim (ftype (function (lexicon function &key (:use-only-named-results boolean) (:allow-traversal boolean)))
-                make-command-handler))
-(defun make-command-handler (lexicon user-handler &key (use-only-named-results t) (allow-traversal t))
-  "This function is used to create handlers for D.RMACRO:COMMAND class.
-When creating your own commands, this is the question - how to connect them to
-lexicons, and what to do with COMMAND janky interface. This solves both. It
-kinda emulates the call that GROUP-TREE-TRAVERSAL does, but only for one
-function - top user handler of a command. And returning lambda has the needed
-signature to be used immediately in D.RMACRO:COMMAND creation.
-Can only be used for commands in GROUP-MODE and with disabled FULL-STRING use -
-this should be the default."
+                wrap-with-lexicon))
+(defun wrap-with-lexicon (lexicon user-handler &key (use-only-named-results t) (allow-traversal t))
+  "This function wraps user handler with EXPRESSION/LEXICON pipeline. This
+allows to use higher level arguments, instead of just group tree match result.
+Result is a function of one argument: group tree from regex match, which will
+be parsed with the use of previously designated lexicon.  When creating your
+own handlers, that is unbound to any EXPRESSION instance, this is the question:
+how to connect these handlers to LEXICON and use them."
   (lambda (group-tree)
     (funcall-group-list-with-filtering lexicon
                                        (lambda (_ &rest rest)
@@ -273,6 +284,7 @@ this should be the default."
 
 
 (defun make-command (lexicon regex handler docs &rest other &key &allow-other-keys)
+  (declare (ignore docs))
   "This function wraps D.RMACRO:COMMAND creation with the use of MAKE-COMMAND-HANDLER in
 one call."
   (d.c.aux:make-rmacro-callback
@@ -281,14 +293,14 @@ one call."
         (d.regex:regex-scanner regex)
         (d.regex:regex (d.regex:make-scanner regex))
         (t (d.regex:make-scanner (d.regex:regex-from-string regex)))))
-    (apply #'make-command-handler lexicon handler other)))
+    (apply #'wrap-with-lexicon lexicon handler other)))
 
 
 (defmacro set-expressions (lexicon &rest expression-definitions)
   "This function is used to call SET-EXPRESSION in bulk."
   `(progn
      ,@(loop :for expression-definition :in expression-definitions
-             :collect `(set-expression ,lexicon ,@expression-definition))))
+             :collect `(set-in-lexicon ,lexicon ,@expression-definition))))
 
 
 (defmacro make-commands (lexicon &rest command-definitions)

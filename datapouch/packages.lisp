@@ -103,12 +103,12 @@
   (:export
     #:expression #:get-named-regex-group #:expression-type #:handler #:config #:docs
     #:expression-config #:use-nongroup-argument #:allow-traversal
-    #:create-expression #:set-expression #:get-expression
+    #:create-expression #:put-expression #:get-expression
     #:lexicon
     #:get-from-lexicon ; XXX: ???
     ;#:named-result #:result-name #:result-value ; XXX: ???
     #:make-result #:return-match #:return-named-match
-    #:make-command-handler
+    #:wrap-with-lexicon
     #:set-expressions #:make-commands))
 
 
