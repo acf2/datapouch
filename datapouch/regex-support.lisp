@@ -12,6 +12,8 @@
 
 
 (defun allow-named-registers (&optional (flag t))
+  "Allow or disallow the use of named registers in PPCRE. Note: disallowing it makes
+the lib useless."
   (setf ppcre:*allow-named-registers* flag))
 
 #|
@@ -33,11 +35,15 @@
          :initarg :name)
    (index :type integer
           :reader index
-          :initarg :index)))
+          :initarg :index))
+  (:documentation "Group ID represents indexed group id. This allows for
+differentiating between multiple groups with the same
+name."))
 
 
 (declaim (ftype (function (string integer)) make-group-id))
 (defun make-group-id (group-name group-index)
+  "Shortcut for GROUP-ID class instance creation."
   (make-instance 'group-id
                  :name group-name
                  :index group-index))
@@ -45,20 +51,47 @@
 
 (declaim (ftype (function (group-id)) bake-group-id))
 (defun bake-group-id (group-id)
+  "Group names inside regex must be strings with restricted character set.
+'Baking' just serializes GROUP-ID object in some regex-friendly manner."
   (format nil "~A.~A" (name group-id) (index group-id)))
+
+
+(defun group-map-p (list)
+(and (listp list)
+     (every (lambda (x)
+              (and (consp x)
+                   (typep (first x) 'group-id)
+                   (get-properties (rest x) (list :name))
+                   (typep (getf (rest x) :name) 'string)
+                   (get-properties (rest x) (list :info))))
+            list)))
+
+
+(deftype group-map ()
+  "Is NIL or is assoc with elements (GROUP-ID :name STRING :info T). First is
+GROUP-ID instance, rest is property list with associated group properties.
+Two are saved right now: clean group name and some contextual info, that is
+passed along with group match later."
+  `(satisfies group-map-p))
 
 
 (defclass regex ()
   ((tree :type list
          :reader tree
          :initarg :tree)
-   (group-map :type list ; assoc (group-id group-name group-context)
+   (group-map :type group-map
               :reader group-map
               :initarg :group-map
-              :initform nil)))
+              :initform nil))
+  (:documentation "REGEX class objects retain information about named groups in
+them. GROUP-IDs helps to differ between same-named groups for
+matching, while contextual info contains critical user
+information for match processing."))
 
 
 (defun bake-regex-tree (regex-tree)
+  "Prepare regex-tree, so it can be read with PPCRE lib. Indices can no longer
+be changed."
   (typecase regex-tree
     (group-id (bake-group-id regex-tree))
     (list (map 'list #'bake-regex-tree regex-tree))
@@ -66,6 +99,8 @@
 
 
 (defun bake-group-map (group-map)
+  "Prepare group-map to be used along regex-tree. Indices cannot be changed
+anymore, unless this is reverted, so 'baking'."
   (map 'list (lambda (mapping)
                (cons (bake-group-id (first mapping))
                      (rest mapping)))
@@ -89,8 +124,7 @@
     (t regex-tree)))
 
 
-;; TODO: make type for group-map
-(declaim (ftype (function (t integer)) shift-group-map-indices))
+(declaim (ftype (function (group-map integer)) shift-group-map-indices))
 (defun shift-group-map-indices (group-map offset)
   (map 'list (lambda (group-mapping)
                (cons (shift-group-id-index (first group-mapping) offset)
@@ -99,13 +133,13 @@
 
 
 (defun list-of-regexes-p (list)
-  "Return t if LIST is non nil and contains only d.regex:regex objects."
   (and (consp list)
        (every (lambda (x) (typep x 'regex))
               list)))
 
 
 (deftype list-of-regexes ()
+  "Is non-NIL and contains only D.REGEX:REGEX objects."
   `(satisfies list-of-regexes-p))
 
 
@@ -114,7 +148,6 @@
 
 
 (defun list-of-relaxed-regexes-p (list)
-  "Return t if LIST is non nil and contains d.regex:regex objects or strings."
   (and (consp list)
        (every (lambda (x) (or (null x)
                               (stringp x)
@@ -123,6 +156,7 @@
 
 
 (deftype list-of-relaxed-regexes ()
+  "Is non-NIL and contains only (OR D.REGEX:REGEX STRING) objects."
   `(satisfies list-of-relaxed-regexes-p))
 
 
@@ -247,6 +281,7 @@ NULL-REGEX is used if all regexes are NIL."
               end-rx))))
 
 
+;; TODO: Rewrite explicit to support ab?c?|a?bc?|a?b?c
 (declaim (ftype (function (list-of-relaxed-regexes
                             &key
                             (:explicit boolean)
@@ -346,7 +381,7 @@ NULL-REGEX is used if all regexes are NIL."
                                     (aref group-ends i))))))
 
 
-;; NOTE: Work only for groups with unique name
+;; NOTE: Works only for groups with unique name
 ;;       Otherwise? Filter group list yourself.
 (defmacro get-group (name groups)
   `(rest (assoc (string ,name) ,groups :test #'string=)))
@@ -559,13 +594,13 @@ NULL-REGEX is used if all regexes are NIL."
 
 
 (defun list-of-sampled-regexes-p (list)
-  "Return T if LIST is non NIL and contains only D.REGEX:SAMPLED-REGEX objects."
   (and (consp list)
        (every (lambda (x) (typep x 'sampled-regex))
               list)))
 
 
 (deftype list-of-sampled-regexes ()
+  "Is non NIL and contains only D.REGEX:SAMPLED-REGEX objects."
   `(satisfies list-of-sampled-regexes-p))
 
 

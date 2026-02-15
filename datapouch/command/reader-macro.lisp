@@ -32,32 +32,39 @@
 
 
 (defun return-to-stream (string stream)
+  "Unreads the whole string character by character."
   (loop :for char :across (reverse string)
         :do (unread-char char stream)))
 
 
+;; Stop characters for command-reader-macro.
+;; If you want commands to contain these symbols, then change it.
 (defparameter *stop-characters* (list #\newline #\;))
 
 
 (defun command-reader-macro (stream char)
-  "Common wrapper function for all rmacro callbacks."
+  "Common wrapper function for all rmacro callbacks. If callback call isn't
+successful, returns all characters back, beside reader macro character."
   (let* ((command-string (read-line-up-to stream *stop-characters*)))
     (loop :for callback :in *rmacro-callbacks*
           :for (success resulting-form) := (multiple-value-list (funcall callback command-string))
           :when success
           :do (return-from command-reader-macro resulting-form)
           :end)
-    ;; If no rmacro callback has been called with success - return all chars back
+    ;; If no rmacro callback has been called with success, then return all chars back.
     (progn
       (return-to-stream command-string stream)
       (find-symbol (string char) :cl))))
 
 
 (defun install-command-reader-macro (&key ((:character character) #\/) ((:readtable table)))
+  "Adds reader macro to readtable. Default is #\/ (slash)."
   (set-macro-character character #'command-reader-macro t table))
 
 
 (defun install-command-reader-autoprint-hook (&key ((:character character) #\/))
+  "Adds cl-readline pre-input hook for entering specified character, making it
+easier to input commands. Default is #\/ (slash)."
   (rl:register-hook :pre-input (lambda ()
                                  (rl:insert-text (string character))
                                  (rl:redisplay))))
