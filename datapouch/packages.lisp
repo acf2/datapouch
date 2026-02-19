@@ -52,6 +52,7 @@
            #:match-to-assoc
            #:match-to-group-table
            #:match-to-group-tree
+           #:scan-to-tree
            #:regex-allows-all-samples
            #:regex-denies-all-samples
            #:find-incompatible-sampled-regexes))

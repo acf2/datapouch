@@ -556,6 +556,17 @@ NULL-REGEX is used if all regexes are NIL."
     (nth-value 0 (construct-hierical-tree table nil))))
 
 
+;; NOTE: Do not use for command parsing. If you're using it, you're doing it wrong.
+;;       There are ready-made facilities for that already.
+(defmacro scan-to-tree (scanner string)
+  `(apply #'match-to-group-tree
+          ,string
+          (group-list ,scanner)
+          (group-map ,scanner)
+          (multiple-value-list (d.regex:scan ,scanner
+                                             ,string))))
+
+
 (declaim (ftype (function ((or regex regex-scanner) list-of-strings)) regex-allows-all-samples))
 (defun regex-allows-all-samples (regex samples)
   (reduce (lambda (x y) (and x y))
