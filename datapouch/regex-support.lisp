@@ -57,14 +57,14 @@ name."))
 
 
 (defun group-map-p (list)
-(and (listp list)
-     (every (lambda (x)
-              (and (consp x)
-                   (typep (first x) 'group-id)
-                   (get-properties (rest x) (list :name))
-                   (typep (getf (rest x) :name) 'string)
-                   (get-properties (rest x) (list :info))))
-            list)))
+  (and (listp list)
+       (every (lambda (x)
+                (and (consp x)
+                     (typep (first x) 'group-id)
+                     (get-properties (rest x) (list :name))
+                     (typep (getf (rest x) :name) 'string)
+                     (get-properties (rest x) (list :info))))
+              list)))
 
 
 (deftype group-map ()
@@ -162,6 +162,7 @@ anymore, unless this is reverted, so 'baking'."
 
 (declaim (ftype (function (string)) regex-from-string))
 (defun regex-from-string (string)
+  "Make D.REGEX:REGEX instance from a STRING, that contains a regex."
   (make-instance 'regex :tree (ppcre:parse-string string)))
 
 
@@ -591,7 +592,11 @@ NULL-REGEX is used if all regexes are NIL."
           :type (or d.regex:regex d.regex:regex-scanner)) ; :name -> :name ("NAME")
    (samples :initarg :samples
             :reader samples
-            :type list-of-strings)))
+            :type list-of-strings))
+  (:documentation "Objects of SAMPLED-REGEX class are pairs of REGEX objects
+with corresponding samples, that match the regex. It can be
+used to test any collection of sampled regexes for
+collisions (to a certain degree)."))
 
 
 (define-condition sampled-regex-error (error)

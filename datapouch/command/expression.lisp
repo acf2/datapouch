@@ -285,8 +285,8 @@ how to connect these handlers to LEXICON and use them."
 
 (defun make-command (lexicon regex handler docs &rest other &key &allow-other-keys)
   (declare (ignore docs))
-  "This function wraps D.RMACRO:COMMAND creation with the use of MAKE-COMMAND-HANDLER in
-one call."
+  "This function wraps rmacro callback creation with the use of MAKE-REGEX-PARSER
+and WRAP-WITH-LEXICON in one call."
   (d.c.aux:make-rmacro-callback
     (d.c.aux:make-regex-parser
       (typecase regex
