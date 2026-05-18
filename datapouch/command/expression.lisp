@@ -283,6 +283,22 @@ how to connect these handlers to LEXICON and use them."
                                        :use-only-named-results use-only-named-results)))
 
 
+;; compose-command-with-cache
+;; Macro that uses global *counter* to fix make-command function call in place.
+;;
+;; (defmacro compose-command-with-cache (...)
+;;   ...
+;;   (let ((current-counter *counter*))
+;;     ...
+;;     (setf *counter* (1+ *counter*))
+;;     `(compose-command-with-cache-fun ... current-counter ...))
+;;
+;; compose-command-with-cache-fun uses this counter later as a key in global *command-cache*.
+;; Cache is for parser - to not recompile regex into automaton again and again.
+;; Fixes the problem with nested commands: nested commands would recompile all their parsers from regexes into scanners.
+;; Add flag for forced recompile, something like 'renew-parser'.
+
+
 (defun make-command (lexicon regex handler docs &rest other &key &allow-other-keys)
   (declare (ignore docs))
   "This function wraps rmacro callback creation with the use of MAKE-REGEX-PARSER
