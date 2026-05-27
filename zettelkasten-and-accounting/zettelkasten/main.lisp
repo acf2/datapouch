@@ -706,55 +706,51 @@
 
 
 (defun get-zettelkasten-commands ()
-  (let ((zk-lex (make-instance 'lexicon)))
+  (with-new-lexicon
+    zk-lex
     (flet ((get-rx (keyword-name &optional info) (get-from-lexicon zk-lex keyword-name info)))
-      (set-expressions
-        zk-lex
-        (:substring ".*?"
-                     (return-match :substring)
-                     "Lazy substring"
-                     :use-only-named-results nil)
-        (:word "\\w+"
-               #'return-named-match
-               "Any single word"
-               :use-only-named-results nil)
-        (:number "[1-9]\\d*"
-                    (lambda (name num)
-                      (make-result name (parse-integer num)))
-                    "Any number not starting with zero"
-                    :use-only-named-results nil)
+      (set-expression :substring ".*?"
+                      (return-match :substring)
+                      "Lazy substring"
+                      :use-only-named-results nil)
+      (set-expression :word "\\w+"
+                      #'return-named-match
+                      "Any single word"
+                      :use-only-named-results nil)
+      (set-expression :number "[1-9]\\d*"
+                      (lambda (name num)
+                        (make-result name (parse-integer num)))
+                      "Any number not starting with zero"
+                      :use-only-named-results nil)
 
-        (:direction "forward|back(?:ward)?"
-                     #'handle-direction
-                     "Direction"
-                     :use-only-named-results nil)
-        (:short-direction "f|b"
-                           #'handle-direction
-                           "Short direction"
-                           :use-only-named-results nil)
-        (:closure "\\*"
-                  (return-match :closure)
-                  "Sign for operation closure (Kleene star subset)"
-                  :use-only-named-results nil)
-        (:new-link-next-sign "n(?:ext)?"
-                              (return-match :next)
-                              "Sign for making new note the next note of current one"
-                              :use-only-named-results nil)
-        )
+      (set-expression :direction "forward|back(?:ward)?"
+                      #'handle-direction
+                      "Direction"
+                      :use-only-named-results nil)
+      (set-expression :short-direction "f|b"
+                      #'handle-direction
+                      "Short direction"
+                      :use-only-named-results nil)
+      (set-expression :closure "\\*"
+                      (return-match :closure)
+                      "Sign for operation closure (Kleene star subset)"
+                      :use-only-named-results nil)
+      (set-expression :new-link-next-sign "n(?:ext)?"
+                      (return-match :next)
+                      "Sign for making new note the next note of current one"
+                      :use-only-named-results nil)
 
       (with-slots ((el d.expr::expression-lookup)) zk-lex
         (format t "Hashes:~&")
         (loop :for hk :being :the :hash-key :in el
               :do (format t "Hash: ~A~&Expr: ~A~&" hk (get-expression zk-lex hk))))
 
-      (set-expressions
-        zk-lex
-        (:dae (optional-concat (list (get-rx :direction)
-                                     (get-rx :number :exponent)
-                                     (get-rx :closure))
-                               :separator-regex "\\s+")
-              #'handle-dae
-              +dae-help+)
+      (set-expression :dae (optional-concat (list (get-rx :direction)
+                                                  (get-rx :number :exponent)
+                                                  (get-rx :closure))
+                                            :separator-regex "\\s+")
+                      #'handle-dae
+                      +dae-help+)
 
 
 
@@ -776,28 +772,38 @@
 ;                                                :explicit t)
 ;                              #'handle-dae
 ;                              +dae-help+)
-        )
 
-      (let ((dicemode (make-instance 'application
-                                     :rmacro-callbacks (make-commands zk-lex
-                                                                      (("throw" (:number . :dice))
-                                                                       (lambda (&key dice)
-                                                                         (format t "Result: ~A~&" (1+ (random dice)))
-                                                                         (pop *application-stack*))
-                                                                       "docs"))
-                                     :prompt-fun (constantly "THROW-DICE $ "))))
-
-      (make-commands
-        zk-lex
-        (("[Hh]ello" (:word . :name))
-         (lambda (&key name)
-           (format t "Greetings, ~:(~A~)~&" name))
-         "docs")
-        (("[Dd]ice")
-         (lambda ()
-           (push dicemode *application-stack*))
-         "docs")
-        (("home") #'command-home "docs")
+      (with-immutable-parsers
+        (list (make-command ("[Hh]ello" (:word . :name))
+                            (lambda (&key name)
+                              (format t "Greetings, ~:(~A~)~&" name))
+                            "docs")
+              (make-command ("[Dd]ice")
+                            (lambda ()
+                              (push (make-instance 'application
+                                                   :rmacro-callbacks (list (make-command ("throw" (:number . :dice))
+                                                                                         (lambda (&key dice)
+                                                                                           (format t "Result: ~A~&" (1+ (random dice)))
+                                                                                           (pop *application-stack*))
+                                                                                         "docs"))
+                                                   :prompt-fun (constantly "THROW-DICE $ "))
+                                    *application-stack*))
+                            "docs")
+              (make-command ("home") #'command-home "docs")))
+      )))
+        ;;;---------------------------
+;      (make-commands
+;        zk-lex
+;        (("[Hh]ello" (:word . :name))
+;         (lambda (&key name)
+;           (format t "Greetings, ~:(~A~)~&" name))
+;         "docs")
+;        (("[Dd]ice")
+;         (lambda ()
+;           (push dicemode *application-stack*))
+;         "docs")
+;        (("home") #'command-home "docs")
+        ;;;---------------------------
 ;         (goto-rxs `(("goto" ,@link-arguments)       ; /goto [forward][:<N>][*] [<substring>] | /goto back[:<N>][*] [<substring>]
 ;                     ("g" ,@short-link-arguments)))  ; /g[f][<N>][*] [<substring>] | /gb[<N>][*] [<substring>]
 
@@ -845,9 +851,6 @@
 ;            ('(("g(?:oto)?" (:note . :single-note-designator)))
 ;             #'command-goto
 ;             '("Go to some note from this one." "goto" "g"))
-      )
-      )
-      )))
 
 
 

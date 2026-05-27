@@ -232,6 +232,8 @@ expressions without USE-ONLY-NAMED-RESULTS."
     (apply user-handler group-info filtered-arguments)))
 
 
+;; XXX: You can try to rewrite this with new d.aux:traverse.
+;;      Not sure if this would be easy.
 (defmethod group-tree-traversal ((lexicon lexicon) group-tree)
   "This is the GROUP-TREE-TRAVERSAL for LEXICON class.
 Processing goes like this:
@@ -239,7 +241,7 @@ Processing goes like this:
 2) If it's a list, then it was a group in regex.
 2.1) If corresponding expression is found in lexicon, then more:
 2.1.1) If traversal is allowed, then recurse for each of the elements first.
-2.1.2) Then, if only group arguments is allowed - filter all other arguments.
+2.1.2) Then, if only group arguments are allowed - filter all other arguments.
 2.1.3) And only then make a call to user-handler with user info and these
 arguments.
 2.2) If corresponding expression is not found, then it's a free, 'dangling'
@@ -341,3 +343,86 @@ and WRAP-WITH-LEXICON in one call."
                                      ,handler
                                      ,docs
                                      ,@options))))
+
+
+(defun make-command-with-lexicon-snippet (lexicon regex-list handler docs &rest options &key &allow-other-keys)
+  (declare (ignore docs))
+  "This function wraps rmacro callback creation with the use of MAKE-REGEX-PARSER
+  and WRAP-WITH-LEXICON in one call."
+  `(d.c.aux:make-rmacro-callback
+     (d.c.aux:make-regex-parser
+       (d.regex:make-scanner
+         (d.regex:concat-separated
+           (list ,@(map 'list (lambda (term)
+                                (if (and (listp term)
+                                         (typep (first term) 'keyword))
+                                  `(get-from-lexicon ,lexicon ,(first term) ,(rest term))
+                                  term))
+                        regex-list))
+           :separator-regex "\\s+"
+           :start-regex "^\\s*"
+           :end-regex "\\s*$"
+           :null-regex "^\\s*$")))
+     (apply #'wrap-with-lexicon ,lexicon ,handler ,options)))
+
+
+(defun set-expression-with-lexicon-snippet (lexicon &rest expression-definition)
+  `(set-in-lexicon ,lexicon ,@expression-definition))
+
+
+(defparameter +with-lexicon-macro-name+ 'with-lexicon)
+(defparameter +with-lexicon-command-name+ '#:make-command)
+(defparameter +with-lexicon-expression-name+ '#:set-expression)
+
+
+(defun with-lexicon-predicate (form)
+  (and (listp form)
+       (> (length form) 1)
+       (atom (first form))
+       (or (eq (first form) +with-lexicon-macro-name+)
+           (member (first form)
+                   (list +with-lexicon-command-name+
+                         +with-lexicon-expression-name+)
+                   :test #'string=))))
+
+
+(defun with-lexicon-transform (form current-lexicon)
+  (cond ((string= (first form) +with-lexicon-command-name+)
+         (values nil (apply #'make-command-with-lexicon-snippet current-lexicon (rest form))))
+        ((string= (first form) +with-lexicon-expression-name+)
+         (values nil (apply #'set-expression-with-lexicon-snippet current-lexicon (rest form))))
+        ((eq (first form) +with-lexicon-macro-name+)
+         (multiple-value-bind (_ new-tree) (d.aux:traverse (cddr form)
+                                                           #'with-lexicon-predicate
+                                                           (lambda (subtree)
+                                                             (with-lexicon-transform subtree (second form)))
+                                                           #'identity)
+           (values _ `(progn ,@new-tree))))
+        (:else (error 'should-not-be)))) ; XXX: Make pretty
+
+
+(defun with-lexicon-fun (lexicon forms)
+  (multiple-value-bind (_ new-tree) (d.aux:traverse (list* +with-lexicon-macro-name+
+                                                           lexicon
+                                                           forms)
+                                                    #'with-lexicon-predicate
+                                                    (lambda (subtree)
+                                                      (with-lexicon-transform subtree #'identity))
+                                                    #'identity)
+    (declare (ignore _))
+    new-tree))
+
+
+(defmacro with-lexicon (lexicon &rest forms)
+  (with-lexicon-fun lexicon forms))
+
+
+(defmacro with-new-lexicon (lexicon-name &rest forms)
+  `(let ((,lexicon-name (make-instance 'lexicon)))
+     ,(with-lexicon-fun lexicon-name forms)))
+
+
+(defmacro with-anonymous-lexicon (&rest forms)
+  (let ((lexicon-name (gensym)))
+    `(let ((,lexicon-name (make-instance 'lexicon)))
+       ,(with-lexicon-fun lexicon-name forms))))

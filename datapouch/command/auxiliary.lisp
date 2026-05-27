@@ -39,3 +39,29 @@ and match."
           (values t `(funcall ,handler ',match)))
         (values nil nil)))))
 
+
+(defparameter *saved-parsers-function-list* (list '#:make-regex-parser))
+
+
+(defun with-immutable-parsers-predicate (form)
+  (and (listp form)
+       (atom (first form))
+       (member (first form)
+               *saved-parsers-function-list*
+               :test #'string=)))
+
+
+(defun with-immutable-parsers-transform (form)
+  (let ((name (gensym)))
+    (values `(,name ,form) name)))
+
+
+;; Be CAREFUL with this code.
+;; The LET could be generated *before* code it's dependent on.
+;; Use as close to make-command's section, as possible.
+(defmacro with-immutable-parsers (&rest forms)
+  (multiple-value-bind (parser-let-forms tree) (d.aux:traverse forms
+                                                               #'with-immutable-parsers-predicate
+                                                               #'with-immutable-parsers-transform)
+    `(let ,parser-let-forms
+       ,@tree)))

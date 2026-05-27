@@ -124,3 +124,25 @@
           :collect (append path (list e)))
     (loop :for e in (first sets)
           :append (cartesian-product (rest sets) (append path (list e))))))
+
+
+(defun traverse (tree predicate-fun transform-fun &optional (recurse-after-transform-fun nil))
+  "Generic, but not very sophisticated traverse function to implement macros."
+  (cond ((funcall predicate-fun tree)
+         (multiple-value-bind (form-value new-form) (funcall transform-fun tree)
+           (multiple-value-bind (new-form-values traversed-new-form) (when recurse-after-transform-fun
+                                                                       (traverse (funcall recurse-after-transform-fun new-form)
+                                                                                 predicate-fun
+                                                                                 transform-fun
+                                                                                 recurse-after-transform-fun))
+             (values (cons form-value new-form-values)
+                     (if recurse-after-transform-fun
+                       traversed-new-form
+                       new-form)))))
+        ((listp tree)
+         (let ((subtree-result (rotate (map 'list (lambda (subtree)
+                                                    (multiple-value-list (traverse subtree predicate-fun transform-fun recurse-after-transform-fun)))
+                                            tree))))
+           (values (reduce #'append (remove-if #'null (first subtree-result)))
+                   (second subtree-result))))
+        (:else (values nil tree))))

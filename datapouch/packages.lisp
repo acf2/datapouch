@@ -30,7 +30,8 @@
            #:concat-keyword
            #:get-keys-from-hash-table
            #:check-directed-graph-for-cycles
-           #:cartesian-product))
+           #:cartesian-product
+           #:traverse))
 
 
 (defpackage :datapouch.regex-support
@@ -92,7 +93,9 @@
   (:use #:cl #:d.regex)
   (:nicknames :d.c.aux)
   (:export #:make-regex-parser
-           #:make-rmacro-callback))
+           #:make-rmacro-callback
+           #:*saved-parsers-function-list*
+           #:with-immutable-parsers))
 
 
 (defpackage :datapouch.command.expression
@@ -110,6 +113,7 @@
     ;#:named-result #:result-name #:result-value ; XXX: ???
     #:make-result #:return-match #:return-named-match
     #:wrap-with-lexicon
+    #:make-command #:with-lexicon #:with-new-lexicon #:with-anonymous-lexicon
     #:set-expressions #:make-commands))
 
 
