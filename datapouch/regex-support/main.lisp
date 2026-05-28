@@ -1,4 +1,4 @@
-;;;; regex-support.lisp
+;;;; regex-support/main.lisp
 ;;; This package is made for much easier usage of named groups.
 ;;; They are not supported normally, but could be enabled for ppcre.
 ;;; But their handling is shit. That's why this wrapper exists.
@@ -132,34 +132,6 @@ anymore, unless this is reverted, so 'baking'."
        group-map))
 
 
-(defun list-of-regexes-p (list)
-  (and (consp list)
-       (every (lambda (x) (typep x 'regex))
-              list)))
-
-
-(deftype list-of-regexes ()
-  "Is non-NIL and contains only D.REGEX:REGEX objects."
-  `(satisfies list-of-regexes-p))
-
-
-(deftype relaxed-regex ()
-  `(or nil string regex))
-
-
-(defun list-of-relaxed-regexes-p (list)
-  (and (consp list)
-       (every (lambda (x) (or (null x)
-                              (stringp x)
-                              (typep x 'regex)))
-              list)))
-
-
-(deftype list-of-relaxed-regexes ()
-  "Is non-NIL and contains only (OR D.REGEX:REGEX STRING) objects."
-  `(satisfies list-of-relaxed-regexes-p))
-
-
 (declaim (ftype (function (string)) regex-from-string))
 (defun regex-from-string (string)
   "Make D.REGEX:REGEX instance from a STRING, that contains a regex."
@@ -254,12 +226,18 @@ anymore, unless this is reverted, so 'baking'."
                (regex-from-string another)))
 
 
-(declaim (ftype (function (list-of-relaxed-regexes
-                            &key
-                            (:separator-regex relaxed-regex)
-                            (:start-regex relaxed-regex)
-                            (:end-regex relaxed-regex)
-                            (:null-regex relaxed-regex)))
+(declaim (ftype (or (function (list-of-relaxed-regexes
+                                &key
+                                (:separator-regex relaxed-regex)
+                                (:start-regex relaxed-regex)
+                                (:end-regex relaxed-regex)
+                                (:null-regex relaxed-regex)))
+                    (function (list-of-relaxed-sampled-regexes
+                                &key
+                                (:separator-regex relaxed-sampled-regex)
+                                (:start-regex relaxed-sampled-regex)
+                                (:end-regex relaxed-sampled-regex)
+                                (:null-regex relaxed-sampled-regex))))
                 concat-separated))
 (defun concat-separated (regexes &key
                                  ((:separator-regex sep-rx) nil)
@@ -282,11 +260,17 @@ NULL-REGEX is used if all regexes are NIL."
               end-rx))))
 
 
-;; TODO: Rewrite explicit to support ab?c?|a?bc?|a?b?c
-(declaim (ftype (function (list-of-relaxed-regexes
-                            &key
-                            (:explicit boolean)
-                            (:separator-regex relaxed-regex)))
+;; TBD: Does explicit support ab?c?|a?bc?|a?b?c
+;;      It seems that it does. Does it?
+;; TODO: Refactor this shit.
+(declaim (ftype (or (function (list-of-relaxed-regexes
+                                &key
+                                (:explicit boolean)
+                                (:separator-regex relaxed-regex)))
+                    (function (list-of-relaxed-sampled-regexes
+                                &key
+                                (:explicit boolean)
+                                (:separator-regex relaxed-sampled-regex))))
                 optional-concat))
 (defun optional-concat (regexes &key ((:explicit explicit) nil) ((:separator-regex sep-rx) nil))
   (let ((nonnil-regexes (map 'list (lambda (rx)
@@ -566,71 +550,3 @@ NULL-REGEX is used if all regexes are NIL."
           (group-map ,scanner)
           (multiple-value-list (d.regex:scan ,scanner
                                              ,string))))
-
-
-(declaim (ftype (function ((or regex regex-scanner) list-of-strings)) regex-allows-all-samples))
-(defun regex-allows-all-samples (regex samples)
-  (reduce (lambda (x y) (and x y))
-          (map 'list (lambda (sample)
-                       (multiple-value-bind (start end) (scan regex sample)
-                         (and start (= start 0) end (= end (length sample)))))
-               samples)))
-
-
-(declaim (ftype (function ((or regex regex-scanner) list-of-strings)) regex-denies-all-samples))
-(defun regex-denies-all-samples (regex samples)
-  (not (reduce (lambda (x y) (or x y))
-               (map 'list (lambda (sample)
-                            (multiple-value-bind (start end) (scan regex sample)
-                              (and start (= start 0) end (= end (length sample)))))
-                    samples))))
-
-
-(defclass sampled-regex ()
-  ((regex :initarg :regex
-          :reader regex
-          :type (or d.regex:regex d.regex:regex-scanner)) ; :name -> :name ("NAME")
-   (samples :initarg :samples
-            :reader samples
-            :type list-of-strings))
-  (:documentation "Objects of SAMPLED-REGEX class are pairs of REGEX objects
-with corresponding samples, that match the regex. It can be
-used to test any collection of sampled regexes for
-collisions (to a certain degree)."))
-
-
-(define-condition sampled-regex-error (error)
-  ((reason :initarg :reason :reader reason)))
-
-
-(defun make-sampled-regex (regex samples)
-  (if (regex-allows-all-samples regex samples)
-    (make-instance 'sampled-regex :regex regex :samples samples)
-    (error 'sampled-regex-error :reason "Samples could not be matched by regex")))
-
-
-(defun list-of-sampled-regexes-p (list)
-  (and (consp list)
-       (every (lambda (x) (typep x 'sampled-regex))
-              list)))
-
-
-(deftype list-of-sampled-regexes ()
-  "Is non NIL and contains only D.REGEX:SAMPLED-REGEX objects."
-  `(satisfies list-of-sampled-regexes-p))
-
-
-; NOTE: Maybe list of regexes or regex-scanners?
-(declaim (ftype (function (list-of-sampled-regexes)) find-incompatible-sampled-regexes))
-(defun find-incompatible-sampled-regexes (sampled-regexes)
-  (loop :for sampled-regex :in sampled-regexes
-        :for incompatibilities := (loop :for target-sampled-regex :in sampled-regexes
-                                        :for same := (eq sampled-regex target-sampled-regex)
-                                        :for regex := (regex sampled-regex)
-                                        :for samples := (samples target-sampled-regex)
-                                        :when (and (not same) (not (regex-denies-all-samples regex samples)))
-                                        :collect target-sampled-regex
-                                        :end)
-        :when incompatibilities
-        :collect (cons sampled-regex incompatibilities)
-        :end))
