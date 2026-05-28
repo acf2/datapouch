@@ -285,66 +285,62 @@ how to connect these handlers to LEXICON and use them."
                                        :use-only-named-results use-only-named-results)))
 
 
-;; compose-command-with-cache
-;; Macro that uses global *counter* to fix make-command function call in place.
+;;; OLD, for reference
+;
+;(defun make-command (lexicon regex handler docs &rest other &key &allow-other-keys)
+;  (declare (ignore docs))
+;  "This function wraps rmacro callback creation with the use of MAKE-REGEX-PARSER
+;and WRAP-WITH-LEXICON in one call."
+;  (d.c.aux:make-rmacro-callback
+;    (d.c.aux:make-regex-parser
+;      (typecase regex
+;        (d.regex:regex-scanner regex)
+;        (d.regex:regex (d.regex:make-scanner regex))
+;        (t (d.regex:make-scanner (d.regex:regex-from-string regex)))))
+;    (apply #'wrap-with-lexicon lexicon handler other)))
+;
+;
+;(defmacro set-expressions (lexicon &rest expression-definitions)
+;  "This function is used to call SET-EXPRESSION in bulk."
+;  `(progn
+;     ,@(loop :for expression-definition :in expression-definitions
+;             :collect `(set-in-lexicon ,lexicon ,@expression-definition))))
+;
+;
+;(defmacro make-commands (lexicon &rest command-definitions)
+;  "Syntactic sugar to ease the use of make-command."
+;  `(list
+;     ,@(loop :for command-definition :in command-definitions
+;             :for regex-list := (first command-definition)
+;             :for handler := (second command-definition)
+;             :for docs := (third command-definition)
+;             :for options := (cdddr command-definition)
+;             :collect `(make-command ,lexicon
+;                                     (d.regex:concat-separated (list ,@(map 'list (lambda (term)
+;                                                                                    (if (and (listp term)
+;                                                                                             (typep (first term) 'keyword))
+;                                                                                      `(get-from-lexicon ,lexicon ,(first term) ,(rest term))
+;                                                                                      term))
+;                                                                            regex-list))
+;                                                               :separator-regex "\\s+"
+;                                                               :start-regex "^\\s*"
+;                                                               :end-regex "\\s*$"
+;                                                               :null-regex "^\\s*$")
+;                                     ,handler
+;                                     ,docs
+;                                     ,@options))))
+
+
+;; NOTE: Please, do not forget.
+;;       When `make-command' composes regex from `groups' it actually follows
+;;       the rule (:group-type . <all possible info>). So you can (and should)
+;;       pass MORE than just a keyword, and catch it with subexpression
+;;       handler. Y'know, like some p-list (:regex-type-31337 :id bitemyshiny
+;;       :fuckknowswhat abrvprpv ...)
+;; 
+;;       I know you're borderline demented, but *TRY TO REMEMBER THIS*.
 ;;
-;; (defmacro compose-command-with-cache (...)
-;;   ...
-;;   (let ((current-counter *counter*))
-;;     ...
-;;     (setf *counter* (1+ *counter*))
-;;     `(compose-command-with-cache-fun ... current-counter ...))
-;;
-;; compose-command-with-cache-fun uses this counter later as a key in global *command-cache*.
-;; Cache is for parser - to not recompile regex into automaton again and again.
-;; Fixes the problem with nested commands: nested commands would recompile all their parsers from regexes into scanners.
-;; Add flag for forced recompile, something like 'renew-parser'.
-
-
-(defun make-command (lexicon regex handler docs &rest other &key &allow-other-keys)
-  (declare (ignore docs))
-  "This function wraps rmacro callback creation with the use of MAKE-REGEX-PARSER
-and WRAP-WITH-LEXICON in one call."
-  (d.c.aux:make-rmacro-callback
-    (d.c.aux:make-regex-parser
-      (typecase regex
-        (d.regex:regex-scanner regex)
-        (d.regex:regex (d.regex:make-scanner regex))
-        (t (d.regex:make-scanner (d.regex:regex-from-string regex)))))
-    (apply #'wrap-with-lexicon lexicon handler other)))
-
-
-(defmacro set-expressions (lexicon &rest expression-definitions)
-  "This function is used to call SET-EXPRESSION in bulk."
-  `(progn
-     ,@(loop :for expression-definition :in expression-definitions
-             :collect `(set-in-lexicon ,lexicon ,@expression-definition))))
-
-
-(defmacro make-commands (lexicon &rest command-definitions)
-  "Syntactic sugar to ease the use of make-command."
-  `(list
-     ,@(loop :for command-definition :in command-definitions
-             :for regex-list := (first command-definition)
-             :for handler := (second command-definition)
-             :for docs := (third command-definition)
-             :for options := (cdddr command-definition)
-             :collect `(make-command ,lexicon
-                                     (d.regex:concat-separated (list ,@(map 'list (lambda (term)
-                                                                                    (if (and (listp term)
-                                                                                             (typep (first term) 'keyword))
-                                                                                      `(get-from-lexicon ,lexicon ,(first term) ,(rest term))
-                                                                                      term))
-                                                                            regex-list))
-                                                               :separator-regex "\\s+"
-                                                               :start-regex "^\\s*"
-                                                               :end-regex "\\s*$"
-                                                               :null-regex "^\\s*$")
-                                     ,handler
-                                     ,docs
-                                     ,@options))))
-
-
+;; P.S.: It is passed onto the first positional subexpression handler argument, btw.
 (defun make-command-with-lexicon-snippet (lexicon regex-list handler docs &rest options &key &allow-other-keys)
   (declare (ignore docs))
   "This function wraps rmacro callback creation with the use of MAKE-REGEX-PARSER

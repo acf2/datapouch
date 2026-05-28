@@ -127,6 +127,7 @@
   (:nicknames :d.app)
   (:export #:*application-stack*
            #:application
+           #:push-new-application #:get-current-return
            #:app-read-form
            #:get-app-repl-read-form))
 
