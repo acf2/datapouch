@@ -27,3 +27,7 @@
 
 (defmacro combine (&rest lst)
   `(combine-many (list ,@lst)))
+
+
+(defgeneric put-into (container item &key))
+(defgeneric get-from (container identifier))

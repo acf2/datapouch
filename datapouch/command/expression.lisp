@@ -53,7 +53,7 @@ GROUP-TREE-TRAVERSAL recursive calls for this specific expression."))
            :type expression-config
            :reader config)
    (docs :initarg :docs
-         :type string
+         :type (or null string)
          :reader docs))
   (:documentation
     "EXPRESSION objects are used to represent reusable regular expressions with
@@ -94,7 +94,7 @@ DOCUMENTATION is self-explanatory."))
 (declaim (ftype (function ((or string keyword)
                            (or string d.regex:regex)
                            function
-                           string
+                           (or null string)
                            &key
                            (:use-only-named-results boolean)
                            (:allow-traversal boolean)))
@@ -120,29 +120,21 @@ EXPRESSION and EXPRESSION-CONFIG documentation."
 Could be interpreted as a context for GROUP-TREE-TRAVERSAL function."))
 
 
-(defgeneric put-expression (lexicon expression)
-  (:documentation
-    "Set expression in lexicon to new value. Expression is superseded, if
-(EQUAL old-type new-type)."))
-
-
-(defgeneric get-expression (lexicon expression-type)
-  (:documentation "Get expression from lexicon, that is identified by EXPRESSION-TYPE."))
-
-
 (defgeneric group-tree-traversal (lexicon group-tree)
   (:documentation "Generic for group-tree traversal. Refer to methods for documentation."))
 
 
-(defmethod put-expression ((lexicon lexicon) (expression expression))
+(defmethod put-into ((lexicon lexicon) (expression expression) &key)
+  "Set expression in lexicon to new value. Expression is superseded, if
+(EQUAL old-type new-type)."
   (with-slots (expression-lookup) lexicon
     (with-slots (expression-type) expression
       (setf (gethash (string expression-type) expression-lookup) expression))))
 
 
-(defmethod get-expression ((lexicon lexicon) expression-type)
+(defmethod get-from ((lexicon lexicon) expression-type)
   (declare (type (or string keyword) expression-type))
-  "Method for LEXICON objects. Checks argument types."
+  "Get expression from lexicon, that is identified by EXPRESSION-TYPE."
   (with-slots (expression-lookup) lexicon
     (gethash (string expression-type) expression-lookup)))
 
@@ -158,7 +150,7 @@ Could be interpreted as a context for GROUP-TREE-TRAVERSAL function."))
                             (or string keyword)
                             (or string d.regex:regex)
                             function
-                            string
+                            (or null string)
                             &key
                             (:use-only-named-results boolean)
                             (:allow-traversal boolean)))
@@ -181,7 +173,7 @@ docs for parameter meaning."
 (defun get-from-lexicon (lexicon expression-type &optional info)
   "A shortcut function to get appropriate regex group from lexicon with chosen
 contextual info."
-  (let ((expression (get-expression lexicon expression-type)))
+  (let ((expression (get-from lexicon expression-type)))
     (when expression
       (get-named-regex-group expression info))))
 
@@ -248,7 +240,7 @@ arguments.
 group. Leave it as is, but recurse further."
   (if (not (listp group-tree)) ; List means it was a (named) group
     group-tree
-    (let ((expression (get-expression lexicon (first group-tree))))
+    (let ((expression (get-from lexicon (first group-tree))))
       (if expression
         (funcall-group-list-with-filtering lexicon
                                            (user-handler expression)
@@ -359,7 +351,7 @@ how to connect these handlers to LEXICON and use them."
            :start-regex "^\\s*"
            :end-regex "\\s*$"
            :null-regex "^\\s*$")))
-     (apply #'wrap-with-lexicon ,lexicon ,handler ,options)))
+     (wrap-with-lexicon ,lexicon ,handler ,@options)))
 
 
 (defun set-expression-with-lexicon-snippet (lexicon &rest expression-definition)
@@ -409,8 +401,10 @@ how to connect these handlers to LEXICON and use them."
     new-tree))
 
 
-(defmacro with-lexicon (lexicon &rest forms)
-  (with-lexicon-fun lexicon forms))
+(defmacro with-lexicon (lexicon-expr &rest forms)
+  (let ((lexicon-name (gensym)))
+    `(let ((,lexicon-name ,lexicon-expr))
+       ,(with-lexicon-fun lexicon-name forms))))
 
 
 (defmacro with-new-lexicon (lexicon-name &rest forms)

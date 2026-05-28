@@ -743,7 +743,7 @@
       (with-slots ((el d.expr::expression-lookup)) zk-lex
         (format t "Hashes:~&")
         (loop :for hk :being :the :hash-key :in el
-              :do (format t "Hash: ~A~&Expr: ~A~&" hk (get-expression zk-lex hk))))
+              :do (format t "Hash: ~A~&Expr: ~A~&" hk (get-from zk-lex hk))))
 
       (set-expression :dae (optional-concat (list (get-rx :direction)
                                                   (get-rx :number :exponent)

@@ -8,7 +8,8 @@
   (:use #:cl)
   (:nicknames :d.iface)
   (:export #:concat-two #:concat-many #:concat
-           #:combine-two #:combine-many #:combine))
+           #:combine-two #:combine-many #:combine
+           #:put-into #:get-from))
 
 
 (defpackage :datapouch.auxiliary
@@ -22,6 +23,7 @@
            #:map-append
            #:rotate
            #:list-of-strings
+           #:list-of-list-of-strings
            #:repeat-string
            #:prefix?
            #:common-prefix
@@ -102,16 +104,19 @@
 (defpackage :datapouch.command.expression
   (:use #:cl #:d.rmacro)
   (:nicknames :d.expr)
+  (:import-from :d.iface
+                #:put-into
+                #:get-from)
   (:import-from :d.aux
                 #:*debug-output*
                 #:list-existing*)
   (:export
     #:expression #:get-named-regex-group #:expression-type #:handler #:config #:docs
     #:expression-config #:use-nongroup-argument #:allow-traversal
-    #:create-expression #:put-expression #:get-expression
+    #:create-expression
     #:lexicon
-    #:get-from-lexicon ; XXX: ???
-    ;#:named-result #:result-name #:result-value ; XXX: ???
+    #:set-in-lexicon #:get-from-lexicon
+    ;#:named-result #:result-name #:result-value ; XXX: TBD, should be internal-only ???
     #:make-result #:return-match #:return-named-match
     #:wrap-with-lexicon
     #:make-command #:with-lexicon #:with-new-lexicon #:with-anonymous-lexicon
@@ -120,7 +125,10 @@
 
 (defpackage :datapouch.command.pattern
   (:use #:cl)
-  (:nicknames :d.ptrn))
+  (:nicknames :d.ptrn)
+  (:import-from :d.iface
+                #:put-into
+                #:get-from))
 
 
 (defpackage :datapouch.application

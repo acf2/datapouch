@@ -50,6 +50,16 @@
   `(satisfies list-of-strings-p))
 
 
+(defun list-of-list-of-strings-p (list)
+  "Return t if LIST is non nil and contains only lists of strings."
+  (and (consp list)
+       (every #'list-of-strings-p list)))
+
+
+(deftype list-of-list-of-strings ()
+  `(satisfies list-of-list-of-strings-p))
+
+
 (defmacro repeat-string (times str)
   `(format nil "~V@{~A~:*~}" ,times ,str))
 
