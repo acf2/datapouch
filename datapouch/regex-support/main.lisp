@@ -183,9 +183,9 @@ anymore, unless this is reverted, so 'baking'."
 (defmethod d.iface:concat-two ((one regex) (another regex))
   (let ((offset (length (group-map one))))
     (make-instance 'regex
-                   :tree (list :sequence
-                               (tree one)
-                               (shift-group-indices-in-tree (tree another) offset))
+                   :tree (ppcre-sequence-two
+                           (tree one)
+                           (shift-group-indices-in-tree (tree another) offset))
                    :group-map (append (group-map one)
                                       (shift-group-map-indices (group-map another) offset)))))
 
@@ -206,9 +206,9 @@ anymore, unless this is reverted, so 'baking'."
 (defmethod d.iface:combine-two ((one regex) (another regex))
   (let ((offset (length (group-map one))))
     (make-instance 'regex
-                   :tree (list :alternation
-                               (tree one)
-                               (shift-group-indices-in-tree (tree another) offset))
+                   :tree (ppcre-alter-two
+                           (tree one)
+                           (shift-group-indices-in-tree (tree another) offset))
                    :group-map (append (group-map one)
                                       (shift-group-map-indices (group-map another) offset)))))
 

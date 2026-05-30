@@ -41,25 +41,40 @@
   (:nicknames :d.regex)
   (:import-from :d.aux
                 #:list-of-strings)
-  (:export #:allow-named-registers
-           #:regex #:tree #:group-map
-           #:regex-from-string
-           #:wrap-in-noncapturing-group
-           #:make-named-group
-           #:concat-separated #:optional-concat
-           #:interchange #:interchange-three
-           #:scan
-           #:get-group #:is-group #:list-group-names
-           #:regex-scanner #:scanner #:group-list
-           #:make-scanner
-           #:match-to-assoc
-           #:match-to-group-table
-           #:match-to-group-tree
-           #:scan-to-tree
-           #:sampled-regex
-           #:regex-allows-all-samples
-           #:regex-denies-all-samples
-           #:find-incompatible-sampled-regexes))
+  (:export 
+    ;; ppcre-trees
+    #:ppcre-sequence? #:ppcre-alternation?
+    #:ppcre-make-sequence #:ppcre-make-alternation
+    #:ppcre-sequence-two #:ppcre-alter-two
+    ;; types
+    #:list-of-regexes
+    #:relaxed-regex
+    #:list-of-relaxed-regexes
+    #:list-of-sampled-regexes
+    #:relaxed-sampled-regex
+    #:list-of-relaxed-sampled-regexes
+    ;; main
+    #:allow-named-registers
+    #:regex #:tree #:group-map
+    #:regex-from-string
+    #:wrap-in-noncapturing-group
+    #:make-named-group
+    #:concat-separated #:optional-concat
+    #:interchange #:interchange-three
+    #:scan
+    #:get-group #:is-group #:list-group-names
+    #:regex-scanner #:scanner #:group-list
+    #:make-scanner
+    #:match-to-assoc
+    #:match-to-group-table
+    #:match-to-group-tree
+    #:scan-to-tree
+    ;; sampled
+    #:sampled-regex #:samples
+    #:sampled-regex-from-string
+    #:regex-allows-all-samples
+    #:regex-denies-all-samples
+    #:find-incompatible-sampled-regexes))
 
 
 (defpackage :datapouch.cli
@@ -127,8 +142,8 @@
   (:use #:cl)
   (:nicknames :d.ptrn)
   (:import-from :d.iface
-                #:put-into
-                #:get-from))
+                #:put-into #:get-from
+                #:concat-two #:combine-two))
 
 
 (defpackage :datapouch.application
