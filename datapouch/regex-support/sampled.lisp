@@ -66,15 +66,24 @@ and a list of samples."
 
 ;;; TODO: Rewrite it with macros to comply with DRY
 
+(defmethod make-named-group :around (name (sr sampled-regex) &optional info)
+  (declare (ignore info))
+  (let ((result (call-next-method)))
+    (make-instance 'sampled-regex
+                   :tree (tree result)
+                   :group-map (group-map result)
+                   :samples (samples sr))))
+
+
 (defmethod d.iface:concat-two :around ((one sampled-regex) (another sampled-regex))
   (let ((result (call-next-method)))
     (make-instance 'sampled-regex
                    :tree (tree result)
                    :group-map (group-map result)
                    :samples (map 'list
-                                 (lambda (&rest args)
-                                   (apply #'concatenate 'string args))
-                                 (d.aux:cartesian-product (samples one) (samples another))))))
+                                 (lambda (joined-samples)
+                                   (apply #'concatenate 'string joined-samples))
+                                 (d.aux:cartesian-product (list (samples one) (samples another)))))))
 
 
 (defmethod d.iface:combine-two ((one sampled-regex) (another sampled-regex))

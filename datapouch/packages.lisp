@@ -41,7 +41,7 @@
   (:nicknames :d.regex)
   (:import-from :d.aux
                 #:list-of-strings)
-  (:export 
+  (:export
     ;; ppcre-trees
     #:ppcre-sequence? #:ppcre-alternation?
     #:ppcre-make-sequence #:ppcre-make-alternation
@@ -128,7 +128,7 @@
   (:export
     #:expression #:get-named-regex-group #:expression-type #:handler #:config #:docs
     #:expression-config #:use-nongroup-argument #:allow-traversal
-    #:create-expression
+    #:make-expression
     #:lexicon
     #:set-in-lexicon #:get-from-lexicon
     ;#:named-result #:result-name #:result-value ; XXX: TBD, should be internal-only ???
@@ -143,7 +143,16 @@
   (:nicknames :d.ptrn)
   (:import-from :d.iface
                 #:put-into #:get-from
-                #:concat-two #:combine-two))
+                #:concat-two #:combine-two)
+  (:import-from :d.aux
+                #:list-of-list-of-strings)
+  (:import-from :d.regex
+                #:regex
+                #:sampled-regex
+                #:sampled-regex-from-string
+                #:relaxed-sampled-regex)
+  (:import-from :d.expr
+                #:get-from-lexicon))
 
 
 (defpackage :datapouch.application

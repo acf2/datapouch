@@ -16,7 +16,7 @@
 
 
 (deftype relaxed-regex ()
-  `(or nil string regex))
+  `(or null string regex))
 
 
 (defun list-of-relaxed-regexes-p (list)
@@ -44,7 +44,7 @@
 
 
 (deftype relaxed-sampled-regex ()
-  `(or nil sampled-regex))
+  `(or null sampled-regex))
 
 
 (defun list-of-relaxed-sampled-regexes-p (list)

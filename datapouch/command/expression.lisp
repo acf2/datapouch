@@ -98,8 +98,8 @@ DOCUMENTATION is self-explanatory."))
                            &key
                            (:use-only-named-results boolean)
                            (:allow-traversal boolean)))
-                create-expression))
-(defun create-expression (expression-type regex user-handler docs &key (use-only-named-results t) (allow-traversal t))
+                make-expression))
+(defun make-expression (expression-type regex user-handler docs &key (use-only-named-results t) (allow-traversal t))
   "CREATE-EXRESSION eliminates some boilerplate for user, when creating new
 expression, and checks argument types. For the meaning of arguments refer to
 EXPRESSION and EXPRESSION-CONFIG documentation."
@@ -161,12 +161,12 @@ handler, documentation and processing parameters. Refer to EXPRESSION-CONFIG
 docs for parameter meaning."
   (with-slots (expression-lookup) lexicon
     (setf (gethash (string expression-type) expression-lookup)
-          (create-expression expression-type
-                             regex
-                             user-handler
-                             docs
-                             :use-only-named-results use-only-named-results
-                             :allow-traversal allow-traversal))))
+          (make-expression expression-type
+                           regex
+                           user-handler
+                           docs
+                           :use-only-named-results use-only-named-results
+                           :allow-traversal allow-traversal))))
 
 
 (declaim (ftype (function (lexicon (or string keyword) &optional t)) get-from-lexicon))
