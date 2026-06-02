@@ -12,34 +12,7 @@
                                          (apply #'concatenate 'string tree)))
 
 
-(defclass docform-view ()
-  ((space-pattern :initarg :space
-                   :reader space-pattern
-                   :type pattern)
-   (sequence-fun :initarg :sequence
-                 :reader sequence-fun
-                 :type function)
-   (alternation-fun :initarg :alternation
-                    :reader alternation-fun
-                    :type function)
-   (group-fun :initarg :group
-              :reader group-fun
-              :type function)
-   (named-regex-group-fun :initarg :named-regex
-                          :reader named-regex-group-fun
-                          :type function)
-   (optional-fun :initarg :optional
-                 :reader optional-fun
-                 :type function)))
-
-
-(defclass docform ()
-  ((body :initarg :doc
-         :type string
-         :reader doc)
-   (internal-combination-type :initarg :internal-combination-type
-                              :reader internal-combination-type
-                              :initform nil)))
+(defparameter +no-canon-form+ :not-applicable)
 
 
 (defun canon-form-p (list)
@@ -49,8 +22,8 @@
                      (every (lambda (form)
                               (or (stringp form)
                                   (null form)
-                                  (and (keywordp form)
-                                       (eq form :not-applicable))))
+                                  (and (typep form (type-of +no-canon-form+))
+                                       (eq form +no-canon-form+))))
                             alternatives)))
               list)))
 
@@ -101,14 +74,6 @@
                         :reader expander-expression)))
 
 
-(declaim (ftype (function (string &optional (or null keyword)))
-                make-docform))
-(defun make-docform (body &optional internal-state)
-  (make-instance 'docform
-                 :doc body
-                 :internal-combination-type internal-state))
-
-
 (declaim (ftype (function (sampled-regex relaxed-sampled-regex canon-form string))
                 make-pattern))
 (defun make-pattern (regex short-regex canon-form doc)
@@ -118,57 +83,51 @@
     :short-regex short-regex
     :expander-short-regex short-regex
     :canon-form canon-form
-    :docform (make-instance
-               'docform
-               :doc doc)))
+    :docform (make-docform doc)))
 
 
-(defparameter +default-docform-view+
-  (make-instance
-    'docform-view
-    :space (make-pattern (sampled-regex-from-string "\\s+"
-                                                    (list " " "     " (coerce (list #\Tab) 'string)))
-                         (sampled-regex-from-string "\\s*"
-                                                    (list "" " " "     " (coerce (list #\Tab) 'string)))
-                         (list nil)
-                         " ")
-    :sequence (let ((grouping-types (list :alternation)))
-                (lambda (&rest docforms)
-                  (make-docform
-                    (format nil
-                            "~{~A~}"
-                            (map 'list (lambda (docform)
-                                         (declare (special *docform-view*))
-                                         (if (member (internal-combination-type docform)
-                                                     grouping-types)
-                                           (funcall (group-fun *docform-view*)
-                                                    (doc docform))
-                                           (doc docform)))
-                                 docforms))
-                    :sequence)))
-    :alternation (let ((grouping-types (list :sequence)))
-                   (lambda (&rest docforms)
-                     (make-docform
-                       (format nil
-                               "~{~#[~;~A~:;~A | ~]~}"
-                               (map 'list (lambda (docform)
-                                            (declare (special *docform-view*))
-                                            (if (member (internal-combination-type docform)
-                                                        grouping-types)
-                                              (funcall (group-fun *docform-view*)
-                                                       (doc docform))
-                                              (doc docform)))
-                                    docforms))
-                       :alternation)))
-    :group (lambda (docform)
-             (make-docform (format nil "(~A)" (doc docform))))
-    :named-regex (lambda (name docform)
-                   (make-docform (format nil "<~A:~A>" name (doc docform))))
-    :optional (lambda (docform)
-                (make-docform (format nil "[~A]" (doc docform))))))
+(defparameter +default-space-pattern+
+  (make-pattern (sampled-regex-from-string "\\s+"
+                                           (list " " "     " (coerce (list #\Tab) 'string)))
+                (sampled-regex-from-string "\\s*"
+                                           (list "" " " "     " (coerce (list #\Tab) 'string)))
+                (list nil)
+                " "))
 
 
-(defparameter *docform-view* +default-docform-view+)
+(defun default-doc-expr-finalizer (doc-expr &optional (enum-call nil))
+  (cond ((not (listp doc-expr))
+         doc-expr)
+        ((eq (first doc-expr)
+             :named-group)
+         (format nil "<~A:~A>"
+                 (second doc-expr)
+                 (default-doc-expr-finalizer (third doc-expr))))
+        ((eq (first doc-expr)
+             :optional)
+         (format nil "[~A]"
+                 (default-doc-expr-finalizer (second doc-expr))))
+        ((eq (first doc-expr)
+             :sequence)
+         (format nil
+                 "~:[~;(~]~{~A~}~0@*~:[~;)~]"
+                 enum-call
+                 (map 'list (lambda (subexpr)
+                              (default-doc-expr-finalizer subexpr t))
+                      (rest doc-expr))))
+        ((eq (first doc-expr)
+             :alternation)
+         (format nil
+                 "~:[~;(~]~{~#[~;~A~:;~A | ~]~}~0@*~:[~;)~]"
+                 enum-call
+                 (delete-duplicates
+                   (map 'list (lambda (subexpr)
+                                (default-doc-expr-finalizer subexpr t))
+                        (rest doc-expr))
+                   :test #'string=)))))
+
+
+(defparameter *doc-expr-finalizer* #'default-doc-expr-finalizer)
 
 
 ;(defclass pattern ()
@@ -334,26 +293,21 @@ docs for parameter meaning."
                        :expander-short-regex (or erx (expander-short-regex pattern))
                        :canon-form (canon-form pattern)
                        :docform (if name
-                                  (funcall (named-regex-group-fun *docform-view*)
-                                           name
-                                           (docform pattern))
+                                  (make-named-group name (docform pattern))
                                   (docform pattern)))))))
 
 
 (declaim (ftype (function (string &key (:type (or keyword string))))
                 trivial-pattern-type))
-(let ((trivial-pattern-types-generated 0))
-  (defun make-trivial-pattern-type (word &key ((:type behavior-type)))
-    (or behavior-type
-        (let ((result (format nil "trivial-pattern-~A-~A" trivial-pattern-types-generated word)))
-          (setf trivial-pattern-types-generated (1+ trivial-pattern-types-generated))
-          result))))
+(defun trivial-pattern-type (word &key ((:type behavior-type)))
+  (or behavior-type
+      (format nil "Trivial pattern: ~A" word)))
 
 
 (declaim (ftype (function (behavior-container string &key (:type (or keyword string)) (:short string)))
                 add-trivial-pattern))
 (defun add-trivial-pattern (container word &key ((:type explicit-type)) ((:short shorthand)))
-  (let ((behavior-type (make-trivial-pattern-type word :type explicit-type)))
+  (let ((behavior-type (trivial-pattern-type word :type explicit-type)))
     (put-into container
               (make-behavior behavior-type
                              (make-pattern (sampled-regex-from-string word (list word))
@@ -412,68 +366,56 @@ docs for parameter meaning."
           :null-regex "^\\s*$")))
     (d.expr:wrap-with-lexicon lexicon handler :use-only-named-results nil)))
 
-;
-;(declaim (ftype (function (pattern))
-;                make-optional))
-;(defun make-optional (pattern)
-;  (with-slots (short-regex) pattern
-;    (make-instance 'pattern
-;                   :regex (d.regex:make-optional (regex pattern))
-;                   :short-regex (when short-regex
-;                                  (d.regex:make-optional short-regex))
-;                   :canon-form (cons nil (canon-form pattern))
-;                   :docform (funcall (optional-fun *docform-view*)
-;                                     (docform pattern)))))
-;
-;
-;(let ((grouping-types (list :alternation)))
-;  (defmethod concat-two ((one pattern) (another pattern))
-;    (with-slots ((short-one short-regex)
-;                 (one-comb-type internal-combination-type)) one
-;      (with-slots ((short-another short-regex)
-;                   (another-comb-type internal-combination-type)) another
-;        (make-instance 'pattern
-;                       :regex (concat-two (regex one) (regex another))
-;                       :short-regex (when (and short-one short-another)
-;                                      (concat-two short-one short-another))
-;                       :canon-form (d.aux:cartesian-product (list (canon-form one)
-;                                                                  (canon-form another))
-;                                                            #'append)
-;                       :docform (funcall
-;                                  (sequence-fun *docform-view*)
-;                                  (if (member one-comb-type
-;                                              grouping-types)
-;                                    (funcall (group-fun *docform-view*) (docform one))
-;                                    (docform one))
-;                                  (if (member another-comb-type
-;                                              grouping-types)
-;                                    (funcall (group-fun *docform-view*) (docform another))
-;                                    (docform another)))
-;                       :internal-combination-type :sequence)))))
-;
-;
-;(let ((grouping-types (list :sequence)))
-;  (defmethod combine-two ((one pattern) (another pattern))
-;    (with-slots ((short-one short-regex)
-;                 (one-comb-type internal-combination-type)) one
-;      (with-slots ((short-another short-regex)
-;                   (another-comb-type internal-combination-type)) another
-;        (make-instance 'pattern
-;                       :regex (combine-two (regex one) (regex another))
-;                       :short-regex (when (and short-one short-another)
-;                                      (combine-two short-one short-another))
-;                       :canon-form (append (canon-form one)
-;                                           (canon-form another))
-;                       :docform (funcall (alternation-fun *docform-view*)
-;                                         (if (member one-comb-type
-;                                                     grouping-types)
-;                                           (funcall (group-fun *docform-view*) (docform one))
-;                                           (docform one))
-;                                         (if (member another-comb-type
-;                                                     grouping-types)
-;                                           (funcall (group-fun *docform-view*) (docform another))
-;                                           (docform another)))
-;                       :internal-combination-type :alternation)))))
+
+(defmethod d.regex:make-optional ((pattern pattern))
+  (with-slots (regex short-regex expander-short-regex canon-form docform) pattern
+    (make-instance 'pattern
+                   :regex (d.regex:make-optional regex)
+                   :short-regex (when short-regex
+                                  (d.regex:make-optional short-regex))
+                   :expander-short-regex (when expander-short-regex
+                                           (d.regex:make-optional expander-short-regex))
+                   :canon-form (cons nil canon-form)
+                   :docform (make-optional docform))))
+
+
+(defmethod concat-two ((one pattern) (another pattern))
+  (with-slots ((short-one short-regex)
+               (expand-one expander-short-regex)) one
+    (with-slots ((short-another short-regex)
+                 (expand-another expander-short-regex)) another
+      (make-instance 'pattern
+                     :regex (concat-two (regex one) (regex another))
+                     :short-regex (when (and short-one short-another)
+                                    (concat-two short-one short-another))
+                     :expander-short-regex (when (and expand-one expand-another)
+                                             (concat-two expand-one expand-another))
+                     ;; delete-duplicates could be used here
+                     ;; more info inside implementation of cartesian-product
+                     :canon-form (delete-duplicates (d.aux:cartesian-product (list (canon-form one)
+                                                                                   (canon-form another))
+                                                                             #'append)
+                                                    :test #'equal)
+                     :docform (concat-two (docform one)
+                                          (docform another))))))
+
+
+(defmethod combine-two ((one pattern) (another pattern))
+  (with-slots ((short-one short-regex)
+               (expand-one expander-short-regex)) one
+    (with-slots ((short-another short-regex)
+                 (expand-another expander-short-regex)) another
+      (make-instance 'pattern
+                     :regex (combine-two (regex one) (regex another))
+                     :short-regex (when (and short-one short-another)
+                                    (combine-two short-one short-another))
+                     :expander-short-regex (when (and expand-one expand-another)
+                                             (combine-two expand-one expand-another))
+                     :canon-form (remove-duplicates (append (canon-form one)
+                                                            (canon-form another))
+                                                    :test #'equal)
+                     :docform (combine-two (docform one)
+                                           (docform another))))))
 
 
 ;(defun compile-pattern-expression (pattern-expression)

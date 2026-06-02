@@ -533,7 +533,7 @@ NULL-REGEX is used if all regexes are NIL."
       ;; 2) skip them in starting-list
       :when empty-group-prefix
       :append (map 'list (lambda (empty-group-record)
-                           (make-group-result empty-group-record nil))
+                           (make-group-result empty-group-record (list "")))
                    empty-group-prefix)
       :into resulting-tree
       :and

@@ -59,6 +59,7 @@
     #:regex #:tree #:group-map
     #:regex-from-string
     #:wrap-in-noncapturing-group
+    #:make-optional
     #:make-named-group
     #:concat-separated #:optional-concat
     #:interchange #:interchange-three
