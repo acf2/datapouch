@@ -217,5 +217,5 @@
                                                                       (d.aux:prefix? partial-word candidate))
                                                                     words)))
                                 (if (rest filtered-words)
-                                  (cons (d.aux:common-prefix filtered-words) filtered-words)
+                                  (cons (d.aux:common-string-prefix filtered-words) filtered-words)
                                   filtered-words)))))))

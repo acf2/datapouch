@@ -218,7 +218,7 @@
 (declaim (ftype (function ((or string keyword)))
                 short-expression-type))
 (defun short-expression-type (behavior-type)
-  (concatenate 'string "short-" behavior-type))
+  (concatenate 'string "short-" (string behavior-type)))
 
 
 (declaim (ftype (function ((or keyword string)
@@ -256,7 +256,7 @@
                                             short-regex
                                             short-expander
                                             nil
-                                            :use-only-named-results t)))))
+                                            :use-only-named-results nil)))))
 
 
 (defmethod put-into ((container behavior-container)
@@ -277,7 +277,8 @@
           (when suexpr
             (put-into utility-lexicon suexpr))
           (when eexpr
-            (put-into expander-lexicon eexpr)))))
+            (put-into expander-lexicon eexpr))
+          btype)))
 
 
 (defmethod get-from ((container behavior-container) behavior-type)
@@ -342,7 +343,7 @@ docs for parameter meaning."
 (declaim (ftype (function (string &key (:type (or keyword string))))
                 trivial-pattern-type))
 (let ((trivial-pattern-types-generated 0))
-  (defun trivial-pattern-type (word &key ((:type behavior-type)))
+  (defun make-trivial-pattern-type (word &key ((:type behavior-type)))
     (or behavior-type
         (let ((result (format nil "trivial-pattern-~A-~A" trivial-pattern-types-generated word)))
           (setf trivial-pattern-types-generated (1+ trivial-pattern-types-generated))
@@ -352,7 +353,7 @@ docs for parameter meaning."
 (declaim (ftype (function (behavior-container string &key (:type (or keyword string)) (:short string)))
                 add-trivial-pattern))
 (defun add-trivial-pattern (container word &key ((:type explicit-type)) ((:short shorthand)))
-  (let ((behavior-type (trivial-pattern-type word :type explicit-type)))
+  (let ((behavior-type (make-trivial-pattern-type word :type explicit-type)))
     (put-into container
               (make-behavior behavior-type
                              (make-pattern (sampled-regex-from-string word (list word))

@@ -69,12 +69,16 @@
   (funcall test prefix (subseq str 0 (min (length str) (length prefix)))))
 
 
-(declaim (ftype (function ((or null list-of-strings) &key (:test function))) common-prefix))
-(defun common-prefix (list-of-strings &key ((:test test) #'char=))
-  (let ((prefix-length (loop :for char-tuple in (d.aux:rotate list-of-strings)
-                             :while (apply test char-tuple)
+(defun common-prefix (list &key ((:test test) #'eql))
+  (let ((prefix-length (loop :for tuple in (d.aux:rotate list)
+                             :while (apply test tuple)
                              :counting t)))
-    (and list-of-strings (subseq (first list-of-strings) 0 prefix-length))))
+    (and list (subseq (first list) 0 prefix-length))))
+
+
+(declaim (ftype (function ((or null list-of-strings) &key (:test function))) common-string-prefix))
+(defun common-string-prefix (list-of-strings &key ((:test test) #'char=))
+  (common-prefix list-of-strings :test test))
 
  
 (defun add-to-assoc! (assoc key elem &key ((:test test) #'equal))

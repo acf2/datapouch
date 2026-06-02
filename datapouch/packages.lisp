@@ -27,6 +27,7 @@
            #:repeat-string
            #:prefix?
            #:common-prefix
+           #:common-string-prefix
            #:add-to-assoc!
            #:member-of
            #:concat-keyword
