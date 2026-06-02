@@ -382,6 +382,7 @@ NULL-REGEX is used if all regexes are NIL."
   (map 'list #'car groups))
 
 
+;; TODO: Rewrite for new fix with empty match groups
 ; Example (for my fragile memory):
 ;   "aa asdf ff ss dd"
 ;   "aa" "asdf" "ff" "ss" "dd"
@@ -496,7 +497,12 @@ NULL-REGEX is used if all regexes are NIL."
 
 (defun construct-hierical-tree (table group-stack)
   (flet ((group-equal (one another) (and (equal (first one) (first another))
-                                         (equal (second one) (second another)))))
+                                         (equal (second one) (second another))))
+         (make-group-result (group-record tree) (funcall (or *make-group-result-fun*
+                                                             +make-group-result-default+)
+                                                         (getf (third group-record) :name)
+                                                         (getf (third group-record) :info)
+                                                         tree)))
     (loop
       :with iteration-result
       :with context := table
@@ -507,6 +513,11 @@ NULL-REGEX is used if all regexes are NIL."
       :for starting-list := (or (rest starting-position)
                                 (and (null starting-position)
                                      (getf current-context :starting-groups)))
+      :for empty-group-prefix := (loop :for group-record :in starting-list
+                                       :while (member group-record
+                                                      (getf current-context :ending-groups)
+                                                      :test #'group-equal)
+                                       :collect group-record)
       ;; null ending: unique for top call (with empty group-stack))
       :if (null context)
       :return (values resulting-tree nil)
@@ -514,12 +525,20 @@ NULL-REGEX is used if all regexes are NIL."
       ;; checking if groups should be closed (and their result returned)
       :when (member (first group-stack) (getf current-context :ending-groups) :test #'group-equal)
       :return (let ((group-record (first group-stack)))
-                (values (funcall (or *make-group-result-fun*
-                                     +make-group-result-default+)
-                                 (getf (third group-record) :name)
-                                 (getf (third group-record) :info)
-                                 resulting-tree)
+                (values (make-group-result group-record resulting-tree)
                         context))
+      :end
+      ;; if there are empty match groups:
+      ;; 1) add them in bulk
+      ;; 2) skip them in starting-list
+      :when empty-group-prefix
+      :append (map 'list (lambda (empty-group-record)
+                           (make-group-result empty-group-record nil))
+                   empty-group-prefix)
+      :into resulting-tree
+      :and
+      :do (setf starting-list (nthcdr (length empty-group-prefix)
+                                      starting-list))
       :end
       ;; open group (and collect result of the call)
       :if starting-list
