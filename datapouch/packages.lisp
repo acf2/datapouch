@@ -147,9 +147,12 @@
                 #:put-into #:get-from
                 #:concat-two #:combine-two)
   (:import-from :d.aux
+                #:repeat-string
                 #:list-of-list-of-strings)
   (:import-from :d.regex
                 #:regex
+                #:make-optional
+                #:make-named-group
                 #:sampled-regex
                 #:sampled-regex-from-string
                 #:relaxed-sampled-regex)

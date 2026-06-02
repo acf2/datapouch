@@ -88,11 +88,16 @@
 
 (defparameter +default-space-pattern+
   (make-pattern (sampled-regex-from-string "\\s+"
-                                           (list " " "     " (coerce (list #\Tab) 'string)))
+                                           (list (repeat-string 1 #\Space)
+                                                 (repeat-string 30 #\Space)
+                                                 (string #\Tab)))
                 (sampled-regex-from-string "\\s*"
-                                           (list "" " " "     " (coerce (list #\Tab) 'string)))
+                                           (list (repeat-string 0 #\Space)
+                                                 (repeat-string 1 #\Space)
+                                                 (repeat-string 30 #\Space)
+                                                 (string #\Tab)))
                 (list nil)
-                " "))
+                (string #\Space)))
 
 
 (defun default-doc-expr-finalizer (doc-expr &optional (enum-call nil))
@@ -209,10 +214,10 @@
                                          nil
                                          :use-only-named-results use-only-named-results
                                          :allow-traversal allow-traversal))
-                   :expander-expression (when (and short-regex short-expander)
+                   :expander-expression (when (and expander-short-regex short-expander)
                                           (d.expr:make-expression
                                             behavior-type ; Look! Expander lexicon uses full names!
-                                            short-regex
+                                            expander-short-regex
                                             short-expander
                                             nil
                                             :use-only-named-results nil)))))
@@ -367,14 +372,14 @@ docs for parameter meaning."
     (d.expr:wrap-with-lexicon lexicon handler :use-only-named-results nil)))
 
 
-(defmethod d.regex:make-optional ((pattern pattern))
+(defmethod make-optional ((pattern pattern))
   (with-slots (regex short-regex expander-short-regex canon-form docform) pattern
     (make-instance 'pattern
-                   :regex (d.regex:make-optional regex)
+                   :regex (make-optional regex)
                    :short-regex (when short-regex
-                                  (d.regex:make-optional short-regex))
+                                  (make-optional short-regex))
                    :expander-short-regex (when expander-short-regex
-                                           (d.regex:make-optional expander-short-regex))
+                                           (make-optional expander-short-regex))
                    :canon-form (cons nil canon-form)
                    :docform (make-optional docform))))
 

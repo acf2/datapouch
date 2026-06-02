@@ -49,6 +49,7 @@
                  :doc-expr string))
 
 
-(defmethod make-named-group ((name string) (docform docform))
+(defmethod make-named-group ((name string) (docform docform) &optional info)
+  (declare (ignore info))
   (make-instance 'docform
                  :doc-expr (list :named-group name (doc-expr docform))))
