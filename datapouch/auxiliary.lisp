@@ -142,19 +142,32 @@
           :append (cartesian-product (rest sets) transform-fun (append path (list e))))))
 
 
+;; Predicate is self-evident: should we call transform for this node?
+;; Transform takes a node, and should return two values:
+;; 1) some data, extracted from node, to be used elsewhere
+;; 2) new node to replace the previous one
+;;
+;; If recurse-after-transform-fun is set, then new node will be recursed into.
+;; recurse-after-transform function must take one argument - newly generated subtree,
+;; and it must return one value - subtree to apply recursive traverse call to.
+;; Any new data will be appended to list of already extracted.
+;;
+;; Traverse returns two values:
+;; 1) list of all data, collected with transform calls
+;; 2) newly generated code tree
 (defun traverse (tree predicate-fun transform-fun &optional (recurse-after-transform-fun nil))
   "Generic, but not very sophisticated traverse function to implement macros."
   (cond ((funcall predicate-fun tree)
-         (multiple-value-bind (form-value new-form) (funcall transform-fun tree)
+         (multiple-value-bind (tree-value new-tree) (funcall transform-fun tree)
            (if (null recurse-after-transform-fun)
-             (values (list form-value) new-form)
-             (multiple-value-bind (new-form-values traversed-new-form)
-               (traverse (funcall recurse-after-transform-fun new-form)
+             (values (list tree-value) new-tree)
+             (multiple-value-bind (new-tree-values traversed-new-tree)
+               (traverse (funcall recurse-after-transform-fun new-tree)
                          predicate-fun
                          transform-fun
                          recurse-after-transform-fun)
-               (values (cons form-value new-form-values)
-                       traversed-new-form)))))
+               (values (cons tree-value new-tree-values)
+                       traversed-new-tree)))))
         ((listp tree)
          (let ((subtree-result (rotate (map 'list (lambda (subtree)
                                                     (multiple-value-list (traverse subtree

@@ -157,7 +157,27 @@
                 #:sampled-regex-from-string
                 #:relaxed-sampled-regex)
   (:import-from :d.expr
-                #:get-from-lexicon))
+                #:get-from-lexicon)
+  (:export
+    ;; docform
+    #:docform #:doc-expr
+    #:make-docform
+    #:*doc-expr-finalizer*
+    ;; pattern
+    #:canon-form
+    #:pattern
+    #:regex #:short-regex #:expander-short-regex
+    #:behavior
+    #:behavior-type #:utility-expression #:short-expression #:expander-expression
+    #:make-pattern
+    #:+default-space-pattern+
+    #:behavior-container
+    #:make-behavior
+    #:set-behavior
+    #:get-pattern
+    #:trivial-pattern-type
+    #:add-trivial-pattern
+    #:add-space-patterns))
 
 
 (defpackage :datapouch.application

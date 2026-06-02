@@ -1,0 +1,334 @@
+;;;; pattern-expressions.lisp
+
+
+(in-package :datapouch.command.pattern)
+
+
+(defparameter +default-space-samples+ (list (repeat-string 0 #\Space)
+                                            (repeat-string 1 #\Space)
+                                            (repeat-string 42 #\Space)
+                                            (repeat-string 1 #\Tab)
+                                            (repeat-string 30 #\Tab)))
+
+
+(defparameter +default-space-pattern+
+  (make-pattern (sampled-regex-from-string "\\s+"
+                                           (rest +default-space-samples+))
+                (sampled-regex-from-string "\\s*"
+                                           +default-space-samples+)
+                (list nil)
+                (string #\Space)))
+
+
+(defparameter +default-begin-pattern+
+  (make-pattern (sampled-regex-from-string "^\\s*"
+                                           +default-space-samples+)
+                (sampled-regex-from-string "^\\s*"
+                                           +default-space-samples+)
+                (list nil)
+                ""))
+
+
+(defparameter +default-end-pattern+
+  (make-pattern (sampled-regex-from-string "\\s*$"
+                                           +default-space-samples+)
+                (sampled-regex-from-string "\\s*$"
+                                           +default-space-samples+)
+                (list nil)
+                ""))
+
+
+(declaim (ftype (function (behavior-container))
+                add-space-patterns))
+(defun add-space-patterns (container)
+  (put-into container
+            (make-behavior :space
+                           +default-space-pattern+
+                           nil
+                           (constantly (string #\Space))))
+  (put-into container
+            (make-behavior :begin
+                           +default-begin-pattern+
+                           nil
+                           (constantly "")))
+  (put-into container
+            (make-behavior :end
+                           +default-end-pattern+
+                           nil
+                           (constantly ""))))
+
+
+;(defparameter pc (make-instance 'd.ptrn::behavior-container))
+;(d.ptrn::add-trivial-pattern pc "fart" :short "f")
+;
+;(defparameter farting
+;  (let ((lex (with-slots ((el d.ptrn::expander-lexicon)) pc el)))
+;    (d.c.aux:make-rmacro-callback
+;      (d.c.aux:make-regex-parser
+;        (d.regex:make-scanner
+;
+;          (d.regex:concat-separated
+;            (list (get-from-lexicon lex (d.ptrn::trivial-pattern-type "fart")))
+;            :separator-regex "\\s+"
+;            :start-regex "^\\s*"
+;            :end-regex "\\s*$"
+;            :null-regex "^\\s*$")))
+;      (wrap-with-lexicon lex (lambda (other) (format t "OTHER: ~S~&" other)) :use-only-named-results nil))))
+;
+;(defparameter a (multiple-value-list (funcall farting "f")))
+;
+;(defmacro tst () (second a))
+
+
+(defun make-expander-callback (parser handler)
+  (lambda (command-string)
+    (multiple-value-bind (success match) (funcall parser command-string)
+      (if success
+        (values t (funcall handler match))
+        (values nil nil)))))
+
+
+(defun make-expander-with-lexicon (lexicon regex-list handler)
+  (make-expander-callback
+    (d.c.aux:make-regex-parser
+      (d.regex:make-scanner
+        (d.regex:concat-separated
+          (map 'list (lambda (term)
+                       (get-from-lexicon lexicon term))
+               regex-list)
+          :separator-regex "\\s+"
+          :start-regex "^\\s*"
+          :end-regex "\\s*$"
+          :null-regex "^\\s*$")))
+    (d.expr:wrap-with-lexicon lexicon handler :use-only-named-results nil)))
+
+
+;; :some-pattern
+(defun pattern-expression-bare-keyword? (term)
+  (and (atom term)
+       (typep term 'keyword)))
+
+
+;; (:behavior-type . <info>)
+(defun pattern-expression-reference-term? (term)
+  (and (listp term)
+       (or (typep (first term) 'keyword))))
+
+
+;; ((:trivial "trivial_word") . <info>)
+(defun pattern-expression-trivial-reference-term? (term)
+  (and (listp term)
+       (listp (first term))
+       (atom (first (first term)))
+       (member (first (first term))
+               (list :trivial))
+       (stringp (second (first term)))))
+
+
+(defun get-name-from-plist (plist)
+  (and (listp plist)
+       (evenp (length plist))
+       (getf plist :name)))
+
+
+;; Asterisk (:*) designates sequences
+;; Questionmark (:?) designates optional
+;; Plus (:+) designates alternatives
+(defparameter *compile-pattern-optional* :?)
+(defparameter *compile-pattern-sequence* :*)
+(defparameter *compile-pattern-alternation* :+)
+
+
+(defun compile-pattern-expression-predicate (term)
+  (or (and (listp term)
+           (typep (first term) 'keyword)
+           (member (first term)
+                   (list *compile-pattern-optional*
+                         *compile-pattern-sequence*
+                         *compile-pattern-alternation*)
+                   :test #'string=))
+      (pattern-expression-bare-keyword? term)
+      (pattern-expression-reference-term? term)
+      (pattern-expression-trivial-reference-term? term)))
+
+
+(defun compile-pattern-expression-snippet (container-name tree)
+  (cond ((and (listp tree)
+              (atom (first tree))
+              (string= (first tree)
+                       *compile-pattern-optional*))
+         ;; optional
+         (if (> (length (rest tree)) 1)
+           `(make-optional (concat ,@(map 'list (lambda (subtree)
+                                                  (compile-pattern-expression-snippet container-name
+                                                                                      subtree))
+                                          (rest tree))))
+           `(make-optional ,(compile-pattern-expression-snippet container-name (second tree)))))
+        ((and (listp tree)
+              (atom (first tree))
+              (string= (first tree)
+                       *compile-pattern-sequence*))
+         ;; sequence
+         `(concat ,@(map 'list (lambda (subtree)
+                                 (compile-pattern-expression-snippet container-name
+                                                                     subtree))
+                         (rest tree))))
+        ((and (listp tree)
+              (atom (first tree))
+              (string= (first tree)
+                       *compile-pattern-alternation*))
+         ;; alternation
+         `(combine ,@(map 'list (lambda (subtree)
+                                  (compile-pattern-expression-snippet container-name
+                                                                      subtree))
+                          (rest tree))))
+        ((pattern-expression-bare-keyword? tree)
+         ;; :some-pattern
+         `(get-pattern ,container-name ,tree))
+        ((pattern-expression-reference-term? tree)
+         ;; (:behavior-type . <info>)
+         ;; Generally it goes like this:
+         ;;
+         ;; (:behavior-type :name (some expr) . <other info>)
+         ;; ---> translates into --->
+         ;; (let ((<name symbol> (some expr)))
+         ;;   (get-pattern <container>
+         ;;                :behavior-type
+         ;;                <name symbol>
+         ;;                <other info>))
+         ;;
+         ;; === OR ===
+         ;;
+         ;; (:behavior-type . <other info>)
+         ;; ---> translates into --->
+         ;; (let ((<name symbol> (format nil "~(~A~)" :behavior-type)))
+         ;;   (get-pattern <container>
+         ;;                :behavior-type
+         ;;                <name symbol>
+         ;;                <other info>))
+         ;;
+         ;; === OR ===
+         ;;
+         ;; (:behavior-type)
+         ;; ---> translates into --->
+         ;; (let ((<name symbol> nil))
+         ;;   (get-pattern <container>
+         ;;                :behavior-type
+         ;;                <name symbol>
+         ;;                nil))
+         (let* ((behavior-type (first tree)) ; Can safely do with a keyword, w/o gensym
+                ; ...*this* side of insanity. Don't delude yourself which is which.
+                (name-name (gensym)) 
+                (name (when (rest tree)
+                        (or (get-name-from-plist (rest tree))
+                            `(format nil "~(~A~)" ,behavior-type))))
+                (other-info (rest tree)))
+           (when (getf other-info :name)
+             (setf (getf other-info :name) name-name))
+           `(let ((,name-name ,name))
+              (get-pattern ,container-name
+                           ,behavior-type
+                           ,name-name
+                           ,other-info))))
+        ((pattern-expression-trivial-reference-term? tree)
+         ;; ((:trivial "trivial_word") . <info>)
+         ;; Again:
+         ;;
+         ;; ((:trivial "trivial_word") :name (some expr) . <other info>)
+         ;; ---> translates into --->
+         ;; (let* ((<behavior type symbol> (trivial-pattern-type "trivial_word"))
+         ;;        (<name symbol> (some expr)))
+         ;;   (get-pattern <container>
+         ;;                <behavior type symbol>
+         ;;                <name symbol>
+         ;;                <other info>))
+         ;;
+         ;; === OR ===
+         ;;
+         ;; ((:trivial "trivial_word") . <other info>)
+         ;; ---> translates into --->
+         ;; (let* ((<behavior type symbol> (trivial-pattern-type "trivial_word"))
+         ;;        (<name symbol> (format nil "~(~A~)" <behavior type symbol>)))
+         ;;   (get-pattern <container>
+         ;;                <behavior type symbol>
+         ;;                <name symbol>
+         ;;                <other info>))
+         ;;
+         ;; === OR ===
+         ;;
+         ;; ((:trivial "trivial_word"))
+         ;; ---> translates into --->
+         ;; (let* ((<behavior type symbol> (trivial-pattern-type "trivial_word"))
+         ;;        (<name symbol> nil))
+         ;;   (get-pattern <container>
+         ;;                <behavior type symbol>
+         ;;                <name symbol>
+         ;;                nil))
+         ;;
+         (let* ((behavior-type-name (gensym))
+                (name-name (gensym))
+                (behavior-type `(trivial-pattern-type ,(second (first tree))))
+                (name (when (rest tree)
+                        (or (get-name-from-plist (rest tree))
+                            `(format nil "~(~A~)" ,behavior-type-name))))
+                (other-info (rest tree)))
+           (when (getf other-info :name)
+             (setf (getf other-info :name) name-name))
+           ; Yet I have never felt myself more lucid then right now.
+           ; Does every schizo feel this way? Is this a sign of sanity slipping?
+           `(let* ((,behavior-type-name ,behavior-type)
+                   (,name-name ,name))
+              (get-pattern ,container-name
+                           ,behavior-type-name
+                           ,name-name
+                           ,other-info))))
+        (:else
+         ;; last default - it's a pattern of user
+         tree)))
+
+
+;(defun compile-behavior-expression (container pattern-expression handler docs &rest options &key &allow-other-keys)
+;  (declare (ignore docs))
+;  "fart fart poooooooh... shite"
+;  (list ,@(map 'list (lambda (term)
+;                       (cond ((pattern-expression-bare-keyword? term)
+;                              (let* ((behavior-type term))
+;                                (get-pattern container
+;                                             behavior-type)))
+;                             ((pattern-expression-reference-term? term)
+;                              (let* ((behavior-type (first term))
+;                                     (name (or (get-name-from-plist (rest term))
+;                                               (and (rest term)
+;                                                    (format nil "~(~A~)" behavior-type))))
+;                                     (get-pattern container
+;                                                  behavior-type
+;                                                  name
+;                                                  (rest term))))
+;                              ((pattern-expression-trivial-reference-term? term)
+;                               (let* ((behavior-type (trivial-pattern-type (second (first term))))
+;                                      (name (or (get-name-from-plist (rest term))
+;                                                (and (rest term)
+;                                                     (format nil "~(~A~)" (second (first term)))))))
+;                                 (get-pattern container
+;                                              behavior-type
+;                                              name
+;                                              (rest term))))
+;                              (:else
+;                                term))))
+;               pattern-expression))
+;
+;  `(d.c.aux:make-rmacro-callback
+;     (d.c.aux:make-regex-parser
+;       (d.regex:make-scanner
+;         (d.regex:concat-separated
+;           (list ,@(map 'list (lambda (term)
+;                                (if (and (listp term)
+;                                         (typep (first term) 'keyword))
+;                                  `(get-from-lexicon ,lexicon ,(first term) ,(rest term))
+;                                  term))
+;                        regex-list))
+;           :separator-regex "\\s+"
+;           :start-regex "^\\s*"
+;           :end-regex "\\s*$"
+;           :null-regex "^\\s*$")))
+;     (wrap-with-lexicon ,lexicon ,handler ,@options)))

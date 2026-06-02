@@ -78,5 +78,5 @@
 
 
 (defpackage :zac.user
-  (:use #:cl #:datapouch #:d.comgen
+  (:use #:cl #:datapouch
         #:zac.box #:zac.book #:zac.main))

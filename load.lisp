@@ -9,7 +9,7 @@
 
 (defparameter work-dir (directory-namestring (or *load-truename* *default-pathname-defaults*)))
 
-(defparameter required-system-directories (list "datapouch" "datapouch-comgen" "zettelkasten-and-accounting"))
+(defparameter required-system-directories (list "datapouch" "zettelkasten-and-accounting"))
 
 (loop :for dirname :in required-system-directories
       :do (pushnew (truename (make-pathname :directory work-dir

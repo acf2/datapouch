@@ -53,3 +53,38 @@
   (declare (ignore info))
   (make-instance 'docform
                  :doc-expr (list :named-group name (doc-expr docform))))
+
+
+(defun default-doc-expr-finalizer (doc-expr &optional (enum-type nil))
+  (cond ((not (listp doc-expr))
+         doc-expr)
+        ((eq (first doc-expr)
+             :named-group)
+         (format nil "<~A:~A>"
+                 (second doc-expr)
+                 (default-doc-expr-finalizer (third doc-expr))))
+        ((eq (first doc-expr)
+             :optional)
+         (format nil "[~A]"
+                 (default-doc-expr-finalizer (second doc-expr))))
+        ((eq (first doc-expr)
+             :sequence)
+         (format nil
+                 "~:[~;(~]~{~A~}~0@*~:[~;)~]"
+                 (member enum-type (list :alternation))
+                 (map 'list (lambda (subexpr)
+                              (default-doc-expr-finalizer subexpr :sequence))
+                      (rest doc-expr))))
+        ((eq (first doc-expr)
+             :alternation)
+         (format nil
+                 "~:[~;(~]~{~#[~;~A~:;~A | ~]~}~0@*~:[~;)~]"
+                 (member enum-type (list :sequence))
+                 (delete-duplicates
+                   (map 'list (lambda (subexpr)
+                                (default-doc-expr-finalizer subexpr :alternation))
+                        (rest doc-expr))
+                   :test #'string=)))))
+
+
+(defparameter *doc-expr-finalizer* #'default-doc-expr-finalizer)
