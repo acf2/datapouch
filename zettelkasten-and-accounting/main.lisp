@@ -34,11 +34,19 @@
   ;(let ((zac-shell (make-instance 'd.shell:shell)))
     ;(add-help-to-shell zac-shell)
     ;(zac.box:add-zettelkasten-commands zac-shell)
-    (pushnew (make-instance 'd.app:application
-                            :rmacro-callbacks (get-zettelkasten-commands)
-                            :prompt-fun #'custom-prompt-fun)
-             d.app:*application-stack*))
-
+    (push-new-application
+      :rmacro-callbacks (get-zettelkasten-commands)
+      :expander-callbacks (list (wrap-expander-callback-with-command-character
+                                  (lambda (s)
+                                    (if (string= s "hd")
+                                      (values t "hello darkness")
+                                      (values nil nil)))
+                                  #\/))
+      :autocomplete-tree (add-command-character-to-autocomplete-tree
+                           `(("hello")
+                             ("home"))
+                           #\/)
+      :prompt-fun #'custom-prompt-fun))
 ;          (generate-commands
 ;            (list (make-shell-command '("init")
 ;                                      (lambda (str match)

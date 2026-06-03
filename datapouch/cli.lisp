@@ -200,7 +200,8 @@
 
 (let ((word-separator-scanner (ppcre:create-scanner `(:greedy-repetition 1 nil (:char-class ,@+default-space-characters+)))))
   (defun autocomplete-callback (partial-word word-start-index word-end-index)
-    (declare (ignore word-end-index))
+    (declare (ignore word-end-index)
+             (special *autocomplete-tree*))
     ;; XXX: Iteration 0: Just make it work, screw the guidelines
     (labels ((traverse-tree (tree path) (if (or (not (listp path)) (null path))
                                           tree
@@ -241,7 +242,8 @@
 
 
 (defun expander-check (partial-word word-start-index word-end-index)
-  (declare (ignore word-start-index word-end-index))
+  (declare (ignore word-start-index word-end-index)
+           (special *expander-callbacks*))
   (loop :for callback :in *expander-callbacks*
         :for (success resulting-line) := (multiple-value-list (funcall callback partial-word))
         :when success

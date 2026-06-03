@@ -96,6 +96,9 @@
            #:get-parametrized-repl-read-form
            #:*heretical-repl-available*
            #:repl-fun-with-readline
+           #:*autocomplete-tree* #:*expander-callbacks*
+           #:add-command-character-to-autocomplete-tree
+           #:wrap-expander-callback-with-command-character
            #:register-datapouch-autocomplete))
 
 
@@ -187,7 +190,8 @@
            #:application
            #:push-new-application #:get-current-return
            #:app-read-form
-           #:get-app-repl-read-form))
+           #:get-app-repl-read-form
+           #:register-autocomplete-with-applications))
 
 
 (defpackage :datapouch.filesystem

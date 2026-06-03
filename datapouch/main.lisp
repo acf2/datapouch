@@ -36,6 +36,7 @@
   ;(pushnew #'no-newline-after-debugger *debugger-hooks*)
   ;(pushnew #'ignore-debugger *debugger-hooks*)
   (when *history-path* (rl:read-history (namestring (truename *history-path*))))
+  (d.cli:register-datapouch-autocomplete)
   ;; Check if readline version > 8?
   (d.cli:disable-bracketed-paste))
 
