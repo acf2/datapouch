@@ -45,7 +45,11 @@
                :reader canon-form)
    (docform :initarg :docform
             :type docform
-            :reader docform)))
+            :reader docform)
+   (short-docform :initarg :short-docform
+                  :initform nil
+                  :type (or null docform)
+                  :reader short-docform)))
 
 
 (defclass behavior ()
@@ -78,16 +82,18 @@
                                              (apply #'concatenate 'string tree)))
 
 
-(declaim (ftype (function (sampled-regex relaxed-sampled-regex canon-form string))
+(declaim (ftype (function (sampled-regex relaxed-sampled-regex canon-form string &optional string))
                 make-pattern))
-(defun make-pattern (regex short-regex canon-form doc)
+(defun make-pattern (regex short-regex canon-form doc &optional short-doc)
   (make-instance
     'pattern
     :regex regex
     :short-regex short-regex
     :expander-short-regex short-regex
     :canon-form canon-form
-    :docform (make-docform doc)))
+    :docform (make-docform doc)
+    :short-docform (when short-doc
+                     (make-docform short-doc))))
 
 
 ; TODO: Root pattern container, that is given to all plugins
@@ -219,7 +225,11 @@ EXPRESSION-CONFIG docs for parameter meaning."
                        :canon-form (canon-form pattern)
                        :docform (if name
                                   (make-named-group name (docform pattern))
-                                  (docform pattern)))))))
+                                  (docform pattern))
+                       :short-docform (let ((sdf (short-docform pattern)))
+                                        (when sdf (if name
+                                                    (make-named-group name sdf)
+                                                    sdf))))))))
 
 
 (declaim (ftype (function (string &key (:type (or keyword string))))
@@ -239,7 +249,8 @@ EXPRESSION-CONFIG docs for parameter meaning."
                                            (when shorthand
                                              (sampled-regex-from-string shorthand (list shorthand)))
                                            (list (list word))
-                                           word)
+                                           word
+                                           shorthand)
                              nil
                              (lambda (&rest rest)
                                (format t "GOT: ~A~&" rest) ; DEBUG
@@ -248,7 +259,7 @@ EXPRESSION-CONFIG docs for parameter meaning."
 
 
 (defmethod make-optional ((pattern pattern))
-  (with-slots (regex short-regex expander-short-regex canon-form docform) pattern
+  (with-slots (regex short-regex expander-short-regex canon-form docform short-docform) pattern
     (make-instance 'pattern
                    :regex (make-optional regex)
                    :short-regex (when short-regex
@@ -256,14 +267,18 @@ EXPRESSION-CONFIG docs for parameter meaning."
                    :expander-short-regex (when expander-short-regex
                                            (make-optional expander-short-regex))
                    :canon-form (cons nil canon-form)
-                   :docform (make-optional docform))))
+                   :docform (make-optional docform)
+                   :short-docform (when short-docform
+                                    (make-optional short-docform)))))
 
 
 (defmethod concat-two ((one pattern) (another pattern))
   (with-slots ((short-one short-regex)
-               (expand-one expander-short-regex)) one
+               (expand-one expander-short-regex)
+               (sdf-one short-docform)) one
     (with-slots ((short-another short-regex)
-                 (expand-another expander-short-regex)) another
+                 (expand-another expander-short-regex)
+                 (sdf-another short-docform)) another
       (make-instance 'pattern
                      :regex (concat-two (regex one) (regex another))
                      :short-regex (when (and short-one short-another)
@@ -277,14 +292,19 @@ EXPRESSION-CONFIG docs for parameter meaning."
                                                                              #'append)
                                                     :test #'equal)
                      :docform (concat-two (docform one)
-                                          (docform another))))))
+                                          (docform another))
+                     :short-docform (when (and sdf-one sdf-another)
+                                      (concat-two sdf-one
+                                                  sdf-another))))))
 
 
 (defmethod combine-two ((one pattern) (another pattern))
   (with-slots ((short-one short-regex)
-               (expand-one expander-short-regex)) one
+               (expand-one expander-short-regex)
+               (sdf-one short-docform)) one
     (with-slots ((short-another short-regex)
-                 (expand-another expander-short-regex)) another
+                 (expand-another expander-short-regex)
+                 (sdf-another short-docform)) another
       (make-instance 'pattern
                      :regex (combine-two (regex one) (regex another))
                      :short-regex (when (and short-one short-another)
@@ -295,4 +315,7 @@ EXPRESSION-CONFIG docs for parameter meaning."
                                                             (canon-form another))
                                                     :test #'equal)
                      :docform (combine-two (docform one)
-                                           (docform another))))))
+                                           (docform another))
+                     :short-docform (when (and sdf-one sdf-another)
+                                      (concat-two sdf-one
+                                                  sdf-another))))))

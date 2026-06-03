@@ -185,10 +185,6 @@
         (sb-impl::disable-stepping)))))
 
 
-;;; Assoc with strings. Each string - one possible word for autocompletion.
-(defparameter *autocomplete-tree* nil)
-
-
 ; complete function is used to generate list of possible completions for given
 ; partially entered word. The function must be able to take three arguments:
 ; partially entered word, start index of the word in *line-buffer*, and end
@@ -198,24 +194,80 @@
 ; completions. 
 
 
+;;; Assoc with strings. Each string - one possible word for autocompletion.
+(defparameter *autocomplete-tree* nil)
+
+
+(let ((word-separator-scanner (ppcre:create-scanner `(:greedy-repetition 1 nil (:char-class ,@+default-space-characters+)))))
+  (defun autocomplete-callback (partial-word word-start-index word-end-index)
+    (declare (ignore word-end-index))
+    ;; XXX: Iteration 0: Just make it work, screw the guidelines
+    (labels ((traverse-tree (tree path) (if (or (not (listp path)) (null path))
+                                          tree
+                                          (traverse-tree (rest (assoc (first path) tree :test #'equal)) (rest path)))))
+      (let* ((words (map 'list
+                         (lambda (element)
+                           (if (listp element)
+                             (first element)
+                             element))
+                         (traverse-tree *autocomplete-tree*
+                                        (ppcre:split word-separator-scanner (subseq rl:*line-buffer* 0 word-start-index)))))
+             (filtered-words (remove-if-not (lambda (candidate)
+                                              (d.aux:prefix? partial-word candidate))
+                                            words)))
+        (if (rest filtered-words)
+          (cons (d.aux:common-string-prefix filtered-words) filtered-words)
+          filtered-words)))))
+
+
+(defun add-command-character-to-autocomplete-tree (tree command-character)
+  (map 'list (lambda (subtree)
+               (cons (concatenate 'string
+                                  (string command-character)
+                                  (first subtree))
+                     (rest subtree)))
+       tree))
+
+
+;;; List of callbacks.
+;;;
+;;; Each must take one argument:
+;;; 1) String value, representing a possible command to be expanded.
+;;;
+;;; Each must return two values:
+;;; 1) T or NIL as it's first value, indicating: was expanding successful, or wasn't,
+;;; 2) And the resulting command string to be substituted, if expanding was successful.
+(defparameter *expander-callbacks* nil)
+
+
+(defun expander-check (partial-word word-start-index word-end-index)
+  (declare (ignore word-start-index word-end-index))
+  (loop :for callback :in *expander-callbacks*
+        :for (success resulting-line) := (multiple-value-list (funcall callback partial-word))
+        :when success
+        :return (list resulting-line)
+        :end))
+
+
+(defun wrap-expander-callback-with-command-character (callback command-character)
+  (lambda (line)
+    (multiple-value-bind (success result) (funcall callback
+                                                   (subseq line 1))
+      (if success
+        (values t (concatenate 'string
+                               (string command-character)
+                               result))
+        (values nil nil)))))
+
+
 (defun register-datapouch-autocomplete ()
-  (let ((word-separator-scanner (ppcre:create-scanner `(:greedy-repetition 1 nil (:char-class ,@+default-space-characters+)))))
-    (rl:register-function :complete
-                          (lambda (partial-word word-start-index word-end-index)
-                            ;; XXX: Iteration 0: Just make it work, screw the guidelines
-                            (labels ((traverse-tree (tree path) (if (or (not (listp path)) (null path))
-                                                                  tree
-                                                                  (traverse-tree (rest (assoc (first path) tree :test #'equal)) (rest path)))))
-                              (let* ((words (map 'list 
-                                                 (lambda (element)
-                                                   (if (listp element)
-                                                     (first element)
-                                                     element))
-                                                 (traverse-tree *autocomplete-tree*
-                                                                (ppcre:split word-separator-scanner (subseq rl:*line-buffer* 0 word-start-index)))))
-                                     (filtered-words (remove-if-not (lambda (candidate)
-                                                                      (d.aux:prefix? partial-word candidate))
-                                                                    words)))
-                                (if (rest filtered-words)
-                                  (cons (d.aux:common-string-prefix filtered-words) filtered-words)
-                                  filtered-words)))))))
+  (rl:register-function :complete (lambda (partial-word word-start-index word-end-index)
+                                    (setf rl:*completion-append-character* #\nul)
+                                    (let ((expanded-line (expander-check partial-word
+                                                                         word-start-index
+                                                                         word-end-index)))
+                                      (if expanded-line
+                                        expanded-line
+                                        (autocomplete-callback partial-word
+                                                               word-start-index
+                                                               word-end-index))))))
