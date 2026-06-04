@@ -170,6 +170,7 @@
     #:make-docform
     #:*doc-expr-finalizer*
     ;; pattern
+    #:+no-canon-form+
     #:canon-form #:canon-form-to-autocomplete
     #:pattern
     #:regex #:short-regex #:expander-short-regex #:short-docform
@@ -185,6 +186,11 @@
     #:add-trivial-pattern
     #:add-space-patterns
     ;; pattern-expression
+    #:add-space-patterns
+    #:set-behaviors
+    #:collect-yields
+    #:yields-into-application
+    ;#:compile-into-application
     ))
 
 

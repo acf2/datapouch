@@ -262,13 +262,13 @@
 (defparameter *expander-callbacks* nil)
 
 
-(defun expander-check (partial-word word-start-index word-end-index)
-  (declare (ignore word-start-index word-end-index)
+(defun expander-check (&rest _)
+  (declare (ignore _)
            (special *expander-callbacks*))
   (loop :for callback :in *expander-callbacks*
-        :for (success resulting-line) := (multiple-value-list (funcall callback partial-word))
+        :for (success resulting-line) := (multiple-value-list (funcall callback rl:*line-buffer*))
         :when success
-        :return (list resulting-line)
+        :return resulting-line
         :end))
 
 
@@ -290,10 +290,12 @@
                                                                          word-start-index
                                                                          word-end-index)))
                                       (cond (expanded-line
-                                              (setf rl:*completion-append-character* #\nul)
-                                              expanded-line)
+                                              (rl:beginning-of-line)
+                                              (rl:undo-group
+                                                (rl:delete-text 0 (length rl:*line-buffer*))
+                                                (rl:insert-text expanded-line))
+                                              nil)
                                             (:else
-                                              (setf rl:*completion-append-character* #\space)
                                               (autocomplete-callback partial-word
                                                                      word-start-index
                                                                      word-end-index)))))))

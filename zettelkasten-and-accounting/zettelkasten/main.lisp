@@ -706,51 +706,69 @@
 
 
 (defun get-zettelkasten-commands ()
-  (with-new-lexicon
-    zk-lex
-    (flet ((get-rx (keyword-name &optional info) (get-from-lexicon zk-lex keyword-name info)))
-      (set-expression :substring ".*?"
-                      (return-match :substring)
-                      "Lazy substring"
-                      :use-only-named-results nil)
-      (set-expression :word "\\w+"
-                      #'return-named-match
-                      "Any single word"
-                      :use-only-named-results nil)
-      (set-expression :number "[1-9]\\d*"
-                      (lambda (name num)
-                        (make-result name (parse-integer num)))
-                      "Any number not starting with zero"
-                      :use-only-named-results nil)
+  (let ((wordrx (sampled-regex-from-string "\\w+" (list "abracadabra" "a")))
+        (numberrx (sampled-regex-from-string "[1-9]\\d*" (list "1" "90" "31337"))))
+  (let ((bc (make-instance 'behavior-container)))
+    (add-space-patterns bc)
 
-      (set-expression :direction "forward|back(?:ward)?"
-                      #'handle-direction
-                      "Direction"
-                      :use-only-named-results nil)
-      (set-expression :short-direction "f|b"
-                      #'handle-direction
-                      "Short direction"
-                      :use-only-named-results nil)
-      (set-expression :closure "\\*"
-                      (return-match :closure)
-                      "Sign for operation closure (Kleene star subset)"
-                      :use-only-named-results nil)
-      (set-expression :new-link-next-sign "n(?:ext)?"
-                      (return-match :next)
-                      "Sign for making new note the next note of current one"
-                      :use-only-named-results nil)
+    (set-behaviors
+      bc
+      (:word (make-pattern wordrx wordrx +no-canon-form+ "word" "*")
+             (lambda (info word)
+               (make-result (getf info :name)
+                            word))
+             :use-only-named-results nil)
+      (:number (make-pattern numberrx numberrx +no-canon-form+ "number" "N")
+               (lambda (info num)
+                 (make-result (getf info :name)
+                              (parse-integer num)))
+               :use-only-named-results nil))
 
-      (with-slots ((el d.expr::expression-lookup)) zk-lex
-        (format t "Hashes:~&")
-        (loop :for hk :being :the :hash-key :in el
-              :do (format t "Hash: ~A~&Expr: ~A~&" hk (get-from zk-lex hk))))
-
-      (set-expression :dae (optional-concat (list (get-rx :direction)
-                                                  (get-rx :number :exponent)
-                                                  (get-rx :closure))
-                                            :separator-regex "\\s+")
-                      #'handle-dae
-                      +dae-help+)
+;--  (with-new-lexicon
+;--    zk-lex
+;--    (flet ((get-rx (keyword-name &optional info) (get-from-lexicon zk-lex keyword-name info)))
+;--      (set-expression :substring ".*?"
+;--                      (return-match :substring)
+;--                      "Lazy substring"
+;--                      :use-only-named-results nil)
+;--      (set-expression :word "\\w+"
+;--                      #'return-named-match
+;--                      "Any single word"
+;--                      :use-only-named-results nil)
+;--      (set-expression :number "[1-9]\\d*"
+;--                      (lambda (name num)
+;--                        (make-result name (parse-integer num)))
+;--                      "Any number not starting with zero"
+;--                      :use-only-named-results nil)
+;--
+;--      (set-expression :direction "forward|back(?:ward)?"
+;--                      #'handle-direction
+;--                      "Direction"
+;--                      :use-only-named-results nil)
+;--      (set-expression :short-direction "f|b"
+;--                      #'handle-direction
+;--                      "Short direction"
+;--                      :use-only-named-results nil)
+;--      (set-expression :closure "\\*"
+;--                      (return-match :closure)
+;--                      "Sign for operation closure (Kleene star subset)"
+;--                      :use-only-named-results nil)
+;--      (set-expression :new-link-next-sign "n(?:ext)?"
+;--                      (return-match :next)
+;--                      "Sign for making new note the next note of current one"
+;--                      :use-only-named-results nil)
+;--
+;--      (with-slots ((el d.expr::expression-lookup)) zk-lex
+;--        (format t "Hashes:~&")
+;--        (loop :for hk :being :the :hash-key :in el
+;--              :do (format t "Hash: ~A~&Expr: ~A~&" hk (get-from zk-lex hk))))
+;--
+;--      (set-expression :dae (optional-concat (list (get-rx :direction)
+;--                                                  (get-rx :number :exponent)
+;--                                                  (get-rx :closure))
+;--                                            :separator-regex "\\s+")
+;--                      #'handle-dae
+;--                      +dae-help+)
 
 
 
@@ -774,30 +792,47 @@
 ;                              +dae-help+)
 
       (with-immutable-parsers
-        (let ((previous-dice-roll nil) (previous-dice nil))
-        (list (make-command ("[Hh]ello" (:word . :name))
-                            (lambda (&key name)
-                              (format t "Greetings, ~:(~A~)~&" name))
-                            "docs")
-              (make-command ("[Dd]ice")
-                            (lambda ()
-                              (push-new-application :rmacro-callbacks (list (make-command ("throw" (:number . :dice))
-                                                                                          (lambda (&key dice)
-                                                                                            (funcall (get-current-return) (list (1+ (random dice)) dice)))
-                                                                                          "docs"))
-                                                    :result-callback (lambda (result)
-                                                                       (setf previous-dice-roll (first result))
-                                                                       (setf previous-dice (second result))
-                                                                       (format t "Result: ~A~&" (first result)))
-                                                    :prompt-fun (constantly "THROW-DICE $ ")))
-                            "docs")
-              (make-command ("proll")
-                            (lambda ()
-                              (format t "Previous dice roll result: ~A/~A~&" previous-dice-roll previous-dice))
-                            "docs")
-              (make-command ("home") #'command-home "docs")))
-        )
-      )))
+        (collect-yields
+          bc
+          ((:+ :begin
+               (:trivial "hello" "h")
+               :fixed-space
+               (:word :name :name)
+               :end)
+           (lambda (&key name)
+             (format t "Greetings, ~:(~A~)~&" name))
+           "Greet your guest.")))
+
+
+
+
+;--        (let ((previous-dice-roll nil) (previous-dice nil))
+;--        (list 
+;--          (make-command ("[Hh]ello" (:word . :name))
+;--                        (lambda (&key name)
+;--                          (format t "Greetings, ~:(~A~)~&" name))
+;--                        "docs")
+;--          (make-command ("[Dd]ice")
+;--                        (lambda ()
+;--                          (push-new-application :rmacro-callbacks (list (make-command ("throw" (:number . :dice))
+;--                                                                                      (lambda (&key dice)
+;--                                                                                        (funcall (get-current-return) (list (1+ (random dice)) dice)))
+;--                                                                                      "docs"))
+;--                                                :result-callback (lambda (result)
+;--                                                                   (setf previous-dice-roll (first result))
+;--                                                                   (setf previous-dice (second result))
+;--                                                                   (format t "Result: ~A~&" (first result)))
+;--                                                :prompt-fun (constantly "THROW-DICE $ ")))
+;--                        "docs")
+;--          (make-command ("proll")
+;--                        (lambda ()
+;--                          (format t "Previous dice roll result: ~A/~A~&" previous-dice-roll previous-dice))
+;--                        "docs")
+;--          (make-command ("home") #'command-home "docs")))
+;--        )
+;--      )))
+        )))
+
         ;;;---------------------------
 ;      (make-commands
 ;        zk-lex

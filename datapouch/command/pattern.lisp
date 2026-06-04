@@ -213,7 +213,7 @@ EXPRESSION-CONFIG docs for parameter meaning."
                            :allow-traversal allow-traversal)))
 
 
-(declaim (ftype (function (behavior-container (or keyword string) &optional string t))
+(declaim (ftype (function (behavior-container (or keyword string) &optional (or keyword string) t))
                 get-pattern))
 (defun get-pattern (container behavior-type &optional name info)
   (with-slots (pattern-lookup utility-lexicon expander-lexicon) container

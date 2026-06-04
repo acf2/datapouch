@@ -55,6 +55,10 @@
                  :doc-expr (list :named-group name (doc-expr docform))))
 
 
+(defmethod make-named-group ((name symbol) (docform docform) &optional info)
+  (make-named-group (string name) docform info))
+
+
 (defun default-doc-expr-finalizer (doc-expr &optional (enum-type nil))
   (cond ((not (listp doc-expr))
          doc-expr)

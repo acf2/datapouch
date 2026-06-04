@@ -207,18 +207,18 @@
          ;;                nil))
          (let* ((behavior-type (first tree)) ; Can safely do with a keyword, w/o gensym
                 (name-name (gensym)) 
-                (name-in-plist (get-name-from-plist (rest tree)))
-                (name (when (rest tree)
+                (other-info (rest tree))
+                (name-in-plist (get-name-from-plist other-info))
+                (name (when other-info
                         (or name-in-plist
-                            `(format nil "~(~A~)" ,behavior-type))))
-                (other-info (rest tree)))
+                            `(format nil "~(~A~)" ,behavior-type)))))
            (when name-in-plist
              (setf (getf other-info :name) name-name))
            `(let ((,name-name ,name))
               (get-pattern ,container-name
                            ,behavior-type
                            ,name-name
-                           ',other-info))))
+                           (list ,@other-info)))))
         (:else
           ;; last default - it's a pattern of user
           tree)))
