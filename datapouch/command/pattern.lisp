@@ -7,7 +7,8 @@
 (in-package :datapouch.command.pattern)
 
 
-(defparameter +no-canon-form+ :not-applicable)
+(defparameter +no-canon-form-marker+ :not-applicable)
+(defparameter +no-canon-form+ (list (list +no-canon-form-marker+)))
 
 
 (defun canon-form-p (list)
@@ -17,8 +18,8 @@
                      (every (lambda (form)
                               (or (stringp form)
                                   (null form)
-                                  (and (typep form (type-of +no-canon-form+))
-                                       (eq form +no-canon-form+))))
+                                  (and (typep form (type-of +no-canon-form-marker+))
+                                       (eq form +no-canon-form-marker+))))
                             alternatives)))
               list)))
 
@@ -108,7 +109,7 @@
 (declaim (ftype (function ((or string keyword)))
                 short-expression-type))
 (defun short-expression-type (behavior-type)
-  (concatenate 'string "short-" (string behavior-type)))
+  (concatenate 'string "Shorthand for " (string behavior-type)))
 
 
 (declaim (ftype (function ((or keyword string)
@@ -235,8 +236,7 @@ EXPRESSION-CONFIG docs for parameter meaning."
 (declaim (ftype (function (string &optional string))
                 trivial-pattern-type))
 (defun trivial-pattern-type (word &optional shorthand)
-  (or behavior-type
-      (format nil "Trivial pattern: ~:[~;~:*~A->~]~A" shorthand word)))
+  (format nil "Trivial pattern: ~:[~;~:*~A->~]~A" shorthand word))
 
 
 (declaim (ftype (function (behavior-container string &optional string))

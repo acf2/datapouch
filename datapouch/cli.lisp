@@ -253,13 +253,14 @@
 
 (defun wrap-expander-callback-with-command-character (callback command-character)
   (lambda (line)
-    (multiple-value-bind (success result) (funcall callback
-                                                   (subseq line 1))
-      (if success
-        (values t (concatenate 'string
-                               (string command-character)
-                               result))
-        (values nil nil)))))
+    (when (> (length line) 0)
+      (multiple-value-bind (success result) (funcall callback
+                                                     (subseq line 1))
+        (if success
+          (values t (concatenate 'string
+                                 (string command-character)
+                                 result))
+          (values nil nil))))))
 
 
 (defun register-datapouch-autocomplete ()

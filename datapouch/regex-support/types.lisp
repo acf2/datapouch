@@ -57,3 +57,16 @@
 (deftype list-of-relaxed-sampled-regexes ()
   "Is non-NIL and contains only D.REGEX:SAMPLED-REGEX objects or NILs."
   `(satisfies list-of-relaxed-sampled-regexes-p))
+
+
+(defun list-of-sampled-matchers-p (list)
+  (and (consp list)
+       (every (lambda (x) (or (typep x 'sampled-regex)
+                              (typep x 'sampled-regex-scanner)))
+              list)))
+
+
+(deftype list-of-sampled-matchers ()
+  "Is non NIL and contains either D.REGEX:SAMPLED-REGEX or
+D.REGEX:SAMPLED-REGEX-SCANNER objects."
+  `(satisfies list-of-sampled-matchers-p))

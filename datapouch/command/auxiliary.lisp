@@ -40,7 +40,7 @@ and match."
         (values nil nil)))))
 
 
-(defparameter *saved-parsers-function-list* (list '#:make-regex-parser))
+(defparameter *saved-parsers-function-list* (list '#:make-scanner))
 
 
 (defun with-immutable-parsers-predicate (form)

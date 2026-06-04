@@ -153,20 +153,20 @@
   (cond ((pattern-tree? tree *compile-pattern-optional*)
          ;; optional
          (if (> (length (rest tree)) 1)
-           `(make-optional (concat ,@(map 'list (lambda (subtree)
+           `(make-optional (d.iface:concat ,@(map 'list (lambda (subtree)
                                                   (compile-pattern-expression-snippet container-name
                                                                                       subtree))
                                           (rest tree))))
            `(make-optional ,(compile-pattern-expression-snippet container-name (second tree)))))
         ((pattern-tree? tree *compile-pattern-sequence*)
          ;; sequence
-         `(concat ,@(map 'list (lambda (subtree)
+         `(d.iface:concat ,@(map 'list (lambda (subtree)
                                  (compile-pattern-expression-snippet container-name
                                                                      subtree))
                          (rest tree))))
         ((pattern-tree? tree *compile-pattern-alternation*)
          ;; alternation
-         `(combine ,@(map 'list (lambda (subtree)
+         `(d.iface:combine ,@(map 'list (lambda (subtree)
                                   (compile-pattern-expression-snippet container-name
                                                                       subtree))
                           (rest tree))))
@@ -226,17 +226,18 @@
          ;;                nil))
          (let* ((behavior-type (first tree)) ; Can safely do with a keyword, w/o gensym
                 (name-name (gensym)) 
+                (name-in-plist (get-name-from-plist (rest tree)))
                 (name (when (rest tree)
-                        (or (get-name-from-plist (rest tree))
+                        (or name-in-plist
                             `(format nil "~(~A~)" ,behavior-type))))
                 (other-info (rest tree)))
-           (when (getf other-info :name)
+           (when name-in-plist
              (setf (getf other-info :name) name-name))
            `(let ((,name-name ,name))
               (get-pattern ,container-name
                            ,behavior-type
                            ,name-name
-                           ,other-info))))
+                           ',other-info))))
         (:else
           ;; last default - it's a pattern of user
           tree)))
@@ -247,9 +248,25 @@
 ; Does every schizo feel this way? Is this a sign of sanity slipping?
 
 
-(defun set-behaviors () nil)
-(defun collect-yields () nil)
-(defun compile-into-application () nil)
+;(defun set-behaviors () nil)
+;(defun collect-yields () nil)
+;(defun compile-into-application () nil)
+
+
+;; (:type pattern-expr handler keyword-args...)
+(defmacro set-behaviors (container &rest set-forms)
+  (let ((container-name (gensym)))
+    `(let ((,container-name ,container))
+       ,@(loop :for form :in set-forms
+               :collect `(set-behavior ,container-name
+                                       ,(first form)
+                                       ,(compile-pattern-expression-snippet container-name
+                                                                            (second form))
+                                       ,(third form)
+                                       ,@(nthcdr 3 form))))))
+
+
+
 
 
 ;(defun compile-behavior-expression (container pattern-expression handler docs &rest options &key &allow-other-keys)

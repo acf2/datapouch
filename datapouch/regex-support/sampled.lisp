@@ -43,13 +43,16 @@ collisions (to a certain degree)."))
 (defun sampled-regex-from-string (string samples)
   "Make D.REGEX:SAMPLED-REGEX instance from a STRING, that contains a regex,
 and a list of samples."
-  (make-instance 'sampled-regex
-                 :tree (ppcre:parse-string string)
-                 :samples samples))
+  (let ((sr (make-instance 'sampled-regex
+                           :tree (ppcre:parse-string string)
+                           :samples samples)))
+    (if (regex-allows-all-samples sr samples)
+      sr
+      (error 'sampled-regex-error :reason "Regex does not allow all samples"))))
 
 
 ; NOTE: Maybe list of regexes or regex-scanners?
-(declaim (ftype (function (list-of-sampled-regexes)) find-incompatible-sampled-regexes))
+(declaim (ftype (function (list-of-sampled-matchers)) find-incompatible-sampled-regexes))
 (defun find-incompatible-sampled-regexes (sampled-regexes)
   (loop :for sampled-regex :in sampled-regexes
         :for incompatibilities := (loop :for target-sampled-regex :in sampled-regexes
@@ -92,3 +95,19 @@ and a list of samples."
                    :tree (tree result)
                    :group-map (group-map result)
                    :samples (union (samples one) (samples another) :test #'string=))))
+
+
+(defclass sampled-regex-scanner (regex-scanner)
+  ((samples :initarg :samples
+            :reader samples
+            :type list-of-strings))
+  (:documentation ""))
+
+
+(defmethod make-scanner :around ((sr sampled-regex))
+  (let ((sc (call-next-method)))
+    (make-instance 'sampled-regex-scanner
+                   :scanner (scanner sc)
+                   :group-map (group-map sc)
+                   :group-list (group-list sc)
+                   :samples (samples sr))))
