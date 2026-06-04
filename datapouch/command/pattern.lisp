@@ -232,17 +232,17 @@ EXPRESSION-CONFIG docs for parameter meaning."
                                                     sdf))))))))
 
 
-(declaim (ftype (function (string &key (:type (or keyword string))))
+(declaim (ftype (function (string &optional string))
                 trivial-pattern-type))
-(defun trivial-pattern-type (word &key ((:type behavior-type)))
+(defun trivial-pattern-type (word &optional shorthand)
   (or behavior-type
-      (format nil "Trivial pattern: ~A" word)))
+      (format nil "Trivial pattern: ~:[~;~:*~A->~]~A" shorthand word)))
 
 
-(declaim (ftype (function (behavior-container string &key (:type (or keyword string)) (:short string)))
+(declaim (ftype (function (behavior-container string &optional string))
                 add-trivial-pattern))
-(defun add-trivial-pattern (container word &key ((:type explicit-type)) ((:short shorthand)))
-  (let ((behavior-type (trivial-pattern-type word :type explicit-type)))
+(defun add-trivial-pattern (container word &optional shorthand)
+  (let ((behavior-type (trivial-pattern-type word shorthand)))
     (put-into container
               (make-behavior behavior-type
                              (make-pattern (sampled-regex-from-string word (list word))

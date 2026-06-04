@@ -118,14 +118,14 @@
        (or (typep (first term) 'keyword))))
 
 
-;; ((:trivial "trivial_word") . <info>)
+;; (:trivial "trivial_word" "tw")
 (defun pattern-expression-trivial-reference-term? (term)
   (and (listp term)
-       (listp (first term))
-       (atom (first (first term)))
-       (member (first (first term))
+       (atom (first term))
+       (member (first term)
                (list :trivial))
-       (stringp (second (first term)))))
+       (stringp (second term))
+       (stringp (third term))))
 
 
 (defun get-name-from-plist (plist)
@@ -173,6 +173,26 @@
         ((pattern-expression-bare-keyword? tree)
          ;; :some-pattern
          `(get-pattern ,container-name ,tree))
+        ((pattern-expression-trivial-reference-term? tree)
+         ;; (:trivial "trivial_word" "tw")
+         ;; ---> translates into --->
+         ;; (let* ((<word symbol> "trivial_word")
+         ;;        (<shorthand symbol> "tw")
+         ;;        (<type symbol> (trivial-pattern-type <word symbol> <shorthand symbol>)))
+         ;;   (or (get-pattern <container> <type symbol>)
+         ;;       (get-pattern <container> (add-trivial-pattern <container>
+         ;;                                                     <word symbol>
+         ;;                                                     <shorthand symbol>))))
+         (let ((word-name (gensym))
+               (shorthand-name (gensym))
+               (behavior-type-name (gensym)))
+           `(let* ((,word-name ,(second tree))
+                   (,shorthand-name ,(third tree))
+                   (,behavior-type-name (trivial-pattern-type ,word-name ,shorthand-name)))
+              (or (get-pattern ,container-name ,behavior-type-name)
+                  (get-pattern ,container-name (add-trivial-pattern ,container-name
+                                                                    ,word-name
+                                                                    ,shorthand-name))))))
         ((pattern-expression-reference-term? tree)
          ;; (:behavior-type . <info>)
          ;; Generally it goes like this:
@@ -205,7 +225,6 @@
          ;;                <name symbol>
          ;;                nil))
          (let* ((behavior-type (first tree)) ; Can safely do with a keyword, w/o gensym
-                ; ...*this* side of insanity. Don't delude yourself which is which.
                 (name-name (gensym)) 
                 (name (when (rest tree)
                         (or (get-name-from-plist (rest tree))
@@ -218,61 +237,19 @@
                            ,behavior-type
                            ,name-name
                            ,other-info))))
-        ((pattern-expression-trivial-reference-term? tree)
-         ;; ((:trivial "trivial_word") . <info>)
-         ;; Again:
-         ;;
-         ;; ((:trivial "trivial_word") :name (some expr) . <other info>)
-         ;; ---> translates into --->
-         ;; (let* ((<behavior type symbol> (trivial-pattern-type "trivial_word"))
-         ;;        (<name symbol> (some expr)))
-         ;;   (get-pattern <container>
-         ;;                <behavior type symbol>
-         ;;                <name symbol>
-         ;;                <other info>))
-         ;;
-         ;; === OR ===
-         ;;
-         ;; ((:trivial "trivial_word") . <other info>)
-         ;; ---> translates into --->
-         ;; (let* ((<behavior type symbol> (trivial-pattern-type "trivial_word"))
-         ;;        (<name symbol> (format nil "~(~A~)" <behavior type symbol>)))
-         ;;   (get-pattern <container>
-         ;;                <behavior type symbol>
-         ;;                <name symbol>
-         ;;                <other info>))
-         ;;
-         ;; === OR ===
-         ;;
-         ;; ((:trivial "trivial_word"))
-         ;; ---> translates into --->
-         ;; (let* ((<behavior type symbol> (trivial-pattern-type "trivial_word"))
-         ;;        (<name symbol> nil))
-         ;;   (get-pattern <container>
-         ;;                <behavior type symbol>
-         ;;                <name symbol>
-         ;;                nil))
-         ;;
-         (let* ((behavior-type-name (gensym))
-                (name-name (gensym))
-                (behavior-type `(trivial-pattern-type ,(second (first tree))))
-                (name (when (rest tree)
-                        (or (get-name-from-plist (rest tree))
-                            `(format nil "~(~A~)" ,behavior-type-name))))
-                (other-info (rest tree)))
-           (when (getf other-info :name)
-             (setf (getf other-info :name) name-name))
-           ; Yet I have never felt myself more lucid then right now.
-           ; Does every schizo feel this way? Is this a sign of sanity slipping?
-           `(let* ((,behavior-type-name ,behavior-type)
-                   (,name-name ,name))
-              (get-pattern ,container-name
-                           ,behavior-type-name
-                           ,name-name
-                           ,other-info))))
         (:else
-         ;; last default - it's a pattern of user
-         tree)))
+          ;; last default - it's a pattern of user
+          tree)))
+
+
+; ...*this* side of insanity. Don't delude yourself which is which.
+; Yet I have never felt myself more lucid then right now.
+; Does every schizo feel this way? Is this a sign of sanity slipping?
+
+
+(defun set-behaviors () nil)
+(defun collect-yields () nil)
+(defun compile-into-application () nil)
 
 
 ;(defun compile-behavior-expression (container pattern-expression handler docs &rest options &key &allow-other-keys)
