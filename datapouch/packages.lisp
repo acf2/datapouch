@@ -34,7 +34,8 @@
            #:get-keys-from-hash-table
            #:check-directed-graph-for-cycles
            #:cartesian-product
-           #:traverse))
+           #:traverse
+           #:with-gensyms))
 
 
 (defpackage :datapouch.regex-support
@@ -97,6 +98,7 @@
            #:*heretical-repl-available*
            #:repl-fun-with-readline
            #:*autocomplete-tree* #:*expander-callbacks*
+           #:make-autocomplete-tree-from-lists
            #:add-command-character-to-autocomplete-tree
            #:wrap-expander-callback-with-command-character
            #:register-datapouch-autocomplete))
@@ -151,7 +153,8 @@
                 #:concat-two #:combine-two)
   (:import-from :d.aux
                 #:repeat-string
-                #:list-of-list-of-strings)
+                #:list-of-list-of-strings
+                #:with-gensyms)
   (:import-from :d.regex
                 #:regex
                 #:make-optional
@@ -167,9 +170,9 @@
     #:make-docform
     #:*doc-expr-finalizer*
     ;; pattern
-    #:canon-form
+    #:canon-form #:canon-form-to-autocomplete
     #:pattern
-    #:regex #:short-regex #:expander-short-regex
+    #:regex #:short-regex #:expander-short-regex #:short-docform
     #:behavior
     #:behavior-type #:utility-expression #:short-expression #:expander-expression
     #:make-pattern
@@ -180,7 +183,9 @@
     #:get-pattern
     #:trivial-pattern-type
     #:add-trivial-pattern
-    #:add-space-patterns))
+    #:add-space-patterns
+    ;; pattern-expression
+    ))
 
 
 (defpackage :datapouch.application

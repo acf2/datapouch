@@ -452,7 +452,8 @@ NULL-REGEX is used if all regexes are NIL."
 
 
 (defun group-by-numeric-parameter (value-collection parameter-collection)
-  (flet ((lift (value parameter) (list (list parameter value)))
+  (flet ((lift (value parameter) (when (and parameter value)
+                                   (list (list parameter value))))
          (less (one another) (< (first (first one)) (first (first another))))
          ;; For this, reduce must be a left fold
          ;; one - ((N1 ...) (N2 ...) ... (NK ...))
@@ -464,7 +465,7 @@ NULL-REGEX is used if all regexes are NIL."
                                                          (rest (first (last one)))
                                                          (rest (first another))))))
                                    (append one another))))
-    (reduce #'join-two (sort (map 'list #'lift value-collection parameter-collection)
+    (reduce #'join-two (sort (remove nil (map 'list #'lift value-collection parameter-collection))
                              #'less))))
 
 
@@ -477,9 +478,9 @@ NULL-REGEX is used if all regexes are NIL."
     (let* ((groups (loop :for group-name :in group-list
                          :for i := 0 :then (1+ i)
                          :collect (list group-name i (rest (assoc group-name group-map :test #'equal)))))
-           (separation-points (sort (remove-duplicates (append (list match-start match-end)
-                                                               (coerce group-starts 'list)
-                                                               (coerce group-ends 'list)))
+           (separation-points (sort (remove nil (remove-duplicates (append (list match-start match-end)
+                                                                           (coerce group-starts 'list)
+                                                                           (coerce group-ends 'list))))
                                     #'<))
            (piece-assoc (map 'list (lambda (start end)
                                      (list start

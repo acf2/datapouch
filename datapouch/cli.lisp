@@ -198,6 +198,27 @@
 (defparameter *autocomplete-tree* nil)
 
 
+(defun make-autocomplete-tree-from-lists (autocomplete-lists)
+  (if (null autocomplete-lists)
+    nil
+    (let (tree)
+      (loop :for list :in autocomplete-lists
+            :for word := (first list)
+            :for rest-of-expr := (rest list)
+            :do (if (null (assoc word tree :test #'string=))
+                  (setf tree (cons (if rest-of-expr
+                                     (list word rest-of-expr)
+                                     (list word))
+                                   tree))
+                  (when rest-of-expr
+                    (rplacd (assoc word tree :test #'string=)
+                            (cons rest-of-expr
+                                  (rest (assoc word tree :test #'string=)))))))
+      (loop :for (word . list) :in tree
+            :collect (cons word (when list
+                                  (make-autocomplete-tree-from-lists list)))))))
+
+
 (let ((word-separator-scanner (ppcre:create-scanner `(:greedy-repetition 1 nil (:char-class ,@+default-space-characters+)))))
   (defun autocomplete-callback (partial-word word-start-index word-end-index)
     (declare (ignore word-end-index)
@@ -265,12 +286,14 @@
 
 (defun register-datapouch-autocomplete ()
   (rl:register-function :complete (lambda (partial-word word-start-index word-end-index)
-                                    (setf rl:*completion-append-character* #\nul)
                                     (let ((expanded-line (expander-check partial-word
                                                                          word-start-index
                                                                          word-end-index)))
-                                      (if expanded-line
-                                        expanded-line
-                                        (autocomplete-callback partial-word
-                                                               word-start-index
-                                                               word-end-index))))))
+                                      (cond (expanded-line
+                                              (setf rl:*completion-append-character* #\nul)
+                                              expanded-line)
+                                            (:else
+                                              (setf rl:*completion-append-character* #\space)
+                                              (autocomplete-callback partial-word
+                                                                     word-start-index
+                                                                     word-end-index)))))))

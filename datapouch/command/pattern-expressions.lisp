@@ -21,6 +21,16 @@
                 ""))
 
 
+(defparameter +default-fixed-space-pattern+
+  (make-pattern (sampled-regex-from-string "\\s+"
+                                           (rest +default-space-samples+))
+                (sampled-regex-from-string "\\s+"
+                                           (rest +default-space-samples+))
+                (list nil)
+                (string #\Space)
+                (string #\Space)))
+
+
 (defparameter +default-begin-pattern+
   (make-pattern (sampled-regex-from-string "^\\s*"
                                            +default-space-samples+)
@@ -44,21 +54,15 @@
 (declaim (ftype (function (behavior-container))
                 add-space-patterns))
 (defun add-space-patterns (container)
-  (put-into container
-            (make-behavior :space
-                           +default-space-pattern+
-                           nil
-                           (constantly (string #\Space))))
-  (put-into container
-            (make-behavior :begin
-                           +default-begin-pattern+
-                           nil
-                           (constantly "")))
-  (put-into container
-            (make-behavior :end
-                           +default-end-pattern+
-                           nil
-                           (constantly ""))))
+  (loop :for (btype pattern expander) :in (list (list :space +default-space-pattern+ (constantly (string #\Space)))
+                                                (list :fixed-space +default-fixed-space-pattern+ (constantly (string #\Space)))
+                                                (list :begin +default-begin-pattern+ (constantly ""))
+                                                (list :end +default-end-pattern+ (constantly "")))
+        :do (put-into container
+                      (make-behavior btype
+                                     pattern
+                                     nil
+                                     expander))))
 
 
 ;(defparameter pc (make-instance 'd.ptrn::behavior-container))
@@ -81,29 +85,6 @@
 ;(defparameter a (multiple-value-list (funcall farting "f")))
 ;
 ;(defmacro tst () (second a))
-
-
-(defun make-expander-callback (parser handler)
-  (lambda (command-string)
-    (multiple-value-bind (success match) (funcall parser command-string)
-      (if success
-        (values t (funcall handler match))
-        (values nil nil)))))
-
-
-(defun make-expander-with-lexicon (lexicon regex-list handler)
-  (make-expander-callback
-    (d.c.aux:make-regex-parser
-      (d.regex:make-scanner
-        (d.regex:concat-separated
-          (map 'list (lambda (term)
-                       (get-from-lexicon lexicon term))
-               regex-list)
-          :separator-regex "\\s+"
-          :start-regex "^\\s*"
-          :end-regex "\\s*$"
-          :null-regex "^\\s*$")))
-    (d.expr:wrap-with-lexicon lexicon handler :use-only-named-results nil)))
 
 
 ;; :some-pattern
@@ -254,7 +235,7 @@
 
 
 ;; (:type pattern-expr handler keyword-args...)
-(defmacro set-behaviors (container &rest set-forms)
+(defmacro set-behaviors (container &body set-forms)
   (let ((container-name (gensym)))
     `(let ((,container-name ,container))
        ,@(loop :for form :in set-forms
@@ -266,7 +247,82 @@
                                        ,@(nthcdr 3 form))))))
 
 
+(defun make-expander-callback (parser handler)
+  (lambda (command-string)
+    (multiple-value-bind (success match) (funcall parser command-string)
+      (if success
+        (values t (funcall handler match))
+        (values nil nil)))))
 
+
+;; TODO: Very bad, rewrite, ples
+;; (pattern-expr handler docs keyword-args...)
+(defmacro collect-yields (container &body forms)
+  (with-gensyms
+    (container-name ul-name el-name)
+    (let ((yields (loop :for form :in forms
+                        :collect (with-gensyms
+                                   (pattern-expr-name rxname srxname erxname handler-name options-name)
+                                   `(let ((,pattern-expr-name ,(compile-pattern-expression-snippet container-name
+                                                                                                   (first form))))
+                                      (with-slots (regex short-regex expander-short-regex docform short-docform) ,pattern-expr-name
+                                        (let ((,rxname (d.regex:make-scanner regex))
+                                              (,srxname (when short-regex
+                                                          (d.regex:make-scanner short-regex)))
+                                              (,erxname (when expander-short-regex
+                                                          (d.regex:make-scanner expander-short-regex)))
+                                              (,handler-name ,(second form))
+                                              (,options-name (list ,@(nthcdr 3 form))))
+                                          (list (list (d.c.aux:make-rmacro-callback ; rmacro-callbacks, full & short
+                                                        (d.c.aux:make-regex-parser ,rxname)
+                                                        (apply #'d.expr:wrap-with-lexicon
+                                                               ,ul-name
+                                                               ,handler-name
+                                                               ,options-name))
+                                                      (when ,srxname
+                                                        (d.c.aux:make-rmacro-callback
+                                                          (d.c.aux:make-regex-parser ,srxname)
+                                                          (apply #'d.expr:wrap-with-lexicon
+                                                                 ,ul-name
+                                                                 ,handler-name
+                                                                 ,options-name))))
+                                                (list (when ,erxname ; expander-callbacks
+                                                        (make-expander-callback
+                                                          (d.c.aux:make-regex-parser ,erxname)
+                                                          (funcall #'d.expr:wrap-with-lexicon
+                                                                   ,el-name
+                                                                   +default-top-short-expander+
+                                                                   :use-only-named-results nil))))
+                                                (canon-form-to-autocomplete (canon-form ,pattern-expr-name)) ; canon-form
+                                                (list (list (funcall *doc-expr-finalizer* (doc-expr docform)) ; documentation
+                                                            (when short-docform
+                                                              (funcall *doc-expr-finalizer* (doc-expr short-docform)))
+                                                            ,(third form)))
+                                                (list ,rxname ,srxname))))))))) ; sampled-regex-scanners to check collisions/incompatible
+      `(let ((,container-name ,container))
+         (with-slots ((,ul-name utility-lexicon)
+                      (,el-name expander-lexicon)) ,container-name
+           (map 'list (lambda (yield-list)
+                        (remove nil (reduce #'append yield-list)))
+                (d.aux:rotate (list ,@yields))))))))
+
+
+(defun yields-into-application (rmacro-callbacks expander-callbacks canon-forms docs sampled-scanners &rest other &key &allow-other-keys)
+  (when (null (d.regex:find-incompatible-sampled-regexes sampled-scanners))
+    (apply #'d.app:push-new-application
+      :rmacro-callbacks rmacro-callbacks
+      :expander-callbacks (map 'list (lambda (cb)
+                                       (d.cli:wrap-expander-callback-with-command-character cb #\/))
+                               expander-callbacks)
+      :autocomplete-tree (d.cli:add-command-character-to-autocomplete-tree
+                           (d.cli:make-autocomplete-tree-from-lists
+                             canon-forms)
+                           #\/)
+      :docs docs
+      other)))
+
+
+;(defmacro complile-into-application (container &body forms)
 
 
 ;(defun compile-behavior-expression (container pattern-expression handler docs &rest options &key &allow-other-keys)

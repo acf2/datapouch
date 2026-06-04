@@ -28,6 +28,15 @@
   `(satisfies canon-form-p))
 
 
+(defun canon-form-to-autocomplete (canon-form)
+  (remove nil
+          (loop :for canon-subform :in canon-form
+                :collect (remove nil (loop :for word :in canon-subform
+                                           :until (and (typep word 'keyword)
+                                                       (eq word +no-canon-form-marker+))
+                                           :collect word)))))
+
+
 (defclass pattern ()
   ((regex :initarg :regex
           :type sampled-regex
@@ -74,7 +83,7 @@
                         :reader expander-expression)))
 
 
-(defparameter +default-short-expander+ (lambda (info tree)
+(defparameter +default-short-expander+ (lambda (info &rest tree)
                                          (declare (ignore info))
                                          (apply #'concatenate 'string tree)))
 
@@ -253,7 +262,7 @@ EXPRESSION-CONFIG docs for parameter meaning."
                                            shorthand)
                              nil
                              (lambda (&rest rest)
-                               (format t "GOT: ~A~&" rest) ; DEBUG
+                               (declare (ignore rest))
                                word)))
     behavior-type))
 
@@ -317,5 +326,5 @@ EXPRESSION-CONFIG docs for parameter meaning."
                      :docform (combine-two (docform one)
                                            (docform another))
                      :short-docform (when (and sdf-one sdf-another)
-                                      (concat-two sdf-one
-                                                  sdf-another))))))
+                                      (combine-two sdf-one
+                                                   sdf-another))))))
