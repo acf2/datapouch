@@ -333,7 +333,7 @@
       (error 'incompatiple-regexes :pairs pairs))))
 
 
-(defmacro complile-into-application (container forms &rest other &key &allow-other-keys)
+(defmacro compile-into-application (container forms &rest other &key &allow-other-keys)
   `(apply #'yields-into-application
           (append ,(collect-yields-snippet container forms)
                   (list ,@other))))

@@ -795,24 +795,46 @@
 ;                              #'handle-dae
 ;                              +dae-help+)
 
-      (with-immutable-parsers
-        (collect-yields
-          bc
-          ((:+ :begin
-               (:trivial "hello" "h")
-               :fixed-space
-               (:word :name :name)
-               :end)
-           (lambda (&key name)
-             (format t "Greetings, ~:(~A~)~&" name))
-           "Greet your guest.")
-          ((:+ :begin
-               (:trivial "dice")
-               :end)
-           (lambda ()
-             nil)
-           "Throw dice.")
-          ))
+(with-immutable-parsers
+  (let ((previous-dice-roll nil) (previous-dice nil))
+    (collect-yields
+      bc
+      ((:+ :begin
+           (:trivial "hello" "h")
+           :fixed-space
+           (:word :name :name)
+           :end)
+       (lambda (&key name)
+         (format t "Greetings, ~:(~A~)~&" name))
+       "Greet your guest.")
+      ((:+ :begin
+           (:trivial "dice")
+           :end)
+       (lambda ()
+         (compile-into-application bc
+                                   (((:+ :begin
+                                         (:trivial "throw")
+                                         :space
+                                         (:number :name :dice)
+                                         :end)
+                                     (lambda (&key dice)
+                                       (funcall (get-current-return) (list (1+ (random dice)) dice)))
+                                     "Throw the fukken dice!"))
+                                    :result-callback (lambda (result)
+                                                       (setf previous-dice-roll (first result))
+                                                       (setf previous-dice (second result))
+                                                       (format t "Result: ~A~&" (first result)))
+                                    :prompt-fun (constantly "THROW-DICE $ ")))
+         "Application for throwing dice.")
+      ((:+ :begin
+           (:trivial "previous" "p")
+           :space
+           (:trivial "roll" "r")
+           :end)
+       (lambda ()
+         (format t "Previous dice roll result: ~A/~A~&" previous-dice-roll previous-dice))
+       "Show previous dice roll.")
+      )))
 
 
 
