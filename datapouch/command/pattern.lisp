@@ -92,7 +92,7 @@
                                              (apply #'concatenate 'string tree)))
 
 
-(declaim (ftype (function (sampled-regex relaxed-sampled-regex canon-form string &optional string))
+(declaim (ftype (function (sampled-regex relaxed-sampled-regex canon-form string &optional (or null string)))
                 make-pattern))
 (defun make-pattern (regex short-regex canon-form doc &optional short-doc)
   (make-instance
@@ -242,13 +242,13 @@ EXPRESSION-CONFIG docs for parameter meaning."
                                                     sdf))))))))
 
 
-(declaim (ftype (function (string &optional string))
+(declaim (ftype (function (string &optional (or null string)))
                 trivial-pattern-type))
 (defun trivial-pattern-type (word &optional shorthand)
   (format nil "Trivial pattern: ~:[~;~:*~A->~]~A" shorthand word))
 
 
-(declaim (ftype (function (behavior-container string &optional string))
+(declaim (ftype (function (behavior-container string &optional (or null string)))
                 add-trivial-pattern))
 (defun add-trivial-pattern (container word &optional shorthand)
   (let ((behavior-type (trivial-pattern-type word shorthand)))
@@ -265,6 +265,21 @@ EXPRESSION-CONFIG docs for parameter meaning."
                                (declare (ignore rest))
                                word)))
     behavior-type))
+
+
+(declaim (ftype (function (string list-of-strings string &optional (or null string)))
+                make-wildcard-pattern))
+(defun make-wildcard-pattern (string-rx samples doc &optional short-doc)
+  (let ((rx (sampled-regex-from-string string-rx samples)))
+    (make-instance
+      'pattern
+      :regex rx
+      :short-regex rx
+      :expander-short-regex rx
+      :canon-form +no-canon-form+
+      :docform (make-docform doc)
+      :short-docform (when short-doc
+                       (make-docform short-doc)))))
 
 
 (defmethod make-optional ((pattern pattern))

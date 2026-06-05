@@ -9,6 +9,7 @@
   (:nicknames :d.iface)
   (:export #:concat-two #:concat-many #:concat
            #:combine-two #:combine-many #:combine
+           #:concat-many-relaxed #:combine-many-relaxed
            #:put-into #:get-from))
 
 
@@ -153,6 +154,7 @@
                 #:concat-two #:combine-two)
   (:import-from :d.aux
                 #:repeat-string
+                #:list-of-strings
                 #:list-of-list-of-strings
                 #:with-gensyms)
   (:import-from :d.regex
@@ -184,14 +186,14 @@
     #:get-pattern
     #:trivial-pattern-type
     #:add-trivial-pattern
+    #:make-wildcard-pattern
     #:add-space-patterns
     ;; pattern-expression
     #:add-space-patterns
     #:set-behaviors
     #:collect-yields
     #:yields-into-application
-    ;#:compile-into-application
-    ))
+    #:compile-into-application))
 
 
 (defpackage :datapouch.application

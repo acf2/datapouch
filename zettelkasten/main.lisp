@@ -706,19 +706,23 @@
 
 
 (defun get-zettelkasten-yields ()
-  (let ((wordrx (sampled-regex-from-string "\\w+" (list "abracadabra" "a")))
-        (numberrx (sampled-regex-from-string "[1-9]\\d*" (list "1" "90" "31337"))))
   (let ((bc (make-instance 'behavior-container)))
     (add-space-patterns bc)
 
     (set-behaviors
       bc
-      (:word (make-pattern wordrx wordrx +no-canon-form+ "word" "*")
+      (:word (make-wildcard-pattern "\\w+"
+                                    (list "abracadabra" "a")
+                                    "word"
+                                    "*")
              (lambda (info word)
                (make-result (getf info :name)
                             word))
              :use-only-named-results nil)
-      (:number (make-pattern numberrx numberrx +no-canon-form+ "number" "N")
+      (:number (make-wildcard-pattern "[1-9]\\d*"
+                                      (list "1" "90" "31337")
+                                      "number"
+                                      "N")
                (lambda (info num)
                  (make-result (getf info :name)
                               (parse-integer num)))
@@ -801,7 +805,14 @@
                :end)
            (lambda (&key name)
              (format t "Greetings, ~:(~A~)~&" name))
-           "Greet your guest.")))
+           "Greet your guest.")
+          ((:+ :begin
+               (:trivial "dice")
+               :end)
+           (lambda ()
+             nil)
+           "Throw dice.")
+          ))
 
 
 
@@ -831,7 +842,7 @@
 ;--          (make-command ("home") #'command-home "docs")))
 ;--        )
 ;--      )))
-        )))
+        ))
 
         ;;;---------------------------
 ;      (make-commands

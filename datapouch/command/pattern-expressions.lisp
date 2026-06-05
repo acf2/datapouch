@@ -99,14 +99,15 @@
        (or (typep (first term) 'keyword))))
 
 
-;; (:trivial "trivial_word" "tw")
+;; (:trivial "trivial_word" ["tw"])
 (defun pattern-expression-trivial-reference-term? (term)
   (and (listp term)
        (atom (first term))
        (member (first term)
                (list :trivial))
        (stringp (second term))
-       (stringp (third term))))
+       (or (null (third term))
+           (stringp (third term)))))
 
 
 (defun get-name-from-plist (plist)
@@ -255,9 +256,7 @@
         (values nil nil)))))
 
 
-;; TODO: Very bad, rewrite, ples
-;; (pattern-expr handler docs keyword-args...)
-(defmacro collect-yields (container &body forms)
+(defun collect-yields-snippet (container forms)
   (with-gensyms
     (container-name ul-name el-name)
     (let ((yields (loop :for form :in forms
@@ -298,13 +297,19 @@
                                                             (when short-docform
                                                               (funcall *doc-expr-finalizer* (doc-expr short-docform)))
                                                             ,(third form)))
-                                                (list ,rxname ,srxname))))))))) ; sampled-regex-scanners to check collisions/incompatible
+                                                (list regex short-regex))))))))) ; sampled-regex-scanners to check collisions/incompatible
       `(let ((,container-name ,container))
          (with-slots ((,ul-name utility-lexicon)
                       (,el-name expander-lexicon)) ,container-name
            (map 'list (lambda (yield-list)
                         (remove nil (reduce #'append yield-list)))
                 (d.aux:rotate (list ,@yields))))))))
+
+
+;; TODO: Very bad, rewrite, ples
+;; (pattern-expr handler docs keyword-args...)
+(defmacro collect-yields (container &body forms)
+  (collect-yields-snippet container forms))
 
 
 (define-condition incompatiple-regexes (error)
@@ -328,7 +333,10 @@
       (error 'incompatiple-regexes :pairs pairs))))
 
 
-;(defmacro complile-into-application (container &body forms)
+(defmacro complile-into-application (container forms &rest other &key &allow-other-keys)
+  `(apply #'yields-into-application
+          (append ,(collect-yields-snippet container forms)
+                  (list ,@other))))
 
 
 ;(defun compile-behavior-expression (container pattern-expression handler docs &rest options &key &allow-other-keys)

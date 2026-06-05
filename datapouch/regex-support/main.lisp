@@ -251,13 +251,15 @@ NULL-REGEX is used if all regexes are NIL."
   (let ((nonnil-regexes (remove nil regexes)))
     (if (null nonnil-regexes)
       null-rx
-      (concat start-rx
-              (concat-many
-                     (cons (first nonnil-regexes)
-                           (loop :for regex :in (rest nonnil-regexes)
-                                 :collect sep-rx
-                                 :collect regex)))
-              end-rx))))
+      (concat-many-relaxed
+        (list
+          start-rx
+          (concat-many-relaxed
+            (cons (first nonnil-regexes)
+                  (loop :for regex :in (rest nonnil-regexes)
+                        :collect sep-rx
+                        :collect regex)))
+          end-rx)))))
 
 
 ;; TBD: Does explicit support ab?c?|a?bc?|a?b?c
@@ -279,18 +281,19 @@ NULL-REGEX is used if all regexes are NIL."
                                        (string (regex-from-string rx))))
                              (remove nil regexes))))
     (when nonnil-regexes
-      (combine-many
+      (combine-many-relaxed
         (loop :for regex-list := nonnil-regexes :then (rest regex-list)
               :while regex-list
               :collect (if (= (length regex-list) 1)
                          (if explicit
                            (first regex-list)
                            (make-optional (wrap-in-noncapturing-group (first regex-list))))
-                         (concat-many (loop :for regex :in regex-list
-                                            :for first-regex := t :then nil
-                                            :collect (if first-regex
-                                                       regex
-                                                       (concat sep-rx (make-optional (wrap-in-noncapturing-group regex))))))))))))
+                         (concat-many-relaxed (loop :for regex :in regex-list
+                                                    :for first-regex := t :then nil
+                                                    :collect (if first-regex
+                                                               regex
+                                                               (concat-many-relaxed
+                                                                 (list sep-rx (make-optional (wrap-in-noncapturing-group regex)))))))))))))
 
 
 (declaim (ftype (function (relaxed-regex relaxed-regex relaxed-regex)) interchange))

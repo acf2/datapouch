@@ -9,6 +9,11 @@
 
 (declaim (ftype (function (t)) concat-many))
 (defun concat-many (lst)
+  (reduce #'concat-two lst))
+
+
+(declaim (ftype (function (t)) concat-many-relaxed))
+(defun concat-many-relaxed (lst)
   (reduce #'concat-two (remove nil lst)))
 
 
@@ -22,6 +27,11 @@
 
 (declaim (ftype (function (t)) combine-many))
 (defun combine-many (lst)
+  (reduce #'combine-two lst))
+
+
+(declaim (ftype (function (t)) combine-many-relaxed))
+(defun combine-many-relaxed (lst)
   (reduce #'combine-two (remove nil lst)))
 
 

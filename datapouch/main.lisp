@@ -76,12 +76,21 @@
 
 
 (defun make-top-application ()
-  (apply #'d.ptrn:yields-into-application
-         (append 
-           (map 'list (lambda (yield-list)
-                        (remove nil (reduce #'append yield-list)))
-                (d.aux:rotate *plugin-yields*))
-           (list :prompt-fun *prompt-combination-fun*))))
+  (handler-case (apply #'d.ptrn:yields-into-application
+                       (append 
+                         (map 'list (lambda (yield-list)
+                                      (remove nil (reduce #'append yield-list)))
+                              (d.aux:rotate *plugin-yields*))
+                         (list :prompt-fun *prompt-combination-fun*)))
+                (d.ptrn::incompatiple-regexes (c) 
+                                      (setf sb-int:*repl-read-form-fun* (d.cli:get-parametrized-repl-read-form
+                                                                          (lambda (buffer)
+                                                                            (let ((*readtable* d.cli:*datapouch-readtable*))
+                                                                              (d.cli:read-form buffer d.cli:*prompt-fun*))))) ; Best leave it to remain third to last
+                                      (format t "PAIRS: ~A~&" (map 'list (lambda (pair)
+                                                                           (list (d.regex:tree (first pair))
+                                                                                 (d.regex:tree (second pair))))
+                                                                   (d.ptrn::incompatible-pairs c))))))
 
 
 ;;; TODO add fast resave to some path
