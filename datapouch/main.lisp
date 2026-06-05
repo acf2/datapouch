@@ -60,6 +60,30 @@
   (d.sql:close-db))
 
 
+(defparameter *plugin-prompt-funs* nil)
+
+(defparameter +default-prompt-combination-fun+
+  (lambda (buffer)
+    (format nil "~{~:[~;~:*[~A]~#[~:;-~]~]~}~:[*~:;>~] "
+            (loop :for prompt-fun :in *plugin-prompt-funs*
+                  :collect (funcall prompt-fun buffer))
+            buffer)))
+
+(defparameter *prompt-combination-fun* +default-prompt-combination-fun+)
+
+
+(defparameter *plugin-yields* nil)
+
+
+(defun make-top-application ()
+  (apply #'d.ptrn:yields-into-application
+         (append 
+           (map 'list (lambda (yield-list)
+                        (remove nil (reduce #'append yield-list)))
+                (d.aux:rotate *plugin-yields*))
+           (list :prompt-fun *prompt-combination-fun*))))
+
+
 ;;; TODO add fast resave to some path
 (defun make-image (&rest args)
   (setf sb-ext:*init-hooks* (remove-duplicates (append sb-ext:*init-hooks*
@@ -92,4 +116,5 @@
   (if d.cli:*heretical-repl-available*
     (setf sb-impl::*repl-fun-generator* (constantly #'d.cli:repl-fun-with-readline))
     (setf d.cli:*add-fresh-line-after-each-result-print* t))
+  (make-top-application)
   (apply #'sb-ext:save-lisp-and-die args))

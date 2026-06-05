@@ -21,4 +21,6 @@
                ;; Weight diary
 
                (:file "main" :depends-on ("packages" "zettelkasten/main" "bookkeeping")))
-  :depends-on (:datapouch))
+  :depends-on (:datapouch)
+  :perform (asdf:load-op (o c)
+                         (symbol-call :zac.main :make-zac)))

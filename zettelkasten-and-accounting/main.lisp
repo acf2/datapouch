@@ -8,6 +8,10 @@
   (let ((box-prompt (zac.box:get-prompt)))
     (format nil "~@[[~A]~]~:[*~;>~] " box-prompt (string= buffer ""))))
 
+(defun plugin-prompt-fun (buffer)
+  (let ((box-prompt (zac.box:get-prompt)))
+    (format nil "~@[~A~]~:[*~;>~] " box-prompt (string= buffer ""))))
+
 
 ;;; Very crude implementation of argument parsing
 ;;; I do not need it, except for one case
@@ -52,12 +56,16 @@
 ;                                                (d.regex:get-group :name groups))))))
 
 
-(defun make-zac (&rest args)
+(defun make-zac ()
   (setf d.cli:*noprint-result* nil) ; At least for now
   (setf d.main:*preload-hooks* (append d.main:*preload-hooks*
                                        (list #'parse-command-line-arguments)))
   (setf d.main:*init-hooks* (append d.main:*init-hooks*
                                     (list (lambda () (setf *package* (find-package "ZAC.USER")))
                                           #'zettelkasten-init-hook)))
-  (make-zac-app)
-  (apply #'d.main:make-image args))
+  (setf d.main::*plugin-prompt-funs* (append d.main::*plugin-prompt-funs*
+                                             (list (lambda (buffer)
+                                                     (declare (ignore buffer))
+                                                     (zac.box:get-prompt)))))
+  (setf d.main::*plugin-yields* (cons (get-zettelkasten-commands)
+                                      d.main::*plugin-yields*)))

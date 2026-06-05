@@ -307,19 +307,25 @@
                 (d.aux:rotate (list ,@yields))))))))
 
 
+(define-condition incompatiple-regexes (error)
+  ((incompatible-pairs :initarg :pairs :reader incompatible-pairs)))
+
+
 (defun yields-into-application (rmacro-callbacks expander-callbacks canon-forms docs sampled-scanners &rest other &key &allow-other-keys)
-  (when (null (d.regex:find-incompatible-sampled-regexes sampled-scanners))
-    (apply #'d.app:push-new-application
-      :rmacro-callbacks rmacro-callbacks
-      :expander-callbacks (map 'list (lambda (cb)
-                                       (d.cli:wrap-expander-callback-with-command-character cb #\/))
-                               expander-callbacks)
-      :autocomplete-tree (d.cli:add-command-character-to-autocomplete-tree
-                           (d.cli:make-autocomplete-tree-from-lists
-                             canon-forms)
-                           #\/)
-      :docs docs
-      other)))
+  (let ((pairs (d.regex:find-incompatible-sampled-regexes sampled-scanners)))
+    (if (null pairs)
+      (apply #'d.app:push-new-application
+             :rmacro-callbacks rmacro-callbacks
+             :expander-callbacks (map 'list (lambda (cb)
+                                              (d.cli:wrap-expander-callback-with-command-character cb #\/))
+                                      expander-callbacks)
+             :autocomplete-tree (d.cli:add-command-character-to-autocomplete-tree
+                                  (d.cli:make-autocomplete-tree-from-lists
+                                    canon-forms)
+                                  #\/)
+             :docs docs
+             other)
+      (error 'incompatiple-regexes :pairs pairs))))
 
 
 ;(defmacro complile-into-application (container &body forms)
