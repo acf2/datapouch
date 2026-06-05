@@ -9,7 +9,9 @@
 
 (defparameter work-dir (directory-namestring (or *load-truename* *default-pathname-defaults*)))
 
-(defparameter required-system-directories (list "datapouch" "zettelkasten-and-accounting"))
+(defparameter required-system-directories (list "datapouch"
+                                                "plugin-toolkit"
+                                                "zettelkasten"))
 
 (loop :for dirname :in required-system-directories
       :do (pushnew (truename (make-pathname :directory work-dir
@@ -17,4 +19,4 @@
                    asdf:*central-registry* :test #'equal))
 
 (with-open-stream (*standard-output* (make-broadcast-stream))
-  (asdf:load-system :zettelkasten-and-accounting))
+  (asdf:load-system :zettelkasten))

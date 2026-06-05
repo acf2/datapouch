@@ -107,6 +107,8 @@
   (d.rmacro:install-command-reader-macro :readtable d.cli:*datapouch-readtable*)
   ;(d.rmacro:install-command-reader-autoprint-hook) ; disable for now
   (setf sb-ext:*invoke-debugger-hook* #'debugger-hook)
+  (setf d.main:*init-hooks* (append d.main:*init-hooks*
+                                    (list (lambda () (setf *package* (find-package "CL-USER"))))))
   (setf sb-int:*repl-prompt-fun* (constantly ""))
   ;(setf sb-int:*repl-read-form-fun* (d.cli:get-parametrized-repl-read-form
   ;                                    (lambda (buffer)

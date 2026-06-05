@@ -309,6 +309,8 @@
            #:*init-hooks*
            #:*exit-hooks*
            #:*debugger-hooks*
+           #:*plugin-prompt-funs*
+           #:*plugin-yields*
            #:make-image))
 
 
