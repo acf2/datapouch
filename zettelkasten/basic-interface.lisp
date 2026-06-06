@@ -23,6 +23,10 @@
                                         :collect (list :when id index))))))
 
 
+;(defun get-links-by-id-pairs (id-pairs)
+;  nil)
+
+
 (defun print-note (text &optional (last? t))
   (format *standard-output* "~A~&~@[~%~]" text (not last?)))
 
@@ -119,3 +123,15 @@
           ((null chosen-row-index)
            (values nil (format nil "~%~A~&" +msg-note-is-not-chosen+))) ; TODO Do something with this [x2]
           (:else (values (nth chosen-row-index found-rows) nil)))))
+
+
+;; Should find all notes, that are unreachable from root
+(defun find-lost-notes ()
+  (loop :with all-notes := (reduce #'append (select '(:id) (from :note)))
+        :with all-arcs := (select '(:source :destination) (from :link))
+        :for queue := (list 0) :then (cdr queue)
+        :for current := (car queue)
+        :unless current :return all-notes
+        :when (member current all-notes)
+        :do (setf all-notes (delete current all-notes))
+        (setf queue (append queue (map 'list #'second (remove-if-not (lambda (x) (eq current (first x))) all-arcs))))))

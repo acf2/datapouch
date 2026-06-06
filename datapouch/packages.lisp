@@ -92,6 +92,7 @@
            #:*datapouch-readtable*
            #:*noprint-result* #:*noprint-prompt*
            #:readline
+           #:try-to-read-form
            #:read-form
            #:disable-bracketed-paste
            #:restore-bracketed-paste

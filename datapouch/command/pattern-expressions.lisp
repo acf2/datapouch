@@ -256,9 +256,11 @@
         (values nil nil)))))
 
 
-(defun collect-yields-snippet (container forms)
+;; TODO: Very bad, rewrite, ples
+;; (pattern-expr handler docs keyword-args...)
+(defun collect-yields-snippet (container-name forms)
   (with-gensyms
-    (container-name ul-name el-name)
+    (ul-name el-name)
     (let ((yields (loop :for form :in forms
                         :collect (with-gensyms
                                    (pattern-expr-name rxname srxname erxname handler-name options-name)
@@ -298,18 +300,18 @@
                                                               (funcall *doc-expr-finalizer* (doc-expr short-docform)))
                                                             ,(third form)))
                                                 (list regex short-regex))))))))) ; sampled-regex-scanners to check collisions/incompatible
-      `(let ((,container-name ,container))
-         (with-slots ((,ul-name utility-lexicon)
-                      (,el-name expander-lexicon)) ,container-name
-           (map 'list (lambda (yield-list)
-                        (remove nil (reduce #'append yield-list)))
-                (d.aux:rotate (list ,@yields))))))))
+      `(with-slots ((,ul-name utility-lexicon)
+                    (,el-name expander-lexicon)) ,container-name
+         (map 'list (lambda (yield-list)
+                      (remove nil (reduce #'append yield-list)))
+              (d.aux:rotate (list ,@yields)))))))
 
 
-;; TODO: Very bad, rewrite, ples
-;; (pattern-expr handler docs keyword-args...)
 (defmacro collect-yields (container &body forms)
-  (collect-yields-snippet container forms))
+  (with-gensyms
+    (container-name)
+    `(let ((,container-name ,container))
+       ,(collect-yields-snippet container-name forms))))
 
 
 (define-condition incompatiple-regexes (error)
@@ -334,9 +336,12 @@
 
 
 (defmacro compile-into-application (container forms &rest other &key &allow-other-keys)
-  `(apply #'yields-into-application
-          (append ,(collect-yields-snippet container forms)
-                  (list ,@other))))
+  (with-gensyms
+    (container-name)
+    `(let ((,container-name ,container))
+       `(apply #'yields-into-application
+               (append ',,(collect-yields-snippet container-name forms)
+                       ',(list ,@other))))))
 
 
 ;(defun compile-behavior-expression (container pattern-expression handler docs &rest options &key &allow-other-keys)

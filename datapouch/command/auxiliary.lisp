@@ -35,8 +35,8 @@ and match."
     (multiple-value-bind (success match) (funcall parser command-string)
       (if success
         (if full-string
-          (values t `(funcall ,handler ,command-string ',match))
-          (values t `(funcall ,handler ',match)))
+          (values t (funcall handler command-string match))
+          (values t (funcall handler match)))
         (values nil nil)))))
 
 
@@ -46,6 +46,7 @@ and match."
 (defun with-immutable-parsers-predicate (form)
   (and (listp form)
        (atom (first form))
+       (typep (first form) 'symbol)
        (member (first form)
                *saved-parsers-function-list*
                :test #'string=)))
