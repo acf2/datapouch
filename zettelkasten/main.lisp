@@ -17,7 +17,7 @@
 
 
 
-(defun get-zettelkasten-yields ()
+(defun OLD-get-zettelkasten-yields ()
   (append 
     (let ((bc (make-instance 'behavior-container)))
       (add-space-patterns bc)
@@ -81,11 +81,37 @@
              (lambda ()
                `(format t "Previous dice roll result: ~A/~A~&" ,previous-dice-roll ,previous-dice))
              "Show previous dice roll.")))))
-    ;(lambda (command-string)
     ))
 
 
+(defmacro rmacro (name (&rest args) &body body)
+  (let ((argsyms (map 'list (lambda (argname)
+                              (list argname (gensym)))
+                      args))
+        (streamsym (gensym)))
+    (if (null argsyms)
+      `(cons ,name (lambda (,streamsym)
+                     (declare (ignore ,streamsym))
+                     `(progn ,@',body)))
+      `(cons ,name (lambda (,streamsym)
+                     (let ,(loop :for argsym :in argsyms
+                                 :collect `(,(second argsym) (read ,streamsym)))
+                       `(let ,(list ,@(loop :for argsym :in argsyms
+                                            :collect ``(,',(first argsym) ,,(second argsym))))
+                          ,@',body)))))))
 
+
+(defun get-zettelkasten-yields ()
+  (list
+    (rmacro :print (fmt one another)
+            (let ((onef (funcall fmt one))
+                  (anotherf (funcall fmt another)))
+            (format t "~A -> ~A~&" onef anotherf)))
+    (rmacro :roll (dice)
+            (list (1+ (random dice)) dice))
+    (rmacro :roll-fmt ()
+            (lambda (diceroll)
+              (format nil "~A/~A" (first diceroll) (second diceroll))))))
 
 ;;; SERVICE
 

@@ -119,13 +119,16 @@
   (setf d.main:*init-hooks* (append d.main:*init-hooks*
                                     (list (lambda () (setf *package* (find-package "CL-USER"))))))
   (setf sb-int:*repl-prompt-fun* (constantly ""))
-  ;(setf sb-int:*repl-read-form-fun* (d.cli:get-parametrized-repl-read-form
-  ;                                    (lambda (buffer)
-  ;                                      (let ((*readtable* d.cli:*datapouch-readtable*))
-  ;                                        (d.cli:read-form buffer d.cli:*prompt-fun*))))) ; Best leave it to remain third to last
-  (setf sb-int:*repl-read-form-fun* (d.app:get-app-repl-read-form))
+
+  (setf sb-int:*repl-read-form-fun* (d.cli:get-parametrized-repl-read-form
+                                      (lambda (buffer)
+                                        (let ((*readtable* d.cli:*datapouch-readtable*))
+                                          (d.cli:read-form buffer d.cli:*prompt-fun*))))) ; Best leave it to remain third to last
+  ;(setf sb-int:*repl-read-form-fun* (d.app:get-app-repl-read-form))
+
   (if d.cli:*heretical-repl-available*
     (setf sb-impl::*repl-fun-generator* (constantly #'d.cli:repl-fun-with-readline))
     (setf d.cli:*add-fresh-line-after-each-result-print* t))
-  (make-top-application)
+  (setf d.rmacro:*rmacro-callbacks* (reduce #'append *plugin-yields*))
+  ;(make-top-application)
   (apply #'sb-ext:save-lisp-and-die args))

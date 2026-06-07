@@ -42,19 +42,33 @@
 (defparameter *stop-characters* (list #\newline #\;))
 
 
+;(defun command-reader-macro (stream char)
+;  "Common wrapper function for all rmacro callbacks. If callback call isn't
+;successful, returns all characters back, beside reader macro character."
+;  (let* ((command-string (read-line-up-to stream *stop-characters*)))
+;    (loop :for callback :in *rmacro-callbacks*
+;          :for (success resulting-form) := (multiple-value-list (funcall callback command-string))
+;          :when success
+;          :do (return-from command-reader-macro resulting-form)
+;          :end)
+;    ;; If no rmacro callback has been called with success, then return all chars back.
+;    (progn
+;      (return-to-stream command-string stream)
+;      (find-symbol (string char) :cl))))
+
+
 (defun command-reader-macro (stream char)
-  "Common wrapper function for all rmacro callbacks. If callback call isn't
-successful, returns all characters back, beside reader macro character."
-  (let* ((command-string (read-line-up-to stream *stop-characters*)))
-    (loop :for callback :in *rmacro-callbacks*
-          :for (success resulting-form) := (multiple-value-list (funcall callback command-string))
-          :when success
-          :do (return-from command-reader-macro resulting-form)
-          :end)
-    ;; If no rmacro callback has been called with success, then return all chars back.
-    (progn
-      (return-to-stream command-string stream)
-      (find-symbol (string char) :cl))))
+  (let* ((word (read-line-up-to stream (list* #\Space
+                                              #\Tab
+                                              *stop-characters*)))
+         (sym (read-from-string word))
+         (func (assoc sym *rmacro-callbacks*
+                      :test #'string=)))
+    (if func
+      (funcall (rest func) stream)
+      (progn
+        (return-to-stream command-string stream)
+        (find-symbol (string char) :cl)))))
 
 
 (defun install-command-reader-macro (&key ((:character character) #\/) ((:readtable table)))
