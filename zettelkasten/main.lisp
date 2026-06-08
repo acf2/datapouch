@@ -82,27 +82,31 @@
         (:next-note (:trivial "next" "n")
                     #'next-note-snippet))
 
-      (with-immutable-parsers
-        (collect-yields
-          bc
-          ((:+ :begin
-               (:trivial "home")
-               :end)
-           #'command-home
-           "Go to root note.")
-          ((:+ :begin
-               (:trivial "edit" "e")
-               :end)
-           #'command-edit
-           "Edit note.")
-          ((:+ :begin
-               (:? (:trivial "show" "s")
-                   :space)
-               (:* (:next-note :name :note))
-               :end)
-           #'command-show-notes
-           "Show contents of one or more notes.")
-          )))))
+
+      (pattern-let bc ((note-selector (:* (:next-note :name :note))))
+                   (with-immutable-parsers
+                     (collect-yields
+                       bc
+                       ((:+ :begin
+                            (:trivial "home")
+                            :end)
+                        #'command-home
+                        "Go to root note.")
+                       ((:+ :begin
+                            (:trivial "edit" "e")
+                            :end)
+                        #'command-edit
+                        "Edit note.")
+                       ((:+ :begin
+                            (:? (:trivial "show" "s")
+                                :space)
+                            note-selector
+                            :end)
+                        #'command-show-notes
+                        "Show contents of one or more notes.")
+                       ))
+                   )
+      )))
 
 ;
 ;          ((:+ :begin

@@ -248,6 +248,28 @@
                                        ,@(nthcdr 3 form))))))
 
 
+(defun pattern-let-snippet (container-name let-symbol let-forms body)
+  `(,let-symbol ,(loop :for let-form :in let-forms
+                       :collect (list (first let-form)
+                                      (compile-pattern-expression-snippet container-name
+                                                                          (second let-form))))
+                ,@body))
+
+
+(defmacro pattern-let (container (&rest let-forms) &body body)
+  (with-gensyms
+    (container-name)
+    `(let ((,container-name ,container))
+       ,(pattern-let-snippet container-name 'cl:let let-forms body))))
+
+
+(defmacro pattern-let* (container (&rest let-forms) &body body)
+  (with-gensyms
+    (container-name)
+    `(let ((,container-name ,container))
+       ,(pattern-let-snippet container-name 'cl:let* let-forms body))))
+
+
 (defun make-expander-callback (parser handler)
   (lambda (command-string)
     (multiple-value-bind (success match) (funcall parser command-string)

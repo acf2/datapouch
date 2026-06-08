@@ -193,6 +193,7 @@
     ;; pattern-expression
     #:add-space-patterns
     #:set-behaviors
+    #:pattern-let #:pattern-let*
     #:collect-yields
     #:yields-into-application
     #:compile-into-application))
