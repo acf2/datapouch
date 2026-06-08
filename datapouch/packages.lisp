@@ -16,7 +16,7 @@
 (defpackage :datapouch.auxiliary
   (:use #:cl)
   (:nicknames :d.aux)
-  (:export #:*debug-output*
+  (:export #:*debug*
            #:list-existing
            #:list-existing*
            #:ensure-list
@@ -109,7 +109,8 @@
 (defpackage :datapouch.command.reader-macro
   (:use #:cl)
   (:nicknames :d.rmacro)
-  (:export #:*rmacro-callbacks*
+  (:export #:*enable-execution*
+           #:*rmacro-callbacks*
            #:*stop-characters*
            #:install-command-reader-macro
            #:install-command-reader-autoprint-hook
@@ -119,7 +120,8 @@
 (defpackage :datapouch.command.auxiliary
   (:use #:cl #:d.regex)
   (:nicknames :d.c.aux)
-  (:export #:make-regex-parser
+  (:export #:macrobody
+           #:make-regex-parser
            #:make-rmacro-callback
            #:*saved-parsers-function-list*
            #:with-immutable-parsers))
@@ -132,7 +134,6 @@
                 #:put-into
                 #:get-from)
   (:import-from :d.aux
-                #:*debug-output*
                 #:list-existing*)
   (:export
     #:expression #:get-named-regex-group #:expression-type #:handler #:config #:docs

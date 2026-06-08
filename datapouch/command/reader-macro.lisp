@@ -6,6 +6,9 @@
 (in-package :datapouch.command.reader-macro)
 
 
+(defparameter *enable-execution* t)
+
+
 ;;; List of callbacks.
 ;;;
 ;;; Each must take one argument:
@@ -49,7 +52,12 @@ successful, returns all characters back, beside reader macro character."
     (loop :for callback :in *rmacro-callbacks*
           :for (success resulting-form) := (multiple-value-list (funcall callback command-string))
           :when success
-          :do (return-from command-reader-macro resulting-form)
+          :do (progn
+                (when d.aux:*debug*
+                  (format *standard-output* "RMACRO CALLBACK RESULT:~&~S~&" resulting-form))
+                (return-from command-reader-macro (if *enable-execution*
+                                                    resulting-form
+                                                    nil)))
           :end)
     ;; If no rmacro callback has been called with success, then return all chars back.
     (progn
@@ -68,3 +76,4 @@ easier to input commands. Default is #\/ (slash)."
   (rl:register-hook :pre-input (lambda ()
                                  (rl:insert-text (string character))
                                  (rl:redisplay))))
+           #:*enable-execution*

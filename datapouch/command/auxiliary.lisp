@@ -7,6 +7,19 @@
 (in-package :datapouch.command.auxiliary)
 
 
+(defmacro macrobody ((&rest argpairs) &body body)
+  (let ((argsyms (map 'list (lambda (argpair)
+                              (list (first argpair) (gensym) (second argpair)))
+                      argpairs)))
+    (if (null argsyms)
+      ``(progn ,@',body)
+      `(let ,(loop :for argsym :in argsyms
+                   :collect `(,(second argsym) ,(third argsym)))
+         `(let ,(list ,@(loop :for argsym :in argsyms
+                              :collect ``(,',(first argsym) ,,(second argsym))))
+            ,@',body)))))
+
+
 (defun make-regex-parser (regex &key ((:group-mode group-mode) t))
   "Make parser function from regex-like object."
   (let ((match-fun (if group-mode #'match-to-group-tree #'match-to-assoc)))

@@ -1,9 +1,10 @@
 ;;;; auxiliary.lisp
 
+
 (in-package :datapouch.auxiliary)
 
 
-(defparameter *debug-output* nil)
+(defparameter *debug* nil)
 
 
 (defun list-existing (&rest rest)

@@ -91,40 +91,6 @@
              clauses))))
 
 
-(defun get-field-names (fields)
-  (map 'list #'first fields))
-
-
-(defun get-field-dialog-texts (fields)
-  (remove nil (map 'list #'second fields)))
-
-
-(defun get-field-mapping-for-rows (fields)
-  (let ((indices (loop :for element :in (map 'list #'second fields)
-                       :for i :from 0 :to (length fields)
-                       :when element :collect i)))
-    (lambda (row)
-      (map 'list (lambda (i) (nth i row)) indices))))
-
-
-(defun choose-row-from-table-dialog (table-clauses fields prompt &rest clauses)
-  (declare (type list fields)
-           (type function prompt))
-  (let* ((found-rows (apply #'d.sql:build-and-query
-                            :select (get-field-names fields)
-                            (append (ensure-list table-clauses)
-                                    clauses)))
-         (chosen-row-index (and found-rows (find-row-dialog (get-field-dialog-texts fields)
-                                                            (map 'list (get-field-mapping-for-rows fields) found-rows)
-                                                            :get-index t
-                                                            :prompt-fun prompt))))
-    (cond ((null found-rows)
-           (values nil (format nil "~A~&" +msg-no-notes+))) ; TODO Do something with this
-          ((null chosen-row-index)
-           (values nil (format nil "~%~A~&" +msg-note-is-not-chosen+))) ; TODO Do something with this [x2]
-          (:else (values (nth chosen-row-index found-rows) nil)))))
-
-
 ;; Should find all notes, that are unreachable from root
 (defun find-lost-notes ()
   (loop :with all-notes := (reduce #'append (select '(:id) (from :note)))

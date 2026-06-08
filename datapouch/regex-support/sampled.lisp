@@ -69,6 +69,13 @@ and a list of samples."
 
 ;;; TODO: Rewrite it with macros to comply with DRY
 
+(defmethod make-optional :around ((sr sampled-regex))
+  (let ((result (call-next-method)))
+    (make-instance 'sampled-regex
+                   :tree (tree result)
+                   :group-map (group-map result)
+                   :samples (cons "" (samples sr)))))
+
 (defmethod make-named-group :around (name (sr sampled-regex) &optional info)
   (declare (ignore info))
   (let ((result (call-next-method)))

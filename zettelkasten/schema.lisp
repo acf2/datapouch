@@ -36,3 +36,19 @@
 
 (defparameter +table-note-fields+ (list (list :id) (list :text "Text")))
 (defparameter +table-link-fields+ (list (list :source) (list :destination) (list :number "Number")))
+
+
+(defun get-field-names (fields)
+  (map 'list #'first fields))
+
+
+(defun get-field-dialog-texts (fields)
+  (remove nil (map 'list #'second fields)))
+
+
+(defun get-field-mapping-for-rows (fields)
+  (let ((indices (loop :for element :in (map 'list #'second fields)
+                       :for i :from 0 :to (length fields)
+                       :when element :collect i)))
+    (lambda (row)
+      (map 'list (lambda (i) (nth i row)) indices))))
