@@ -76,4 +76,3 @@ easier to input commands. Default is #\/ (slash)."
   (rl:register-hook :pre-input (lambda ()
                                  (rl:insert-text (string character))
                                  (rl:redisplay))))
-           #:*enable-execution*
