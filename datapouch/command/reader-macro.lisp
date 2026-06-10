@@ -65,8 +65,11 @@ successful, returns all characters back, beside reader macro character."
       (find-symbol (string char) :cl))))
 
 
-(defun install-command-reader-macro (&key ((:character character) #\/) ((:readtable table)))
-  "Adds reader macro to readtable. Default is #\/ (slash)."
+(defparameter *control-character* #\/)
+
+
+(defun install-command-reader-macro (&key ((:character character) *control-character*) ((:readtable table)))
+  "Adds reader macro to readtable. Default is *control-character*."
   (set-macro-character character #'command-reader-macro t table))
 
 

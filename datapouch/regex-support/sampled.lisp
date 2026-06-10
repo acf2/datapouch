@@ -25,6 +25,20 @@
                     samples))))
 
 
+(declaim (ftype (function (string))
+                make-anycase-samples))
+(defun make-anycase-samples (string)
+  (d.aux:cartesian-product
+    (map 'list (lambda (chr)
+                 (let ((uchr (char-upcase chr)))
+                   (if (char= chr uchr)
+                     (list chr)
+                     (list chr uchr))))
+         (coerce (string-downcase string) 'list))
+    (lambda (&rest var)
+      (coerce var 'string))))
+
+
 (defclass sampled-regex (regex)
   ((samples :initarg :samples
             :reader samples

@@ -73,6 +73,7 @@
     #:match-to-group-tree
     #:scan-to-tree
     ;; sampled
+    #:make-anycase-samples
     #:sampled-regex #:samples
     #:sampled-regex-from-string
     #:regex-allows-all-samples
@@ -111,6 +112,7 @@
   (:export #:*enable-execution*
            #:*rmacro-callbacks*
            #:*stop-characters*
+           #:*control-character*
            #:install-command-reader-macro
            #:install-command-reader-autoprint-hook
            #:read-line-up-to))
@@ -191,19 +193,24 @@
     #:add-space-patterns
     ;; pattern-expression
     #:add-space-patterns
+    #:make-preset-behavior-container
     #:set-behaviors
     #:pattern-let #:pattern-let*
     #:collect-yields
     #:yields-into-application
-    #:compile-into-application))
+    #:compile-into-application
+    #:return-application
+    #:return-keyword))
 
 
 (defpackage :datapouch.application
   (:use #:cl)
   (:nicknames :d.app)
+  (:import-from :alexandria
+                #:with-gensyms)
   (:export #:*application-stack*
            #:application
-           #:push-new-application #:get-current-return
+           #:push-new-application #:with-return
            #:app-read-form
            #:get-app-repl-read-form
            #:register-autocomplete-with-applications))

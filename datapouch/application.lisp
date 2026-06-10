@@ -21,8 +21,6 @@
                               :reader docs)
    (application-prompt-fun :initarg :prompt-fun
                            :reader prompt-fun)
-   (application-result-callback :initarg :result-callback
-                                :reader result-callback)
    (application-read-form-fun :initarg :read-form-fun
                               :initform #'d.cli:read-form
                               :reader read-form-fun))
@@ -41,8 +39,7 @@
                                   ((:expander-callbacks expander-callbacks) nil)
                                   ((:autocomplete-tree autocomplete-tree) nil)
                                   ((:docs docs) nil)
-                                  ((:read-form-fun read-form-fun) #'d.cli:read-form)
-                                  ((:result-callback result-callback) nil))
+                                  ((:read-form-fun read-form-fun) #'d.cli:read-form))
   (push
     (make-instance 'application
                    :prompt-fun prompt-fun
@@ -50,19 +47,18 @@
                    :expander-callbacks expander-callbacks
                    :autocomplete-tree autocomplete-tree
                    :docs docs
-                   :result-callback (lambda (result)
-                                      (pop *application-stack*)
-                                      (when result-callback
-                                        (funcall result-callback result)))
                    :read-form-fun read-form-fun)
     *application-stack*))
 
 
-;; WARNING: Finicky thing, if called many times sequentially, or immediately in
-;;          the same place after push-new-application call. Please, try to use it as
-;;          intended - to complete application work in the end of some workflow.
-(defun get-current-return ()
-  (result-callback (first *application-stack*)))
+(defmacro with-return (return-symbol &body body)
+  (with-gensyms
+    (old-application-stack)
+    `(let ((,old-application-stack d.app:*application-stack*))
+       (flet ((,return-symbol (&rest forms)
+                              `(progn (setf d.app:*application-stack* ',,old-application-stack)
+                                      ,@forms)))
+         ,@body))))
 
 
 ;;; Returns three values:

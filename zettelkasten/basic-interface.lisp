@@ -101,3 +101,18 @@
         :when (member current all-notes)
         :do (setf all-notes (delete current all-notes))
         (setf queue (append queue (map 'list #'second (remove-if-not (lambda (x) (eq current (first x))) all-arcs))))))
+
+
+;;; Add new note
+;;; :NUMBER will determine number of this link (is userful for sorting and
+;;; tables of contents)
+;;; NOTE: Exception to "interaction rule"
+(defun add-note (text source-note &optional (number nil))
+  (let ((new-note (caar (insert-into :note
+                                     (set= :text text)
+                                     (returning :id)))))
+    (when source-note
+      (insert-into :link (set= :source source-note
+                               :destination new-note
+                               :number number)))
+    new-note))

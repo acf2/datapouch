@@ -57,6 +57,41 @@
                                 (show-notes ,notes))))))))
 
 
+(defun command-add-note (&key ((:link-number link-number))
+                              ((:continue continue))
+                              ((:override-note override-note) nil override-note?))
+  `(let* ((conflicting-notes (and (not ,override-note?)
+                                  ,link-number
+                                  (car (select '(:source :destination)
+                                               (from :link)
+                                               (where (:and (:= :source *current-note*)
+                                                            (:= :number ,link-number))))))))
+     (if conflicting-notes
+       (yes-or-no-dialog (lambda (result)
+                           (command-add-note :link-number ,link-number
+                                             :continue ,continue
+                                             :override-note (and result
+                                                                 conflicting-notes)))
+                         :prompt-msg +question-note-with-number-exists+)
+       (let* ((new-note-body (first (edit-strings ""))))
+         (cond ((string= new-note-body "")
+                (format *standard-output* "~A~&" +msg-abort-note-creation+))
+               (:else
+                 ,(when override-note
+                    `(update :link
+                             (set= :number nil)
+                             (where (:and (:= :source (first ',override-note))
+                                          (:= :destination (second ',override-note))))))
+                 (let ((new-note (add-note new-note-body
+                                           *current-note*
+                                           (and (or (not ,override-note?)
+                                                    ',override-note)
+                                                ,link-number))))
+                   (when ,continue
+                     (set-current-note new-note))
+                   new-note)))))))
+
+
 (defun get-zettelkasten-yields ()
   (append 
     (let ((bc (make-instance 'behavior-container)))
@@ -103,6 +138,17 @@
                  :end)
              #'command-show-notes
              "Show contents of one or more notes.")
+            ((:+ :begin
+                 (:trivial "add" "a")
+                 :space
+                 (:trivial "note" "n")
+                 (:? :space
+                     (:* (:number :name :link-number)
+                         (:trivial "continue" "c"
+                                   (return-keyword :continue))))
+                 :end)
+             #'command-add-note
+             "Add new note.")
             ))
         )
       )))
@@ -120,23 +166,23 @@
 ;               (:trivial "dice")
 ;               :end)
 ;           (lambda ()
-;             (compile-into-application bc
-;                                       (((:+ :begin
-;                                             (:trivial "throw")
-;                                             :space
-;                                             (:number :name :dice)
-;                                             :end)
-;                                         (lambda (&key dice)
-;                                           (with-gensyms
-;                                             (dice-name)
-;                                             `(let ((,dice-name ,dice))
-;                                                (funcall (get-current-return) (list (1+ (random ,dice-name)) ,dice-name)))))
-;                                         "Throw the fukken dice!"))
-;                                       :result-callback (lambda (result)
-;                                                          (setf previous-dice-roll (first result))
-;                                                          (setf previous-dice (second result))
-;                                                          (format t "Result: ~A~&" (first result)))
-;                                       :prompt-fun (constantly "THROW-DICE $ ")))
+;             (with-return
+;               return-from-app
+;               `(progn (defparameter *dice-roll* nil)
+;                       ,(return-application bc
+;                                            (((:+ :begin
+;                                                  (:trivial "throw")
+;                                                  :space
+;                                                  (:number :name :dice)
+;                                                  :end)
+;                                              (lambda (&key dice)
+;                                                (return-from-app
+;                                                  (once-only ((d dice))
+;                                                             `(progn
+;                                                                (setf *dice-roll* (list (1+ (random ,d)) ,d))
+;                                                                (format t "Result: ~A~&" (first *dice-roll*))))))
+;                                              "Throw the fukken dice!"))
+;                                            :prompt-fun (constantly "THROW-DICE $ ")))))
 ;           "Application for throwing dice.")
 ;          ((:+ :begin
 ;               (:trivial "previous" "p")
@@ -144,8 +190,8 @@
 ;               (:trivial "roll" "r")
 ;               :end)
 ;           (lambda ()
-;             `(format t "Previous dice roll result: ~A/~A~&" ,previous-dice-roll ,previous-dice))
-;           "Show previous dice roll."))))))
+;             `(format t "Previous dice roll result: ~A/~A~&" (first *dice-roll*) (second *dice-roll*)))
+;           "Show previous dice roll.")
 
 
 

@@ -248,9 +248,9 @@ EXPRESSION-CONFIG docs for parameter meaning."
   (format nil "Trivial pattern: ~:[~;~:*~A->~]~A" shorthand word))
 
 
-(declaim (ftype (function (behavior-container string &optional (or null string)))
+(declaim (ftype (function (behavior-container string &optional (or null string) (or null function)))
                 add-trivial-pattern))
-(defun add-trivial-pattern (container word &optional shorthand)
+(defun add-trivial-pattern (container word &optional shorthand handler-fun)
   (let ((behavior-type (trivial-pattern-type word shorthand)))
     (put-into container
               (make-behavior behavior-type
@@ -260,10 +260,11 @@ EXPRESSION-CONFIG docs for parameter meaning."
                                            (list (list word))
                                            word
                                            shorthand)
-                             nil
+                             handler-fun
                              (lambda (&rest rest)
                                (declare (ignore rest))
-                               word)))
+                               word)
+                             :use-only-named-results nil))
     behavior-type))
 
 

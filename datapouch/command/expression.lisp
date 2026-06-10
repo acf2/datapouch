@@ -187,13 +187,23 @@ another expression with USE-ONLY-NAMED-RESULTS set to T."
                  :value value))
 
 
-(declaim (ftype (function ((or keyword string))) return-match))
-(defun return-match (name)
+(declaim (ftype (function ((or null function)
+                           (or null function)))
+                return-match))
+(defun return-match (name-fun value-fun)
   "RETURN-MATCH makes a function, that simply returns single term match for
-expressions without USE-ONLY-NAMED-RESULTS."
-  (lambda (_ arg)
-    (declare (ignore _))
-    (make-result name arg)))
+expressions without USE-ONLY-NAMED-RESULTS. NAME-FUN and VALUE-FUN is used to
+process info and argument and give name and value to MAKE-RESULT function. They
+both take info and argument as parameters. Both functions could be set to NIL:
+no NAME-FUN uses raw info instead, no VALUE-FUN uses raw argument instead."
+  (lambda (info argument)
+    (let ((name (if name-fun
+                  (funcall name-fun info argument)
+                  info))
+          (value (if value-fun
+                   (funcall value-fun info argument)
+                   argument)))
+      (make-result name value))))
 
 
 (declaim (ftype (function (keyword t)) return-named-match))

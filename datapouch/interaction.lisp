@@ -43,26 +43,69 @@ Arguments:
           (finish-output *standard-output*))))
 
 
-(defun yes-or-no-dialog (&key ((:prompt-msg prompt-msg) nil)
-                              ((:yes-choice affirmative) "yes")
-                              ((:no-choice negative) "no")
-                              ((:error-msg error-msg) (format nil "Please type ~S for yes or ~S for no." affirmative negative))
-                              ((:test test-fun) #'string-equal)
-                              ((:prompt-format prompt-format) "~@[~A ~](~(~A~) or ~(~A~)) "))
-  "Rewrite of YES-OR-NO-P with a bit finer control."
-  (dialog :query-fun (lambda (&optional error-input)
-                       (when error-input
-                         (format *standard-output* "~A~&" error-msg)))
-          :input-handler (lambda (input)
-                           (let ((filtered-input (string-trim (list #\Space #\Newline #\Tab) input)))
-                             (values (member filtered-input (list affirmative negative)
-                                             :test test-fun)
-                                     (funcall test-fun filtered-input affirmative))))
-          :prompt-fun (lambda (buffer)
-                        (declare (ignore buffer))
-                        (format nil prompt-format prompt-msg affirmative negative))
-          :raw-input t))
-
+(defun yes-or-no-dialog (result-fun
+                          &key
+                          ((:prompt-msg prompt-msg) nil)
+                          ((:yes-choice affirmative) "yes")
+                          ((:no-choice negative) "no")
+                          ((:error-msg error-msg) (format nil "Please type ~S for yes or ~S for no."
+                                                          (concatenate 'string (string d.rmacro:*control-character*)
+                                                                       affirmative)
+                                                          (concatenate 'string (string d.rmacro:*control-character*)
+                                                                       negative)))
+                          ((:prompt-format prompt-format) "~@[~A~&~]~@[~A ~](~(~A~) or ~(~A~)) "))
+  (d.c.aux:with-immutable-parsers
+    (d.app:with-return
+      return-from-app
+      (let* ((common-prefix-length (length (d.aux:common-string-prefix (list affirmative negative))))
+             (short-affirmative (subseq affirmative 0 (1+ common-prefix-length)))
+             (short-negative (subseq negative 0 (1+ common-prefix-length)))
+             (bc (d.ptrn:make-preset-behavior-container)))
+        (d.ptrn:set-behaviors
+          bc
+          (:yes (d.ptrn::make-pattern (d.regex:sampled-regex-from-string (concatenate 'string "(?i)" affirmative)
+                                                                         (d.regex:make-anycase-samples affirmative))
+                                      (d.regex:sampled-regex-from-string (concatenate 'string "(?i)" short-affirmative)
+                                                                         (d.regex:make-anycase-samples short-affirmative))
+                                      (list nil)
+                                      affirmative
+                                      short-affirmative)
+                (lambda (&rest rest)
+                  (declare (ignore rest))
+                  t)
+                :use-only-named-results nil)
+          (:no (d.ptrn::make-pattern (d.regex:sampled-regex-from-string (concatenate 'string "(?i)" negative)
+                                                                        (d.regex:make-anycase-samples negative))
+                                     (d.regex:sampled-regex-from-string (concatenate 'string "(?i)" short-negative)
+                                                                        (d.regex:make-anycase-samples short-negative))
+                                     (list nil)
+                                     negative
+                                     short-negative)
+               (lambda (&rest rest)
+                 (declare (ignore rest))
+                 nil)
+               :use-only-named-results nil))
+        (d.ptrn:compile-into-application
+          bc
+          (((:+ :begin
+                (:* :yes :no)
+                :end)
+            (lambda (result)
+              (return-from-app
+                (funcall result-fun result)))
+            "Available answers"
+            :use-only-named-results nil))
+          :prompt-fun (let ((first-call t))
+                        (lambda (buffer)
+                          (declare (ignore buffer))
+                          (let ((result (format nil prompt-format
+                                                (when (not first-call)
+                                                  error-msg)
+                                                prompt-msg
+                                                affirmative
+                                                negative)))
+                            (setf first-call nil)
+                            result))))))))
 
 (defparameter *max-string-length* 50)
 (defparameter *wrap-marker* "...")

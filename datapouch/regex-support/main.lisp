@@ -468,8 +468,9 @@ NULL-REGEX is used if all regexes are NIL."
                                                          (rest (first (last one)))
                                                          (rest (first another))))))
                                    (append one another))))
-    (reduce #'join-two (sort (remove nil (map 'list #'lift value-collection parameter-collection))
-                             #'less))))
+    (let ((collection (sort (remove nil (map 'list #'lift value-collection parameter-collection))
+                            #'less)))
+      (when collection (reduce #'join-two collection)))))
 
 
 (defun match-to-group-table (str group-list group-map match-start match-end group-starts group-ends)

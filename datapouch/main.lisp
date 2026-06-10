@@ -62,12 +62,14 @@
 
 (defparameter *plugin-prompt-funs* nil)
 
+
 (defparameter +default-prompt-combination-fun+
   (lambda (buffer)
     (format nil "~{~@[[~A]~#[~:;-~]~]~}~:[*~:;>~] "
             (loop :for prompt-fun :in *plugin-prompt-funs*
                   :collect (funcall prompt-fun buffer))
             buffer)))
+
 
 (defparameter *prompt-combination-fun* +default-prompt-combination-fun+)
 
@@ -82,15 +84,15 @@
                                       (remove nil (reduce #'append yield-list)))
                               (d.aux:rotate *plugin-yields*))
                          (list :prompt-fun *prompt-combination-fun*)))
-                (d.ptrn::incompatiple-regexes (c) 
-                                      (setf sb-int:*repl-read-form-fun* (d.cli:get-parametrized-repl-read-form
-                                                                          (lambda (buffer)
-                                                                            (let ((*readtable* d.cli:*datapouch-readtable*))
-                                                                              (d.cli:read-form buffer d.cli:*prompt-fun*))))) ; Best leave it to remain third to last
-                                      (format t "PAIRS: ~A~&" (map 'list (lambda (pair)
-                                                                           (list (d.regex:tree (first pair))
-                                                                                 (d.regex:tree (second pair))))
-                                                                   (d.ptrn::incompatible-pairs c))))))
+    (d.ptrn::incompatiple-regexes (c) 
+                                  (setf sb-int:*repl-read-form-fun* (d.cli:get-parametrized-repl-read-form
+                                                                      (lambda (buffer)
+                                                                        (let ((*readtable* d.cli:*datapouch-readtable*))
+                                                                          (d.cli:read-form buffer d.cli:*prompt-fun*))))) ; Best leave it to remain third to last
+                                  (format t "PAIRS: ~A~&" (map 'list (lambda (pair)
+                                                                       (list (d.regex:tree (first pair))
+                                                                             (d.regex:tree (second pair))))
+                                                               (d.ptrn::incompatible-pairs c))))))
 
 
 ;;; TODO add fast resave to some path

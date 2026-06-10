@@ -65,26 +65,10 @@
                                      expander))))
 
 
-;(defparameter pc (make-instance 'd.ptrn::behavior-container))
-;(d.ptrn::add-trivial-pattern pc "fart" :short "f")
-;
-;(defparameter farting
-;  (let ((lex (with-slots ((el d.ptrn::expander-lexicon)) pc el)))
-;    (d.c.aux:make-rmacro-callback
-;      (d.c.aux:make-regex-parser
-;        (d.regex:make-scanner
-;
-;          (d.regex:concat-separated
-;            (list (get-from-lexicon lex (d.ptrn::trivial-pattern-type "fart")))
-;            :separator-regex "\\s+"
-;            :start-regex "^\\s*"
-;            :end-regex "\\s*$"
-;            :null-regex "^\\s*$")))
-;      (wrap-with-lexicon lex (lambda (other) (format t "OTHER: ~S~&" other)) :use-only-named-results nil))))
-;
-;(defparameter a (multiple-value-list (funcall farting "f")))
-;
-;(defmacro tst () (second a))
+(defun make-preset-behavior-container ()
+  (let ((bc (make-instance 'behavior-container)))
+    (add-space-patterns bc)
+    bc))
 
 
 ;; :some-pattern
@@ -165,16 +149,17 @@
          ;;       (get-pattern <container> (add-trivial-pattern <container>
          ;;                                                     <word symbol>
          ;;                                                     <shorthand symbol>))))
-         (let ((word-name (gensym))
-               (shorthand-name (gensym))
-               (behavior-type-name (gensym)))
-           `(let* ((,word-name ,(second tree))
-                   (,shorthand-name ,(third tree))
-                   (,behavior-type-name (trivial-pattern-type ,word-name ,shorthand-name)))
-              (or (get-pattern ,container-name ,behavior-type-name)
+         (with-gensyms
+           (word shorthand behavior-type handler-fun)
+           `(let* ((,word ,(second tree))
+                   (,shorthand ,(third tree))
+                   (,behavior-type (trivial-pattern-type ,word ,shorthand))
+                   (,handler-fun ,(fourth tree)))
+              (or (get-pattern ,container-name ,behavior-type)
                   (get-pattern ,container-name (add-trivial-pattern ,container-name
-                                                                    ,word-name
-                                                                    ,shorthand-name))))))
+                                                                    ,word
+                                                                    ,shorthand
+                                                                    ,handler-fun))))))
         ((pattern-expression-reference-term? tree)
          ;; (:behavior-type . <info>)
          ;; Generally it goes like this:
@@ -228,11 +213,6 @@
 ; ...*this* side of insanity. Don't delude yourself which is which.
 ; Yet I have never felt myself more lucid then right now.
 ; Does every schizo feel this way? Is this a sign of sanity slipping?
-
-
-;(defun set-behaviors () nil)
-;(defun collect-yields () nil)
-;(defun compile-into-application () nil)
 
 
 ;; (:type pattern-expr handler keyword-args...)
@@ -321,7 +301,7 @@
                                                             (when short-docform
                                                               (funcall *doc-expr-finalizer* (doc-expr short-docform)))
                                                             ,(third form)))
-                                                (list regex short-regex))))))))) ; sampled-regex-scanners to check collisions/incompatible
+                                                (list regex short-regex))))))))) ; sampled regexes to check collisions/incompatible regexes
       `(with-slots ((,ul-name utility-lexicon)
                     (,el-name expander-lexicon)) ,container-name
          (map 'list (lambda (yield-list)
@@ -361,113 +341,27 @@
   (with-gensyms
     (container-name)
     `(let ((,container-name ,container))
+       (apply #'yields-into-application
+              (append ,(collect-yields-snippet container-name forms)
+                      (list ,@other))))))
+
+
+(defmacro return-application (container forms &rest other &key &allow-other-keys)
+  (with-gensyms
+    (container-name)
+    `(let ((,container-name ,container))
        `(apply #'yields-into-application
                (append ',,(collect-yields-snippet container-name forms)
                        ',(list ,@other))))))
 
 
-;(defun compile-behavior-expression (container pattern-expression handler docs &rest options &key &allow-other-keys)
-;  (declare (ignore docs))
-;  "fart fart poooooooh... shite"
-;  (list ,@(map 'list (lambda (term)
-;                       (cond ((pattern-expression-bare-keyword? term)
-;                              (let* ((behavior-type term))
-;                                (get-pattern container
-;                                             behavior-type)))
-;                             ((pattern-expression-reference-term? term)
-;                              (let* ((behavior-type (first term))
-;                                     (name (or (get-name-from-plist (rest term))
-;                                               (and (rest term)
-;                                                    (format nil "~(~A~)" behavior-type))))
-;                                     (get-pattern container
-;                                                  behavior-type
-;                                                  name
-;                                                  (rest term))))
-;                              ((pattern-expression-trivial-reference-term? term)
-;                               (let* ((behavior-type (trivial-pattern-type (second (first term))))
-;                                      (name (or (get-name-from-plist (rest term))
-;                                                (and (rest term)
-;                                                     (format nil "~(~A~)" (second (first term)))))))
-;                                 (get-pattern container
-;                                              behavior-type
-;                                              name
-;                                              (rest term))))
-;                              (:else
-;                                term))))
-;               pattern-expression))
-;
-;  `(d.c.aux:make-rmacro-callback
-;     (d.c.aux:make-regex-parser
-;       (d.regex:make-scanner
-;         (d.regex:concat-separated
-;           (list ,@(map 'list (lambda (term)
-;                                (if (and (li:stp term)
-;                                         (typep (first term) 'keyword))
-;                                  `(get-from-lexicon ,lexicon ,(first term) ,(rest term))
-;                                  term))
-;                        regex-list))
-;           :separator-regex "\\s+"
-;           :start-regex "^\\s*"
-;           :end-regex "\\s*$"
-;           :null-regex "^\\s*$")))
-;     (wrap-with-lexicon ,lexicon ,handler ,@options)))
-;
-;
-;(defparameter +with-patterns-macro-name+ 'with-patterns)
-;(defparameter +with-patterns-final-name+ '#:)
-;(defparameter +with-patterns-sub-name+ '#:behaving-pattern)
-;
-;
-;(defun with-patterns-predicate (form)
-;  (and (listp form)
-;       (> (length form) 1)
-;       (atom (first form))
-;       (or (eq (first form) +with-lexicon-macro-name+)
-;           (member (first form)
-;                   (list +with-lexicon-command-name+
-;                         +with-lexicon-expression-name+)
-;                   :test #'string=))))
-;
-;
-;(defun with-lexicon-transform (form current-lexicon)
-;  (cond ((string= (first form) +with-lexicon-command-name+)
-;         (values nil (apply #'make-command-with-lexicon-snippet current-lexicon (rest form))))
-;        ((string= (first form) +with-lexicon-expression-name+)
-;         (values nil (apply #'set-expression-with-lexicon-snippet current-lexicon (rest form))))
-;        ((eq (first form) +with-lexicon-macro-name+)
-;         (multiple-value-bind (_ new-tree) (d.aux:traverse (cddr form)
-;                                                           #'with-lexicon-predicate
-;                                                           (lambda (subtree)
-;                                                             (with-lexicon-transform subtree (second form)))
-;                                                           #'identity)
-;           (values _ `(progn ,@new-tree))))
-;        (:else (error 'should-not-be)))) ; XXX: Make pretty
-;
-;
-;(defun with-lexicon-fun (lexicon forms)
-;  (multiple-value-bind (_ new-tree) (d.aux:traverse (list* +with-lexicon-macro-name+
-;                                                           lexicon
-;                                                           forms)
-;                                                    #'with-lexicon-predicate
-;                                                    (lambda (subtree)
-;                                                      (with-lexicon-transform subtree #'identity))
-;                                                    #'identity)
-;    (declare (ignore _))
-;    new-tree))
-;
-;
-;(defmacro with-lexicon (lexicon-expr &rest forms)
-;  (let ((lexicon-name (gensym)))
-;    `(let ((,lexicon-name ,lexicon-expr))
-;       ,(with-lexicon-fun lexicon-name forms))))
-;
-;
-;(defmacro with-new-lexicon (lexicon-name &rest forms)
-;  `(let ((,lexicon-name (make-instance 'lexicon)))
-;     ,(with-lexicon-fun lexicon-name forms)))
-;
-;
-;(defmacro with-anonymous-lexicon (&rest forms)
-;  (let ((lexicon-name (gensym)))
-;    `(let ((,lexicon-name (make-instance 'lexicon)))
-;       ,(with-lexicon-fun lexicon-name forms))))
+(declaim (ftype (function (keyword))
+                return-keyword))
+(defun return-keyword (kw)
+  "The dumb version, when you want to return a keyword as a result of a match."
+  (d.expr:return-match (lambda (info arg)
+                         (declare (ignore arg))
+                         (or (getf info :name) kw))
+                       (lambda (info arg)
+                         (declare (ignore info arg))
+                         kw)))
