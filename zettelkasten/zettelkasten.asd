@@ -15,6 +15,6 @@
                (:file "main" :depends-on ("pretty-traversal" "basic-interface"))
 
                (:file "plugin" :depends-on ("packages" "main")))
-  :depends-on (:datapouch :plugin-toolkit)
+  :depends-on (:datapouch :plugin-toolkit :alexandria)
   :perform (asdf:load-op (o c)
                          (symbol-call :zk.plugin :make-plugin)))

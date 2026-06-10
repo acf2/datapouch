@@ -179,10 +179,3 @@
            (values (reduce #'append (remove-if #'null (first subtree-result)))
                    (second subtree-result))))
         (:else (values nil tree))))
-
-
-;; Stolen from PCL
-(defmacro with-gensyms ((&rest symbol-list) &body forms)
-  `(let ,(loop :for sym :in symbol-list
-               :collect `(,sym (gensym)))
-     ,@forms))

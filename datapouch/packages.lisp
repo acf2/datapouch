@@ -35,8 +35,7 @@
            #:get-keys-from-hash-table
            #:check-directed-graph-for-cycles
            #:cartesian-product
-           #:traverse
-           #:with-gensyms))
+           #:traverse))
 
 
 (defpackage :datapouch.regex-support
@@ -120,8 +119,7 @@
 (defpackage :datapouch.command.auxiliary
   (:use #:cl #:d.regex)
   (:nicknames :d.c.aux)
-  (:export #:macrobody
-           #:make-regex-parser
+  (:export #:make-regex-parser
            #:make-rmacro-callback
            #:*saved-parsers-function-list*
            #:with-immutable-parsers))
@@ -157,8 +155,7 @@
   (:import-from :d.aux
                 #:repeat-string
                 #:list-of-strings
-                #:list-of-list-of-strings
-                #:with-gensyms)
+                #:list-of-list-of-strings)
   (:import-from :d.regex
                 #:regex
                 #:make-optional
@@ -168,6 +165,8 @@
                 #:relaxed-sampled-regex)
   (:import-from :d.expr
                 #:get-from-lexicon)
+  (:import-from :alexandria
+                #:with-gensyms)
   (:export
     ;; docform
     #:docform #:doc-expr

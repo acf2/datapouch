@@ -29,6 +29,8 @@
 (defpackage :zettelkasten
   (:use #:cl #:datapouch)
   (:nicknames :zk)
+  (:import-from :alexandria
+                #:once-only)
   (:export
     ;; Options
     #:*option-show-note-after-jump*

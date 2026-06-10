@@ -32,4 +32,4 @@
                (:file "command/pattern" :depends-on ("packages" "auxiliary" "regex-support/main" "command/docform" "command/expression" "interface"))
                (:file "command/pattern-expressions" :depends-on ("packages" "command/pattern"))
                (:file "main" :depends-on ("packages" "cli" "application" "command/expression" "command/auxiliary" "sql/main" "editor" "filesystem" "crypto" "interface")))
-  :depends-on (:cl-readline :cl-ppcre :sqlite :sxql :cl-reexport :local-time :uiop :ironclad))
+  :depends-on (:alexandria :cl-readline :cl-ppcre :sqlite :sxql :cl-reexport :local-time :uiop :ironclad))

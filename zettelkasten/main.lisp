@@ -42,19 +42,19 @@
 
 (defun command-show-notes (&key ((:note single-note-snippet)) ((:notes multiple-notes-snippet)))
   (cond (single-note-snippet
-          (macrobody ((note single-note-snippet))
-                     (if note
-                       (show-note note)
-                       (format *standard-output* "~A~&" +msg-no-notes+))))
+          (once-only ((note single-note-snippet))
+                     `(if ,note
+                        (show-note ,note)
+                        (format *standard-output* "~A~&" +msg-no-notes+))))
         (multiple-notes-snippet
-          (macrobody ((notes multiple-notes-snippet))
-                     (let ((length (length notes)))
-                       (cond ((= length 0)
-                              (format *standard-output* "~A~&" +msg-no-notes+))
-                             ((= length 1)
-                              (show-note (first notes)))
-                             (:else
-                               (show-notes notes))))))))
+          (once-only ((notes multiple-notes-snippet))
+                     `(let ((length (length ,notes)))
+                        (cond ((= length 0)
+                               (format *standard-output* "~A~&" +msg-no-notes+))
+                              ((= length 1)
+                               (show-note (first ,notes)))
+                              (:else
+                                (show-notes ,notes))))))))
 
 
 (defun get-zettelkasten-yields ()
@@ -81,31 +81,30 @@
                  :use-only-named-results nil)
         (:next-note (:trivial "next" "n")
                     #'next-note-snippet))
-
-
-      (pattern-let bc ((note-selector (:* (:next-note :name :note))))
-                   (with-immutable-parsers
-                     (collect-yields
-                       bc
-                       ((:+ :begin
-                            (:trivial "home")
-                            :end)
-                        #'command-home
-                        "Go to root note.")
-                       ((:+ :begin
-                            (:trivial "edit" "e")
-                            :end)
-                        #'command-edit
-                        "Edit note.")
-                       ((:+ :begin
-                            (:? (:trivial "show" "s")
-                                :space)
-                            note-selector
-                            :end)
-                        #'command-show-notes
-                        "Show contents of one or more notes.")
-                       ))
-                   )
+      (pattern-let
+        bc ((note-selector (:* (:next-note :name :note))))
+        (with-immutable-parsers
+          (collect-yields
+            bc
+            ((:+ :begin
+                 (:trivial "home")
+                 :end)
+             #'command-home
+             "Go to root note.")
+            ((:+ :begin
+                 (:trivial "edit" "e")
+                 :end)
+             #'command-edit
+             "Edit note.")
+            ((:+ :begin
+                 (:? (:trivial "show" "s")
+                     :space)
+                 note-selector
+                 :end)
+             #'command-show-notes
+             "Show contents of one or more notes.")
+            ))
+        )
       )))
 
 ;
