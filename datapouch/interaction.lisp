@@ -43,6 +43,9 @@ Arguments:
           (finish-output *standard-output*))))
 
 
+;;; Awful thing
+;;; Shows how much of the actual complexity is hidden, when patterns are used
+;;; routinely.
 (defun yes-or-no-dialog (result-fun
                           &key
                           ((:prompt-msg prompt-msg) nil)
@@ -73,7 +76,10 @@ Arguments:
                 (lambda (&rest rest)
                   (declare (ignore rest))
                   t)
-                :use-only-named-results nil)
+                :use-only-named-results nil
+                :short-expander (lambda (info arg)
+                                  (declare (ignore info arg))
+                                  affirmative))
           (:no (d.ptrn::make-pattern (d.regex:sampled-regex-from-string (concatenate 'string "(?i)" negative)
                                                                         (d.regex:make-anycase-samples negative))
                                      (d.regex:sampled-regex-from-string (concatenate 'string "(?i)" short-negative)
@@ -84,7 +90,10 @@ Arguments:
                (lambda (&rest rest)
                  (declare (ignore rest))
                  nil)
-               :use-only-named-results nil))
+               :use-only-named-results nil
+               :short-expander (lambda (info arg)
+                                 (declare (ignore info arg))
+                                 negative)))
         (d.ptrn:compile-into-application
           bc
           (((:+ :begin
@@ -106,6 +115,7 @@ Arguments:
                                                 negative)))
                             (setf first-call nil)
                             result))))))))
+
 
 (defparameter *max-string-length* 50)
 (defparameter *wrap-marker* "...")
