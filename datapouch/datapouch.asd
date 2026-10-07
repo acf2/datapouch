@@ -17,6 +17,9 @@
                (:file "command/reader-macro" :depends-on ("packages" "interface"))
                (:file "command/auxiliary" :depends-on ("packages" "regex-support/main"))
                (:file "command/docform" :depends-on ("packages" "interface" "regex-support/main"))
+               (:file "command/expression" :depends-on ("packages" "auxiliary" "regex-support/main" "command/reader-macro" "interface"))
+               (:file "command/pattern" :depends-on ("packages" "auxiliary" "regex-support/main" "command/docform" "command/expression" "interface"))
+               (:file "command/pattern-expressions" :depends-on ("packages" "command/pattern"))
 
                (:file "application" :depends-on ("packages" "cli" "command/reader-macro"))
 
@@ -27,10 +30,11 @@
                (:file "sql/auxiliary" :depends-on ("packages" "sql/main" "interface"))
 
                (:file "crypto" :depends-on ("packages" "filesystem" "interface"))
-               (:file "command/expression" :depends-on ("packages" "auxiliary" "regex-support/main" "command/reader-macro" "interface"))
-               (:file "command/pattern" :depends-on ("packages" "auxiliary" "regex-support/main" "command/docform" "command/expression" "interface"))
-               (:file "command/pattern-expressions" :depends-on ("packages" "command/pattern"))
 
-               (:file "interaction" :depends-on ("packages" "auxiliary" "cli" "regex-support/sampled" "command/pattern-expressions" "application" "interface"))
+               (:file "interaction/basic" :depends-on ("packages" "auxiliary" "cli" "regex-support/sampled" "command/pattern-expressions" "application" "interface"))
+               (:file "interaction/assoc-table" :depends-on ("packages" "interaction/basic"))
+               (:file "interaction/find-row" :depends-on ("packages" "interaction/basic"))
+               (:file "interaction/main" :depends-on ("packages" "interaction/basic" "interaction/assoc-table" "interaction/find-row"))
+
                (:file "main" :depends-on ("packages" "cli" "application" "command/expression" "command/auxiliary" "sql/main" "editor" "filesystem" "crypto" "interface")))
   :depends-on (:alexandria :cl-readline :cl-ppcre :sqlite :sxql :cl-reexport :local-time :uiop :ironclad))

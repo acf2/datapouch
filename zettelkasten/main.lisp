@@ -59,8 +59,8 @@
 
 (defun command-add-note (&key ((:link-number link-number))
                               ((:continue continue))
-                              ((:override-note override-note) nil override-note?))
-  `(let* ((conflicting-notes (and (not ,override-note?)
+                              ((:override-note override-note) nil override-note-supplied?))
+  `(let* ((conflicting-notes (and (not ,override-note-supplied?)
                                   ,link-number
                                   (car (select '(:source :destination)
                                                (from :link)
@@ -84,12 +84,20 @@
                                           (:= :destination (second ',override-note))))))
                  (let ((new-note (add-note new-note-body
                                            *current-note*
-                                           (and (or (not ,override-note?)
+                                           (and (or (not ,override-note-supplied?)
                                                     ',override-note)
                                                 ,link-number))))
                    (when ,continue
                      (set-current-note new-note))
                    new-note)))))))
+
+
+; TODO: Add mandatory picking dialog
+(defun command-remove-notes (notes-gen)
+  (funcall notes-gen (lambda (notes-to-remove)
+                       `(if (null ,notes-to-remove)
+                          (format *standard-output* "~A~&" +msg-abort-note-deletion+)
+                          (remove-notes ,notes-to-remove)))))
 
 
 (defun get-zettelkasten-yields ()

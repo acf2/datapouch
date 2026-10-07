@@ -330,6 +330,8 @@
   (:nicknames :d.inter)
   (:import-from :d.aux
                 #:rotate
+                #:list-of-strings
+                #:list-of-list-of-strings
                 #:repeat-string)
   (:import-from :d.cli
                 #:readline

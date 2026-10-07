@@ -116,3 +116,14 @@
                                :destination new-note
                                :number number)))
     new-note))
+
+
+;;; Remove note by ID (or current note if ID is not supplied)
+;;; When nil is supplied, does nothing
+(defun remove-notes (notes)
+  (when notes
+    (delete-from :note (where (:in :id notes)))
+    (setf *note-history* (remove-if (member-of notes) *note-history*))
+    (when (member *current-note* notes :test #'eql)
+      (set-current-note (first *note-history*)
+                        :update-history nil))))
