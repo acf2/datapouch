@@ -4,34 +4,38 @@
 (in-package :datapouch.interaction)
 
 
-(let ((seprx (ppcre:create-scanner (ppcre:parse-string "\\D+")))) 
-  (defun split-to-integers (string)
-    (ppcre:split seprx string)))
+;(let ((seprx (ppcre:create-scanner (ppcre:parse-string "\\D+")))) 
+;  (defun split-to-integers (string)
+;    (ppcre:split seprx string)))
+;
+;
+;(defun make-pager-selector-behavior-container ()
+;  (let ((bc (d.ptrn:make-preset-behavior-container)))
+;    (d.ptrn:set-behaviors
+;      bc 
+;      (:row-designator (d.ptrn:make-wildcard-pattern "[1-9]\\d*"
+;                                                     (list "1" "90" "31337")
+;                                                     "number"
+;                                                     "N")
+;                       (lambda (info num)
+;                         (d.expr:make-result (getf info :name)
+;                                             (parse-integer num)))
+;                       :use-only-named-results nil)
+;      (:row-designator-list (d.ptrn:make-wildcard-pattern "[1-9]\\d*(?:\\D+[1-9]\\d*)*"
+;                                                          (list "1" "90" "31337" "1 2" "90,31" "31337 2,13")
+;                                                          "numbers"
+;                                                          "Ns")
+;                            (lambda (info nums)
+;                              (d.expr:make-result (getf info :name)
+;                                                  (map 'list #'parse-integer
+;                                                       (split-to-integers nums))))
+;                            :use-only-named-results nil))
+;    bc))
 
 
-(defun make-find-row-behavior-container ()
-  (let ((bc (d.ptrn:make-preset-behavior-container)))
-    (d.ptrn:set-behaviors
-      bc 
-      (:number (d.ptrn:make-wildcard-pattern "[1-9]\\d*"
-                                             (list "1" "90" "31337")
-                                             "number"
-                                             "N")
-               (lambda (info num)
-                 (d.expr:make-result (getf info :name)
-                                     (parse-integer num)))
-               :use-only-named-results nil)
-      (:number-list (d.ptrn:make-wildcard-pattern "[1-9]\\d*(?:\\D+[1-9]\\d*)*"
-                                                  (list "1" "90" "31337" "1 2" "90,31" "31337 2,13")
-                                                  "numbers"
-                                                  "Ns")
-                    (lambda (info nums)
-                      (d.expr:make-result (getf info :name)
-                                          (map 'list #'parse-integer
-                                               (split-to-integers nums))))
-                    :use-only-named-results nil))
-    bc))
-
+;; Make them index & index-list
+;; Make their existense in behavior container required
+;; That way, we invert the dependency
 
 (d.c.aux:with-immutable-parsers
   (defun choose-command-yields (container choose-fun)
@@ -40,7 +44,7 @@
       ((:+ :begin
            (:trivial "choose" "c")
            :space
-           (:number :name :row-number)
+           (:row-designator :name :row-designator)
            :end)
        choose-fun
        "bla"))))
@@ -53,7 +57,8 @@
       ((:+ :begin 
            (:trivial "peek" "p")
            :space
-           (:number-list :name :row-number-list)
+           ;(:row-designator-list :name :row-designator-list) ; XXX: Wut? Peek many at once?
+           (:row-designator :name :row-designator)
            :end)
        peek-fun
        "bla"))))
@@ -85,32 +90,32 @@
       ((:+ :begin 
            (:trivial "forward" "f")
            (:? :space
-               (:number :name :pages))
+               (:row-designator :name :pages))
            :end)
        forward-fun
        "[forward docs will be here]")
       ((:+ :begin 
            (:trivial "backward" "b")
            (:? :space
-               (:number :name :pages))
+               (:row-designator :name :pages))
            :end)
        backward-fun
        "[backward docs will be here]")
       ((:+ :begin 
-           (:trivial "begin" "a") ; XXX: Like ^A, as opposite to ^E?
-           ;;; Maybe start/s will be better?
+           (:trivial "start" "s")
            (:? :space
-               (:number :name :pages))
+               (:row-designator :name :pages))
            :end)
        begin-fun
        "[begin docs will be here]")
       ((:+ :begin 
            (:trivial "end" "e")
            (:? :space
-               (:number :name :pages))
+               (:row-designator :name :pages))
            :end)
        end-fun
        "[end docs will be here]"))))
+
 
 ;; Why row-map?
 ;; Why id-column-map?
@@ -124,17 +129,154 @@
          yields)))
 
 
-(defun pager-selector-dialog (continuation column-names rows prompt-msg
-                              &key
-                              ((:choose-many choose-many) nil)
-                              ((:pretty-print-table-function pretty-print-table) #'pretty-print-table))
-  (let ((paginate? (and *pagination-enabled*
-                        (> (length rows) *page-length*))))
-    (labels ((from-index (index) (1+ index))
-             (to-index (row-number) (1- row-number))
-             (correct-row-number? (int) (and (integerp int)
-                                             (<= 1 int (length rows)))))
-      (funcall pretty-print-table column-names rows))))
+;; Need to control printable-table index column + split function
+;;   - Printable table creation fun \column-names rows -> printable-table
+;;   - Base behavior container will have everything to parse and split
+
+;;; Standartized lambda for all 'dialogs' will be
+;;; (continuation column-names rows prompt message error-message)
+;;; Where message and error-message could be functions
+
+(defun pager-1choice-selector-dialog-template (index-pattern index-handler make-printable-table-fun)
+  (let ((bc (d.ptrn:make-preset-behavior-container)))
+    ;; Add index pattern manually
+    (d.ptrn:set-behavior bc
+                         :row-designator
+                         index-pattern
+                         index-handler
+                         :use-only-named-results nil)
+    ;; Generate dialog lambda: shift from 'template' to 'concrete'
+    (lambda (continuation column-names rows prompt message error-message)
+      (d.app:with-app-exit-progn
+        exit-then-do
+        (let ((assoc-table (make-simple-assoc-table column-names
+                                                    rows
+                                                    (funcall make-printable-table-fun
+                                                             column-names
+                                                             rows)))
+              ;; These are application's internal 'state' to communicate between its parts
+              (current-row-index 0)
+              (paginate? (and *pagination-enabled*
+                              (> (length rows) *page-length*)))
+              (print-table? t)
+              (print-message? t)
+              (print-error-message? nil))
+          (apply #'d.ptrn:yields-into-application
+                 (append (concat-yields (choose-command-yields bc
+                                                               (lambda (&key row-designator)
+                                                                 ;; Accept predicate? 'Get index' parameter?
+                                                                 (let ((result (assoc-row row-designator assoc-table)))
+                                                                   (if result
+                                                                     (exit-then-do
+                                                                       (funcall continuation
+                                                                                result))
+                                                                     (setf print-error-message? row-designator)))))
+                                        (peek-command-yields bc
+                                                             (lambda (&key row-designator)
+                                                               nil))
+                                        (list-command-yields bc
+                                                             (lambda ()
+                                                               nil)))
+                         (list :prompt-fun (lambda (buffer)
+                                             (declare (ignore buffer))
+                                             ;; TODO: Maybe redo with prompt-format??
+                                             (prog1
+                                               prompt
+                                               (format *standard-output* "~@[~A~&~]~@[~A~&~]~@[~A~&~]"
+                                                       (when print-table?
+                                                         (if paginate?
+                                                           (slice assoc-table
+                                                                  current-row-index
+                                                                  (+ current-row-index *page-length*))
+                                                           assoc-table))
+                                                       (when print-message?
+                                                         (if (functionp message)
+                                                           (funcall message print-message?)
+                                                           message))
+                                                       (when print-error-message?
+                                                         (if (functionp error-message)
+                                                           (funcall error-message print-error-message?)
+                                                           error-message)))
+                                               (setf print-table? nil
+                                                     print-message? nil
+                                                     print-error-message? nil)))))))))))
+
+
+(let ((seprx (ppcre:create-scanner (ppcre:parse-string "\\D+")))) 
+  (defun split-to-integers (string)
+    (ppcre:split seprx string)))
+
+
+(defun make-indexed-printable-table (column-names rows &key ((:index-column-name index-column-name) "Number"))
+  (flet ((print-field (x) (wrap-string
+                            (if (stringp x)
+                              x
+                              (write-to-string x)))))
+    (let ((stringified-table (mapcar (lambda (row)
+                                       (mapcar #'print-field
+                                               row))
+                                     (cons (cons index-column-name column-names)
+                                           (loop :for row :in rows
+                                                 :for i :from 1 :by 1
+                                                 :collect (cons i row))))))
+      (make-instance 'printable-table
+                     :column-names (first stringified-table)
+                     :rows (rest stringified-table)
+                     :print-fun #'simple-pretty-print-table))))
+
+
+(defun simple-pager-selector-dialog (continuation column-names rows prompt message error-message
+                                     &key
+                                     ((:choose-many choose-many) nil))
+  (let ((index-pattern (d.ptrn:make-wildcard-pattern "[1-9]\\d*"
+                                                     (list "1" "90" "31337")
+                                                     "number"
+                                                     "N"))
+        (index-handler (lambda (info num)
+                         (d.expr:make-result (getf info :name)
+                                             num)))
+        (index-list-pattern (d.ptrn:make-wildcard-pattern "[1-9]\\d*(?:\\D+[1-9]\\d*)*"
+                                                          (list "1" "90" "31337" "1 2" "90,31" "31337 2,13")
+                                                          "numbers"
+                                                          "Ns"))
+        (index-list-handler (lambda (info nums)
+                              (d.expr:make-result (getf info :name)
+                                                  (split-to-integers nums)))))
+    (if choose-many
+      nil
+      (funcall (pager-1choice-selector-dialog-template index-pattern
+                                                       index-handler
+                                                       #'make-indexed-printable-table)
+               continuation
+               column-names
+               rows
+               prompt
+               message
+               error-message))))
+
+
+(defun make-pager-selector-behavior-container ()
+  (let ((bc (d.ptrn:make-preset-behavior-container)))
+    (d.ptrn:set-behaviors
+      bc 
+      (:row-designator (d.ptrn:make-wildcard-pattern "[1-9]\\d*"
+                                                     (list "1" "90" "31337")
+                                                     "number"
+                                                     "N")
+                       (lambda (info num)
+                         (d.expr:make-result (getf info :name)
+                                             (parse-integer num)))
+                       :use-only-named-results nil)
+      (:row-designator-list (d.ptrn:make-wildcard-pattern "[1-9]\\d*(?:\\D+[1-9]\\d*)*"
+                                                          (list "1" "90" "31337" "1 2" "90,31" "31337 2,13")
+                                                          "numbers"
+                                                          "Ns")
+                            (lambda (info nums)
+                              (d.expr:make-result (getf info :name)
+                                                  (map 'list #'parse-integer
+                                                       (split-to-integers nums))))
+                            :use-only-named-results nil))
+    bc))
 
 
 (defun find-row-dialog (continuation column-names rows
@@ -157,17 +299,17 @@
                                                              (list* nil (1+ row-index) row))
                                                            (lambda (row-index row)
                                                              (cons (1+ row-index) row))))
-                        ((:index-from-number index-fun) (lambda (row-number)
-                                                          (1- row-number)))
+                        ((:row-designator-from-number index-fun) (lambda (row-number)
+                                                                   (1- row-number)))
                         ((:row-transformation-function row-transform) #'identity)
                         ((:get-index get-index) nil)
                         ((:pretty-print-table-function pretty-print-table) #'pretty-print-table)
                         ((:peek-row-function show-row) (lambda (row last?)
                                                          (format *standard-output* "~A~&~@[~%~]" row last?)))
                         &allow-other-keys)
-  (d.app:with-return
-    return-from-app
-    (let* ((bc (make-find-row-behavior-container))
+  (d.app:with-app-exit-progn
+    exit-then-do
+    (let* ((bc (make-pager-selector-behavior-container))
            (columns (funcall id-map column-names))
            (row-assoc (funcall row-transform (loop :for row :in rows
                                                    :for row-index :from 0 :to (1- (length rows))
@@ -202,16 +344,16 @@
                         nil)
                       (:else
                         (concat-yields (choose-command-yields bc
-                                                              (lambda (&key row-number)
-                                                                (if (is-integer-accepted? row-number)
-                                                                  (return-from-app
+                                                              (lambda (&key row-designator)
+                                                                (if (is-integer-accepted? row-designator)
+                                                                  (exit-then-do
                                                                     (funcall continuation
                                                                              (if get-index
-                                                                               (funcall index-fun row-number)
-                                                                               (nth (funcall index-fun row-number) rows))))
-                                                                  (funcall error-fun row-number))))
+                                                                               (funcall index-fun row-designator)
+                                                                               (nth (funcall index-fun row-designator) rows))))
+                                                                  (funcall error-fun row-designator))))
                                        (peek-command-yields bc
-                                                            (lambda (&key row-number-list)
+                                                            (lambda (&key row-designator)
                                                               nil))
                                        (list-command-yields bc
                                                             (lambda ()

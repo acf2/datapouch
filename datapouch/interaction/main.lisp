@@ -19,8 +19,8 @@
                                                             (concatenate 'string (string d.rmacro:*control-character*)
                                                                          negative)))
                             ((:prompt-format prompt-format) "~@[~A~&~]~@[~A ~](~(~A~) or ~(~A~)) "))
-    (d.app:with-return
-      return-from-app
+    (d.app:with-app-exit-progn
+      exit-then-do
       (let* ((common-prefix-length (length (d.aux:common-string-prefix (list affirmative negative))))
              (short-affirmative (subseq affirmative 0 (1+ common-prefix-length)))
              (short-negative (subseq negative 0 (1+ common-prefix-length)))
@@ -61,7 +61,7 @@
                 (:* :yes :no)
                 :end)
             (lambda (result)
-              (return-from-app
+              (exit-then-do
                 (funcall continuation result)))
             "Available answers"
             :use-only-named-results nil))

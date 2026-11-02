@@ -48,7 +48,7 @@ Arguments:
 
 
 (defclass printable-table ()
-  ((column-names :initarg :columns
+  ((column-names :initarg :column-names
                  :type list-of-strings)
    (rows :initarg :rows
          :type list-of-list-of-string)
@@ -169,7 +169,10 @@ fitted tightly without marker - it will do it."
           :collect (subseq string last-pos pos))))
 
 
-;;; TODO: Rewrite to use any table format whatsoever
+;; The following is simple, usable implementation of printable-table
+;; NB: Make your own, if this one is limited.
+
+
 ;;; Usage:
 ;;; (format nil *table-metaformat* desired-field-widths) to get format string
 ;;; (format t format-string table) to pretty print table
@@ -247,6 +250,6 @@ fitted tightly without marker - it will do it."
                                      (cons column-names
                                            rows))))
       (make-instance 'printable-table
-                     :columns (first stringified-table)
+                     :column-names (first stringified-table)
                      :rows (rest stringified-table)
                      :print-fun #'simple-pretty-print-table))))

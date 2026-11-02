@@ -11,17 +11,21 @@
 (defclass assoc-table ()
   ((table-rows :initarg :rows
                :type list)
-   (printable-table :initarg :printable-table
-                    :type printable-table)
+   (printable-table :initarg :printable-table)
    (index-lookup :initform (make-hash-table :test #'equal))))
 
 
 (defmethod initialize-instance :after ((table assoc-table) &key &allow-other-keys)
   (with-slots (index-lookup printable-table) table
-    (with-slots (rows) printable-table
-      (loop :for (key . rest) :in rows
-            :for index :from 0
-            :do (setf (gethash key index-lookup) index)))))
+    (if (and (compute-applicable-methods #'print-object (list printable-table *standard-output*))
+             (compute-applicable-methods #'slice (list printable-table 0 1)))
+      (with-slots (rows) printable-table
+        (loop :for (key . rest) :in rows
+              :for index :from 0
+              :do (setf (gethash key index-lookup) index)))
+      (error 'type-error 
+             :datum printable-table
+             :expected-type '"An object implementing PRINT-OBJECT and D.INTER:SLICE"))))
 
 
 (defmethod print-object ((table assoc-table) stream)
@@ -68,6 +72,10 @@
         (when index
           (nth index table-rows))))))
 
+
+;; This is simple, usable implementation of assoc-table
+;; It uses simple printable table
+;; NB: Make your own, if this one is limited.
 
 (defun make-simple-assoc-table (column-names rows &optional printable-table)
   (make-instance 'assoc-table

@@ -210,7 +210,7 @@
                 #:with-gensyms)
   (:export #:*application-stack*
            #:application
-           #:push-new-application #:with-return
+           #:push-new-application #:with-app-exit-progn
            #:app-read-form
            #:get-app-repl-read-form
            #:register-autocomplete-with-applications))
@@ -349,6 +349,13 @@
            #:*table-metaformat*
            #:*table-pad-width*
            #:*get-table-name-delimiter*
+           #:printable-table
+           #:slice
+           #:simple-pretty-print-rows
+           #:simple-pretty-print-table
+           #:make-simple-printable-table
+           #:assoc-table
+           #:make-simple-assoc-table
            #:dialog
            #:yes-or-no-dialog
            #:rotate

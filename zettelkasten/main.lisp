@@ -174,8 +174,8 @@
 ;               (:trivial "dice")
 ;               :end)
 ;           (lambda ()
-;             (with-return
-;               return-from-app
+;             (with-app-exit-progn
+;               exit-then-do
 ;               `(progn (defparameter *dice-roll* nil)
 ;                       ,(return-application bc
 ;                                            (((:+ :begin
@@ -184,7 +184,7 @@
 ;                                                  (:number :name :dice)
 ;                                                  :end)
 ;                                              (lambda (&key dice)
-;                                                (return-from-app
+;                                                (exit-then-do
 ;                                                  (once-only ((d dice))
 ;                                                             `(progn
 ;                                                                (setf *dice-roll* (list (1+ (random ,d)) ,d))

@@ -2,6 +2,21 @@
 
 
 ;;; A very dumb attempt at creating nesting contexts, to simplify user-designed apps.
+;;; Be aware:
+;;;   This is made from shit and sticks. Any attempt to use this, other
+;;;   than with provided push-new-application and with-app-exit-progn,
+;;;   *will* fail, and it will fail *spectacularly*, adding swathes of grey hairs
+;;;   onto your poor head.
+;;;
+;;; (These two functions ensure that invariants of application stack are not broken.
+;;;  You will be able to create as many applications as you want, when you
+;;;  want. But all these applications will be created in a sequence, and all
+;;;  their with-app-exit-progn will memorize sequentially growing application
+;;;  stack. And in case of pushing new app during exit phase of an old one: old
+;;;  app will be cleaned up *before* any attempt at establishing let scope of
+;;;  new app's with-app-exit-progn is made.
+;;;
+;;;  Easy. Just don't touch anything, and everything will be fine.)
 
 
 (in-package :datapouch.application)
@@ -51,13 +66,16 @@
     *application-stack*))
 
 
-(defmacro with-return (return-symbol &body body)
+;; NOTE: Very good for push-new-application also.
+;;       Why? Because then invokation will be not just the last call, before return:
+;;       It will be called *after* current app is no more.
+(defmacro with-app-exit-progn (exit-progn-symbol &body body)
   (with-gensyms
     (old-application-stack)
     `(let ((,old-application-stack d.app:*application-stack*))
-       (flet ((,return-symbol (&rest forms)
-                              `(progn (setf d.app:*application-stack* ',,old-application-stack)
-                                      ,@forms)))
+       (flet ((,exit-progn-symbol (&rest forms)
+                                  `(progn (setf d.app:*application-stack* ',,old-application-stack)
+                                          ,@forms)))
          ,@body))))
 
 

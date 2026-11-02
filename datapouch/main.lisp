@@ -65,10 +65,10 @@
 
 (defparameter +default-prompt-combination-fun+
   (lambda (buffer)
-    (format nil "~{~@[[~A]~#[~:;-~]~]~}~:[*~:;>~] "
+    (format nil "~{~@[[~A]~#[~:;-~]~]~}~:[*~;>~] "
             (loop :for prompt-fun :in *plugin-prompt-funs*
                   :collect (funcall prompt-fun buffer))
-            buffer)))
+            (string= buffer ""))))
 
 
 (defparameter *prompt-combination-fun* +default-prompt-combination-fun+)
