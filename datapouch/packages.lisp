@@ -114,8 +114,7 @@
            #:*stop-characters*
            #:*control-character*
            #:install-command-reader-macro
-           #:install-command-reader-autoprint-hook
-           #:read-line-up-to))
+           #:install-command-reader-autoprint-hook))
 
 
 (defpackage :datapouch.command.auxiliary

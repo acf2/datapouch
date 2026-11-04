@@ -23,12 +23,14 @@
 ;;; Use this in reader macro
 ;;; Ref: https://stackoverflow.com/questions/18045842/appending-character-to-string-in-common-lisp
 ;;; Ref: https://stackoverflow.com/questions/30942815/read-input-into-string-in-lisp-reader-macro
+;;; TBD: What is `t nil t` in this: (peek-char nil stream t nil t)
+;;;      Should I allow recursive calls, or not?
 (defun read-line-up-to (stream stop-characters)
   (let ((line (make-array 0
                           :element-type 'character
                           :fill-pointer 0
                           :adjustable t)))
-    (loop :for char = (peek-char nil stream t nil t)
+    (loop :for char = (peek-char nil stream)
           :until (member char stop-characters :test #'eql)
           :do (vector-push-extend (read-char stream) line))
     (coerce line 'simple-string)))
