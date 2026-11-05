@@ -11,13 +11,17 @@ AKA `:datapouch.command.reader-macro`
 
 ## Intent
 
-Reader macros are a very convenient way to make your own syntax with Common Lisp. This file streamlines this, despite being somewhat inefficient in implementation.
+Reader macros are a very convenient way to make your own syntax with Common Lisp.
+This file streamlines this, despite being somewhat inefficient in implementation.
 
 ## Quick how to
 
-To use this file in the intended way, one must set `*rmacro-callbacks*` and call `install-command-reader-macro`. Order is not important, and `*rmacro-callbacks*` may be changed at any time (which is used later).
+To use this file in the intended way, one must set `*rmacro-callbacks*` and call `install-command-reader-macro`.
+Order is not important, and `*rmacro-callbacks*` may be changed at any time (which is used later).
 
-Each callback function is given the full string representation of a suspected command. Then, it must either parse it and do some transformations, returning `(values T <new form to eval>)`, or quickly fail and return `NIL`. So the intended way to interpret the meaning of rmacro callbacks is to think of them as of combined parser and payload function simultaneously.
+Each callback function is given the full string representation of a suspected command.
+Then, it must either parse it and do some transformations, returning `(values T <new form to eval>)`, or quickly fail and return `NIL`.
+So the intended way to interpret the meaning of rmacro callbacks is to think of them as of combined parser and payload function simultaneously.
 
 E.g.: invocation of
 ```
@@ -35,9 +39,11 @@ Which will ultimately result in printing
 Hello, Senile Old Man!
 ```
 
-Notice that the function had returned a form, despite not being a macro. This is correct, as that form will be returned from reader macro unchanged and evaluated.
+Notice that the function had returned a form, despite not being a macro.
+This is correct, as that form will be returned from reader macro unchanged and evaluated.
 
-`install-command-reader-autoprint-hook` was made for end-user convenience. E.g.: when commands are shortened down to single characters it is very bothersome to prepend them with the same control character every time.
+`install-command-reader-autoprint-hook` was made for end-user convenience.
+E.g.: when commands are shortened down to single characters it is very bothersome to prepend them with the same control character every time.
 
 ## External
 
@@ -71,7 +77,8 @@ Default: `#\/`
 ### `install-command-reader-macro`
 Lambda-list: `(&key ((:character character) *control-character*) ((:readtable table)))`
 
-Before anything could be done, reader must recognize the need to call new macros. This is the chosen method of this module.
+Before anything could be done, reader must recognize the need to call new macros.
+This is the chosen method of this module.
 Adds character to designated readtable, allowing the reader to call `command-reader-macro` function (and iterate over rmacro callbacks).
 
 NB: `NON-TERMINATINGP` is set to `T` because the default `#\/` character is too common.
@@ -81,7 +88,9 @@ NB: `NON-TERMINATINGP` is set to `T` because the default `#\/` character is too 
 ### `install-command-reader-autoprint-hook`
 Lambda-list: `(&key ((:character character) #\/))`
 
-`cl-readline` library has several hooks that could be configured. Since usage of these reader macros relies heavily on one character, it could be beneficial to add this character as a prefix to any user input. This function does exactly that: it adds a pre-input hook that inserts control character as a first character.
+`cl-readline` library has several hooks that could be configured.
+Since usage of these reader macros relies heavily on one character, it could be beneficial to add this character as a prefix to any user input.
+This function does exactly that: it adds a pre-input hook that inserts control character as a first character.
 
 ## Internal
 
@@ -101,4 +110,5 @@ Unreads the whole string character by character.
 ### `command-reader-macro`
 Lambda-list: `(stream char)`
 
-Common wrapper function for all reader macro callbacks. If callback call isn't successful, returns all characters back, beside reader macro character.
+Common wrapper function for all reader macro callbacks.
+If callback call isn't successful, returns all characters back, beside reader macro character.
