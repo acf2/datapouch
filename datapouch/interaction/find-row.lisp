@@ -57,7 +57,7 @@
       ((:+ :begin 
            (:trivial "peek" "p")
            :space
-           ;(:row-designator-list :name :row-designator-list) ; XXX: Wut? Peek many at once?
+           ;(:row-designator-list :name :row-designator-list) ; TODO Peek many at once
            (:row-designator :name :row-designator)
            :end)
        peek-fun
@@ -84,34 +84,34 @@
 ;; choose-many -> chosen?, choose* [+all], done, cart, leave/uncheck [+all]
 
 (d.c.aux:with-immutable-parsers
-  (defun pagination-commands-yields (container forward-fun backward-fun begin-fun end-fun)
+  (defun pagination-commands-yields (container forward-fun backward-fun start-fun end-fun)
     (d.ptrn:collect-yields
       container
       ((:+ :begin 
            (:trivial "forward" "f")
            (:? :space
-               (:row-designator :name :pages))
+               (:row-designator :name :pages-forward))
            :end)
        forward-fun
        "[forward docs will be here]")
       ((:+ :begin 
            (:trivial "backward" "b")
            (:? :space
-               (:row-designator :name :pages))
+               (:row-designator :name :pages-backward))
            :end)
        backward-fun
        "[backward docs will be here]")
       ((:+ :begin 
            (:trivial "start" "s")
            (:? :space
-               (:row-designator :name :pages))
+               (:row-designator :name :page-from-start))
            :end)
-       begin-fun
-       "[begin docs will be here]")
+       start-fun
+       "[start docs will be here]")
       ((:+ :begin 
            (:trivial "end" "e")
            (:? :space
-               (:row-designator :name :pages))
+               (:row-designator :name :page-from-end))
            :end)
        end-fun
        "[end docs will be here]"))))
@@ -126,7 +126,7 @@
   (map 'list (lambda (x)
                (reduce #'append x))
        (d.aux:rotate
-         yields)))
+         (remove-if #'null yields))))
 
 
 ;; Need to control printable-table index column + split function
@@ -139,12 +139,21 @@
 
 (defun pager-1choice-selector-dialog-template (index-pattern index-handler make-printable-table-fun)
   (let ((bc (d.ptrn:make-preset-behavior-container)))
-    ;; Add index pattern manually
-    (d.ptrn:set-behavior bc
-                         :row-designator
-                         index-pattern
-                         index-handler
-                         :use-only-named-results nil)
+    (d.ptrn:set-behaviors
+      bc
+      ;; Add number behavior (for pagination)
+      (:number (d.ptrn:make-wildcard-pattern "[1-9]\\d*"
+                                             (list "1" "90" "31337")
+                                             "number"
+                                             "N")
+               (lambda (info num)
+                 (d.expr:make-result (getf info :name)
+                                     (parse-integer num)))
+               :use-only-named-results nil)
+      ;; Add index behavior manually
+      (:row-designator index-pattern
+                       index-handler
+                       :use-only-named-results nil))
     ;; Generate dialog lambda: shift from 'template' to 'concrete'
     (lambda (continuation column-names rows prompt message error-message)
       (d.app:with-app-exit-progn
@@ -154,6 +163,7 @@
                                                     (funcall make-printable-table-fun
                                                              column-names
                                                              rows)))
+              (table-length (length rows))
               ;; These are application's internal 'state' to communicate between its parts
               (current-row-index 0)
               (paginate? (and *pagination-enabled*
@@ -162,7 +172,33 @@
               (print-message? t)
               (print-error-message? nil))
           (apply #'d.ptrn:yields-into-application
-                 (append (concat-yields (choose-command-yields bc
+                 (append (concat-yields (when paginate?
+                                          (pagination-commands-yields bc
+                                                                      ;; forward
+                                                                      (lambda (&key page)
+                                                                        (let ((target-row-index (if page
+                                                                                                  (* *page-length* page)
+                                                                                                  (+ current-row-index *page-length*))))
+                                                                          (cond ((< target-row-index table-length)
+                                                                                 nil)
+                                                                                (:else
+                                                                                  (setf print-error-message? "Already at last page")))))
+                                                                      ;; backward
+                                                                      (lambda (&key page)
+                                                                        (let ((target-row-index (if page
+                                                                                                  (* *page-length* page)
+                                                                                                  (+ current-row-index *page-length*))))
+                                                                          (cond ((< target-row-index table-length)
+                                                                                 nil)
+                                                                                (:else
+                                                                                  (setf print-error-message? "Already at last page")))))
+                                                                      ;; start
+                                                                      (lambda (&key page)
+                                                                        nil)
+                                                                      ;; end
+                                                                      (lambda (&key page)
+                                                                        nil)))
+                                        (choose-command-yields bc
                                                                (lambda (&key row-designator)
                                                                  ;; Accept predicate? 'Get index' parameter?
                                                                  (let ((result (assoc-row row-designator assoc-table)))
@@ -182,13 +218,20 @@
                                              ;; TODO: Maybe redo with prompt-format??
                                              (prog1
                                                prompt
-                                               (format *standard-output* "~@[~A~&~]~@[~A~&~]~@[~A~&~]"
+                                               (format *standard-output* "~@[~A~&~]~@[~A~&~]~@[~A~&~]~@[~A~&~]"
                                                        (when print-table?
                                                          (if paginate?
                                                            (slice assoc-table
                                                                   current-row-index
                                                                   (+ current-row-index *page-length*))
                                                            assoc-table))
+                                                       (when (and print-table?
+                                                                  paginate?)
+                                                         (format nil "page ~A out of ~A~&"
+                                                                 (1+ (floor current-row-index
+                                                                            *page-length*))
+                                                                 (ceiling table-length
+                                                                          *page-length*)))
                                                        (when print-message?
                                                          (if (functionp message)
                                                            (funcall message print-message?)

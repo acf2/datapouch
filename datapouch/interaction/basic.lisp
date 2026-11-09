@@ -51,7 +51,8 @@ Arguments:
   ((column-names :initarg :column-names
                  :type list-of-strings)
    (rows :initarg :rows
-         :type list-of-list-of-string)
+         :type list-of-list-of-string
+         :reader rows)
    (fields-lengths :type integer
                    :reader fields-lengths)
    (pretty-print-fun :initarg :print-fun

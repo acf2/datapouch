@@ -28,11 +28,11 @@ produced by other expressions, that were called before the current one. In
 turn, now user handler can ignore irrelevant information and be less complex.
 
 Example:
-  Processed group list before user handler call: (1 2 <NAMED-RESULT :num 3> 4)
+  Processed group list before user handler call: (:group-name <USER-INFO> \"1\" \"2\" <NAMED-RESULT :num 3> \"4\")
   Call with (EQ USE-ONLY-NAMED-RESULTS T):
     (FUNCALL user-handler :num 3)
-  Call with (EQ USE-NONGROUP-ARGUMENTS NIL):
-    (FUNCALL user-handler 1 2 <NAMED-RESULT :num 3> 4)
+  Call with (EQ USE-ONLY-NAMED-RESULTS NIL):
+    (FUNCALL user-handler <USER-INFO> \"1\" \"2\" <NAMED-RESULT :num 3> \"4\")
 
 ALLOW-TRAVERSAL, default T. Allows for GROUP-TREE-TRAVERSAL to try to process
 each of the elements of regex match with other expressions, before passing it
@@ -331,6 +331,9 @@ how to connect these handlers to LEXICON and use them."
 ;                                     ,handler
 ;                                     ,docs
 ;                                     ,@options))))
+
+
+;;; DEPRECATED
 
 
 ;; NOTE: Please, do not forget.

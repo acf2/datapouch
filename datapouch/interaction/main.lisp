@@ -136,6 +136,7 @@
 
 ;; It's... it's bad, okay?
 ;; Maybe someday I refactor, I refactor it all.
+#|
 (defun find-row-with-peeking-dialog (column-names rows &key ((:choose-many choose-many) nil)
                                                             ((:prompt-msg prompt-msg) "S[how] list again, [choose] row number or p[eek] it:~&")
                                                             ((:error-msg error-msg) "Please, try again.~&")
@@ -224,3 +225,5 @@
                                                                                         (map 'list #'1- row-numbers))))))))))
                       :prompt-fun prompt-fun
                       :raw-input t))))))
+
+|#

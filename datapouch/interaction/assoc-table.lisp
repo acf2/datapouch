@@ -10,7 +10,8 @@
 
 (defclass assoc-table ()
   ((table-rows :initarg :rows
-               :type list)
+               :type list
+               :reader rows)
    (printable-table :initarg :printable-table)
    (index-lookup :initform (make-hash-table :test #'equal))))
 

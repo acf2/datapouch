@@ -211,8 +211,9 @@
 
 
 ; ...*this* side of insanity. Don't delude yourself which is which.
-; Yet I have never felt myself more lucid then right now.
+; Yet I have never felt myself more lucid than right now.
 ; Does every schizo feel this way? Is this a sign of sanity slipping?
+; Probably? Likely? Almost certain?
 
 
 ;; (:type pattern-expr handler keyword-args...)
