@@ -16,18 +16,6 @@
 the lib useless."
   (setf ppcre:*allow-named-registers* flag))
 
-#|
-(defclass regex ()
-  ((expr :reader expr
-         :initarg :expr)
-   (groups :reader groups
-           :initarg :groups
-           :initform nil)
-   (info :reader info
-         :initarg :info
-         :initform nil)))
-|#
-
 
 (defclass group-id ()
   ((name :type string
@@ -84,7 +72,7 @@ passed along with group match later."
               :initarg :group-map
               :initform nil))
   (:documentation "REGEX class objects retain information about named groups in
-them. GROUP-IDs helps to differ between same-named groups for
+them. GROUP-IDs help to differ between same-named groups for
 matching, while contextual info contains critical user
 information for match processing."))
 
@@ -226,76 +214,6 @@ anymore, unless this is reverted, so 'baking'."
                (regex-from-string another)))
 
 
-(declaim (ftype (or (function (list-of-relaxed-regexes
-                                &key
-                                (:separator-regex relaxed-regex)
-                                (:start-regex relaxed-regex)
-                                (:end-regex relaxed-regex)
-                                (:null-regex relaxed-regex)))
-                    (function (list-of-relaxed-sampled-regexes
-                                &key
-                                (:separator-regex relaxed-sampled-regex)
-                                (:start-regex relaxed-sampled-regex)
-                                (:end-regex relaxed-sampled-regex)
-                                (:null-regex relaxed-sampled-regex))))
-                concat-separated))
-(defun concat-separated (regexes &key
-                                 ((:separator-regex sep-rx) nil)
-                                 ((:start-regex start-rx) nil)
-                                 ((:end-regex end-rx) nil)
-                                 ((:null-regex null-rx) nil))
-  "This function returns concatenation of regexes (either in form of
-D.REGEX:REGEX, STRING or NIL) separated by SEPARATOR-REGEX. Separator can be
-NIL. START-REGEX and END-REGEX are used respectively for the start and the end.
-NULL-REGEX is used if all regexes are NIL."
-  (let ((nonnil-regexes (remove nil regexes)))
-    (if (null nonnil-regexes)
-      null-rx
-      (concat-many-relaxed
-        (list
-          start-rx
-          (concat-many-relaxed
-            (cons (first nonnil-regexes)
-                  (loop :for regex :in (rest nonnil-regexes)
-                        :collect sep-rx
-                        :collect regex)))
-          end-rx)))))
-
-
-;; TBD: Does explicit support ab?c?|a?bc?|a?b?c
-;;      It seems that it does. Does it?
-;; TODO: Refactor this shit.
-(declaim (ftype (or (function (list-of-relaxed-regexes
-                                &key
-                                (:explicit boolean)
-                                (:separator-regex relaxed-regex)))
-                    (function (list-of-relaxed-sampled-regexes
-                                &key
-                                (:explicit boolean)
-                                (:separator-regex relaxed-sampled-regex))))
-                optional-concat))
-(defun optional-concat (regexes &key ((:explicit explicit) nil) ((:separator-regex sep-rx) nil))
-  (let ((nonnil-regexes (map 'list (lambda (rx)
-                                     (typecase rx
-                                       (regex rx)
-                                       (string (regex-from-string rx))))
-                             (remove nil regexes))))
-    (when nonnil-regexes
-      (combine-many-relaxed
-        (loop :for regex-list := nonnil-regexes :then (rest regex-list)
-              :while regex-list
-              :collect (if (= (length regex-list) 1)
-                         (if explicit
-                           (first regex-list)
-                           (make-optional (wrap-in-noncapturing-group (first regex-list))))
-                         (concat-many-relaxed (loop :for regex :in regex-list
-                                                    :for first-regex := t :then nil
-                                                    :collect (if first-regex
-                                                               regex
-                                                               (concat-many-relaxed
-                                                                 (list sep-rx (make-optional (wrap-in-noncapturing-group regex)))))))))))))
-
-
 (declaim (ftype (function (relaxed-regex relaxed-regex relaxed-regex)) interchange))
 (defun interchange (separator one another)
   (wrap-in-noncapturing-group (combine (concat one separator another)
@@ -367,22 +285,6 @@ NULL-REGEX is used if all regexes are NIL."
                             (subseq str
                                     (aref group-starts i)
                                     (aref group-ends i))))))
-
-
-;; NOTE: Works only for groups with unique name
-;;       Otherwise? Filter group list yourself.
-(defmacro get-group (name groups)
-  `(rest (assoc (string ,name) ,groups :test #'string=)))
-
-
-(defun is-group (name groups &rest options)
-  (some (lambda (option)
-          (string= (get-group name groups) option))
-        options))
-
-
-(defun list-group-names (groups)
-  (map 'list #'car groups))
 
 
 ;; TODO: Rewrite for new fix with empty match groups
@@ -574,3 +476,94 @@ NULL-REGEX is used if all regexes are NIL."
           (group-map ,scanner)
           (multiple-value-list (d.regex:scan ,scanner
                                              ,string))))
+
+
+;;; DEPRECATED
+
+;; NOTE: Works only for groups with unique name
+;;       Otherwise? Filter group list yourself.
+#|
+(defmacro get-group (name groups)
+  `(rest (assoc (string ,name) ,groups :test #'string=)))
+
+
+(defun is-group (name groups &rest options)
+  (some (lambda (option)
+          (string= (get-group name groups) option))
+        options))
+
+
+(defun list-group-names (groups)
+  (map 'list #'car groups))
+|#
+
+
+
+(declaim (ftype (or (function (list-of-relaxed-regexes
+                                &key
+                                (:separator-regex relaxed-regex)
+                                (:start-regex relaxed-regex)
+                                (:end-regex relaxed-regex)
+                                (:null-regex relaxed-regex)))
+                    (function (list-of-relaxed-sampled-regexes
+                                &key
+                                (:separator-regex relaxed-sampled-regex)
+                                (:start-regex relaxed-sampled-regex)
+                                (:end-regex relaxed-sampled-regex)
+                                (:null-regex relaxed-sampled-regex))))
+                concat-separated))
+(defun concat-separated (regexes &key
+                                 ((:separator-regex sep-rx) nil)
+                                 ((:start-regex start-rx) nil)
+                                 ((:end-regex end-rx) nil)
+                                 ((:null-regex null-rx) nil))
+  "This function returns concatenation of regexes (either in form of
+D.REGEX:REGEX, STRING or NIL) separated by SEPARATOR-REGEX. Separator can be
+NIL. START-REGEX and END-REGEX are used respectively for the start and the end.
+NULL-REGEX is used if all regexes are NIL."
+  (let ((nonnil-regexes (remove nil regexes)))
+    (if (null nonnil-regexes)
+      null-rx
+      (concat-many-relaxed
+        (list
+          start-rx
+          (concat-many-relaxed
+            (cons (first nonnil-regexes)
+                  (loop :for regex :in (rest nonnil-regexes)
+                        :collect sep-rx
+                        :collect regex)))
+          end-rx)))))
+
+
+;; TBD: Does explicit support ab?c?|a?bc?|a?b?c
+;;      It seems that it does. Does it?
+;; TODO: Refactor this shit.
+(declaim (ftype (or (function (list-of-relaxed-regexes
+                                &key
+                                (:explicit boolean)
+                                (:separator-regex relaxed-regex)))
+                    (function (list-of-relaxed-sampled-regexes
+                                &key
+                                (:explicit boolean)
+                                (:separator-regex relaxed-sampled-regex))))
+                optional-concat))
+(defun optional-concat (regexes &key ((:explicit explicit) nil) ((:separator-regex sep-rx) nil))
+  (let ((nonnil-regexes (map 'list (lambda (rx)
+                                     (typecase rx
+                                       (regex rx)
+                                       (string (regex-from-string rx))))
+                             (remove nil regexes))))
+    (when nonnil-regexes
+      (combine-many-relaxed
+        (loop :for regex-list := nonnil-regexes :then (rest regex-list)
+              :while regex-list
+              :collect (if (= (length regex-list) 1)
+                         (if explicit
+                           (first regex-list)
+                           (make-optional (wrap-in-noncapturing-group (first regex-list))))
+                         (concat-many-relaxed (loop :for regex :in regex-list
+                                                    :for first-regex := t :then nil
+                                                    :collect (if first-regex
+                                                               regex
+                                                               (concat-many-relaxed
+                                                                 (list sep-rx (make-optional (wrap-in-noncapturing-group regex)))))))))))))

@@ -56,6 +56,7 @@
     #:relaxed-sampled-regex
     #:list-of-relaxed-sampled-regexes
     ;; main
+    #:*make-group-result-fun*
     #:allow-named-registers
     #:regex #:tree #:group-map
     #:regex-from-string
@@ -66,8 +67,8 @@
     #:interchange #:interchange-three
     #:scan
     #:get-group #:is-group #:list-group-names
-    #:regex-scanner #:scanner #:group-list
     #:make-scanner
+    #:regex-scanner #:scanner #:group-list
     #:match-to-assoc
     #:match-to-group-table
     #:match-to-group-tree
