@@ -78,40 +78,6 @@
   (list :raw (sxql:yield (apply #'sxql:make-clause :fields column-names))))
 
 
-;; Union does not work for sqlite3, i dunno why
-;; Just like this:
-;;  Code ERROR: near "(": syntax error.
-;;  SQL: (SELECT * FROM note) UNION (SELECT * FROM note)
-;;
-;; MR: https://github.com/fukamachi/sxql/pull/77
-;; It won't be accepted for the next bajillion years
-;; And for the second bajillion after that, new code won't be uploaded to quicklisp
-;; So no, I woke up today and chose violence: we gotta make a kludge, babe.
-(cl-package-locks:with-packages-unlocked
-  (:sxql.operator)
-  (macrolet ((new-yield-for-union-ops (sxql.operator::keyword)
-                                      `(multiple-value-bind (sxql.operator::statements sxql.operator::others)
-                                         (loop :for obj :in (sxql.operator::conjunctive-op-expressions sxql.operator::op)
-                                               :if (sxql.operator::sql-statement-p obj)
-                                               :collect obj :into sxql.operator::statements
-                                               :else
-                                               :collect obj :into sxql.operator::others
-                                               :finally (return (values sxql.operator::statements sxql.operator::others)))
-                                         (sxql.operator::with-yield-binds
-                                           (format nil (if sxql.operator::*inside-select*
-                                                         "(~{~A~^ ~})"
-                                                         "~{~A~^ ~}")
-                                                   (append (list (format nil ,(format nil "~~{~~A~~^ ~a ~~}" sxql.operator::keyword)
-                                                                         (mapcar #'sxql.operator::yield sxql.operator::statements)))
-                                                           (when sxql.operator::others
-                                                             (list (format nil "~{~A~^ ~}"
-                                                                           (mapcar #'sxql.operator::yield sxql.operator::others))))))))))
-    (defmethod sxql.operator::yield ((sxql.operator::op sxql.operator::union-op))
-      (new-yield-for-union-ops "UNION"))
-    (defmethod sxql.operator::yield ((sxql.operator::op sxql.operator::union-all-op))
-      (new-yield-for-union-ops "UNION ALL"))))
-
-
 (macrolet ((define-sxql-wrapper (name sqlite-function)
                                 `(defmacro ,name (fields &body clauses)
                                    `(execute #',',sqlite-function
