@@ -129,6 +129,7 @@ and a list of samples."
   (let ((sc (call-next-method)))
     (make-instance 'sampled-regex-scanner
                    :scanner (scanner sc)
+                   :regex-tree-topology (regex-tree-topology sc)
                    :group-map (group-map sc)
                    :group-list (group-list sc)
                    :samples (samples sr))))

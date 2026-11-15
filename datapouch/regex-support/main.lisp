@@ -86,6 +86,24 @@ be changed."
     (t regex-tree)))
 
 
+(defun get-regex-tree-topology (regex-tree)
+  "Save the topological structure of named groups inside the tree, to be
+reconstructed later."
+  (cond
+    ;; Named registers will become (<group-id> ...)
+    ((and (listp regex-tree)
+          (eq (first regex-tree)
+              :named-register))
+     (list (list* (second regex-tree)
+                  (reduce #'append (mapcar #'get-regex-tree-topology
+                                           (cddr regex-tree))))))
+    ;; Lists will be stripped from everything, other that named registers
+    ((listp regex-tree)
+     (reduce #'append (mapcar #'get-regex-tree-topology
+                              regex-tree)))
+    (:else nil)))
+
+
 (defun bake-group-map (group-map)
   "Prepare group-map to be used along regex-tree. Indices cannot be changed
 anymore, unless this is reverted, so 'baking'."
@@ -186,6 +204,7 @@ anymore, unless this is reverted, so 'baking'."
   (concat-two (regex-from-string one) another))
 
 
+;; 0_o: Delet zis
 (defmethod d.iface:concat-two ((one string) (another string))
   (concat-two (regex-from-string one)
               (regex-from-string another)))
@@ -209,6 +228,7 @@ anymore, unless this is reverted, so 'baking'."
   (combine-two (regex-from-string one) another))
 
 
+;; o_0: And delet dis 2oo
 (defmethod d.iface:combine-two ((one string) (another string))
   (combine-two (regex-from-string one)
                (regex-from-string another)))
@@ -232,9 +252,12 @@ anymore, unless this is reverted, so 'baking'."
   ((scanner :reader scanner ; TODO: scanner type?
             :initarg :scanner
             :initform nil)
-   (group-map :type list
-              :reader group-map
-              :initarg :group-map)
+   (regex-tree-topology :type list
+                        :reader regex-tree-topology
+                        :initarg :regex-tree-topology)
+   (ordered-group-assoc :type list
+                        :reader group-map
+                        :initarg :group-map)
    (group-list :type list
                :reader group-list
                :initarg :group-list
@@ -247,17 +270,12 @@ anymore, unless this is reverted, so 'baking'."
 
 (defmethod make-scanner ((regex regex))
   (multiple-value-bind (new-scanner register-list) (ppcre:create-scanner (bake-regex-tree (tree regex)))
-    (let* ((index-assoc (loop :for register :in register-list
-                              :for i := 0 :then (1+ i)
-                              :collect (cons register i)))
-           (scanner-group-map (loop :for group-mapping :in (bake-group-map (group-map regex))
-                                    :collect (list* (first group-mapping)
-                                                    :group-index (rest (assoc (first group-mapping)
-                                                                              index-assoc
-                                                                              :test #'equal))
-                                                    (rest group-mapping)))))
+    (let ((scanner-group-map (loop :with baked-group-map := (bake-group-map (group-map regex))
+                                   :for register-name :in register-list
+                                   :collect (assoc register-name baked-group-map :test #'string=))))
       (make-instance 'regex-scanner
                      :scanner new-scanner
+                     :regex-tree-topology (bake-regex-tree (get-regex-tree-topology (tree regex)))
                      :group-map scanner-group-map
                      :group-list register-list))))
 
@@ -287,184 +305,124 @@ anymore, unless this is reverted, so 'baking'."
                                     (aref group-ends i))))))
 
 
-;; TODO: Rewrite for new fix with empty match groups
-; Example (for my fragile memory):
-;   "aa asdf ff ss dd"
-;   "aa" "asdf" "ff" "ss" "dd"
-; Result:
-;   "aa" (:g3 (:g2 (:g1 "asdf")) "ff") "ss" (:g1 "dd")
-; Method:
-;   Make (imaginary) table, group order IS IMPORTANT
-;
-; index | ending groups | starting groups | string that starts
-; ------+---------------+-----------------+-------------------
-;     0 |       -       |         -       |      "aa"
-;     2 |       -       |     g3,g2,g1    |     "asdf"
-;     6 |     g2,g1     |         -       |      "ff"
-;     8 |      g3       |         -       |      "ss"
-;    10 |       -       |        g1       |      "dd"
-;    12 |      g1       |         -       |       -
-;
-;   Then go sequentially through the table in a function
-;   Function must have a some sort of stack to remember context and accumulator for result
-;   (And maybe some sort of context argument for making recursive calls in bulk)
-;   Stack is S, Accumulator is A
-;
-; 0: No endings; no starts; string "aa"
-;    Add "aa" to accumulator
-;      S -> (), A: ("aa")
-; 2: No endings; g3, g2, g1 start (in that order), string "asdf"
-;    Call self with g3, to call - g2 g1
-;      S -> (g3), A: ()
-;    Call self with g2, to call - g1
-;      S -> (g2 g3), A: ()
-;    Call self with g1, nothing to call
-;      S -> (g1 g2 g3), A: ()
-;    Add "asdf" to accumulator
-;      S -> (g1 g2 g3), A: ("asdf")
-; 6: g2, g1 ends; no starts; string "ff"
-;   [Checking ending groups in reverse order]
-;     S -> (g1 g2 g3), A: ("asdf")
-;   Ending call:
-;     Is g1 on top of stack? Yes.
-;   Return: (:group "g1" "asdf")
-;     S -> (g2 g3), A: ((:group "g1" "asdf"))
-;   Ending call:
-;     Is g2 on top of stack? Yes.
-;   Return: (:group "g2" (:group "g1" "asdf"))
-;     S -> (g3), A: ((:group "g2" (:group "g1" "asdf")))
-;   Add "ff" to accumulator
-;     S -> (g3), A: ((:group "g2" (:group "g1" "asdf")) "ff")
-; 8: g3 ends; no starts; string "ss"
-;   Ending call:
-;     Is g3 on top of stack? Yes.
-;   Return: (:group "g3" (:group "g2" (:group "g1" "asdf")) "ff")
-;     S -> (), A: ("aa" (:group "g3" (:group "g2" (:group "g1" "asdf")) "ff"))
-;   Add "ss" to accumulator
-;     S -> (), A: ("aa" (:group "g3" (:group "g2" (:group "g1" "asdf")) "ff") "ss")
-; 10: No endings; g1 starts; string "dd"
-;    Call self with g1, nothing to call
-;      S -> (g1), A: ()
-;   Add "dd" to accumulator
-;      S -> (g1), A: ("dd")
-; 12: g1 ends; no starts; no string
-;   Ending call:
-;     Is g1 on top of stack? Yes.
-;   Return: (:group "g1" "dd")
-;     S -> (), A: ("aa" (:group "g3" (:group "g2" (:group "g1" "asdf")) "ff") "ss" (:group "g1" "dd))
-;
-; Result: ("aa" (:group "g3" (:group "g2" (:group "g1" "asdf")) "ff") "ss" (:group "g1" "dd))
+;;; The following code is based on a simple assumption
+;;; (that should really be tested somehow, in the case it changes overnight):
+;;;
+;;;   REGEX GROUPS THAT ARE PLACED LOWER IN THE TREE, WILL BE PLACED FARTHER IN THE MATCH INDEX ARRAY
+;;;
+;;; This assumption lets me interpret matches like (... #(0 0) #(42 42)) easily. First one tops.
+;;; XXX, TODO: Do a proper testing, pls. It's long past due.
 
 
-(defun group-by-numeric-parameter (value-collection parameter-collection)
-  (flet ((lift (value parameter) (when (and parameter value)
-                                   (list (list parameter value))))
-         (less (one another) (< (first (first one)) (first (first another))))
-         ;; For this, reduce must be a left fold
-         ;; one - ((N1 ...) (N2 ...) ... (NK ...))
-         ;; another - ((M1 ...))
-         (join-two (one another) (if (= (first (first (last one))) (first (first another)))
-                                   (append (butlast one)
-                                           (list (cons (first (first (last one)))
-                                                       (append
-                                                         (rest (first (last one)))
-                                                         (rest (first another))))))
-                                   (append one another))))
-    (let ((collection (sort (remove nil (map 'list #'lift value-collection parameter-collection))
-                            #'less)))
-      (when collection (reduce #'join-two collection)))))
+(defun filter-matched-groups (group-list group-starts group-ends)
+  (declare (ignore group-ends))
+  (loop :for group :in group-list
+        :for group-start-index :across group-starts
+        :when group-start-index
+        :collect group))
 
 
-(defun match-to-group-table (str group-list group-map match-start match-end group-starts group-ends)
+(defun segment-string-with-match (str group-list group-map match-start match-end group-starts group-ends)
   (if (= (length group-starts) 0) ; no groups in scanner
-    (list (list :index 0
-                :ending-groups nil
-                :starting-groups nil
-                :piece str))
-    (let* ((groups (loop :for group-name :in group-list
-                         :for i := 0 :then (1+ i)
-                         :collect (list group-name i (rest (assoc group-name group-map :test #'equal)))))
-           (separation-points (sort (remove nil (remove-duplicates (append (list match-start match-end)
+    (list (list :piece str
+                :start 0
+                :end (length str)
+                :groups nil))
+    (let* ((separation-points (sort (remove nil (remove-duplicates (append (list match-start match-end)
                                                                            (coerce group-starts 'list)
                                                                            (coerce group-ends 'list))))
                                     #'<))
-           (piece-assoc (map 'list (lambda (start end)
-                                     (list start
-                                           (subseq str start end)))
-                             separation-points
-                             (rest separation-points)))
-           (groups-starting-from (group-by-numeric-parameter groups group-starts))
-           (groups-ending-on (group-by-numeric-parameter groups group-ends)))
-      (loop :for point :in separation-points
-            :collect (list :index point
-                           :ending-groups (rest (assoc point groups-ending-on))
-                           :starting-groups (rest (assoc point groups-starting-from))
-                           :piece (second (assoc point piece-assoc)))))))
+           (pieces (map 'list (lambda (start end)
+                                (list :piece (subseq str start end)
+                                      :start start
+                                      :end end
+                                      :groups nil))
+                        separation-points
+                        (rest separation-points)))
+           (groups-ranges (mapcar (lambda (group start end)
+                                    (list group start end))
+                                  group-list
+                                  (coerce group-starts 'list)
+                                  (coerce group-ends 'list))))
+      (loop :for (group-label start end) :in groups-ranges
+            :do (loop :for piece :in pieces
+                      :when (and (>= (getf piece :start) start)
+                                 (<= (getf piece :end) end))
+                      :do (push group-label (getf piece :groups))))
+      pieces)))
 
 
-(defun construct-hierical-tree (table group-stack)
-  (flet ((group-equal (one another) (and (equal (first one) (first another))
-                                         (equal (second one) (second another))))
-         (make-group-result (group-record tree) (funcall (or *make-group-result-fun*
-                                                             +make-group-result-default+)
-                                                         (getf (third group-record) :name)
-                                                         (getf (third group-record) :info)
-                                                         tree)))
-    (loop
-      :with iteration-result
-      :with context := table
-      :for current-context := (first context)
-      :for starting-position := (member (first group-stack)
-                                        (getf current-context :starting-groups)
-                                        :test #'group-equal)
-      :for starting-list := (or (rest starting-position)
-                                (and (null starting-position)
-                                     (getf current-context :starting-groups)))
-      :for empty-group-prefix := (loop :for group-record :in starting-list
-                                       :while (member group-record
-                                                      (getf current-context :ending-groups)
-                                                      :test #'group-equal)
-                                       :collect group-record)
-      ;; null ending: unique for top call (with empty group-stack))
-      :if (null context)
-      :return (values resulting-tree nil)
-      :end
-      ;; checking if groups should be closed (and their result returned)
-      :when (member (first group-stack) (getf current-context :ending-groups) :test #'group-equal)
-      :return (let ((group-record (first group-stack)))
-                (values (make-group-result group-record resulting-tree)
-                        context))
-      :end
-      ;; if there are empty match groups:
-      ;; 1) add them in bulk
-      ;; 2) skip them in starting-list
-      :when empty-group-prefix
-      :append (map 'list (lambda (empty-group-record)
-                           (make-group-result empty-group-record (list "")))
-                   empty-group-prefix)
-      :into resulting-tree
-      :and
-      :do (setf starting-list (nthcdr (length empty-group-prefix)
-                                      starting-list))
-      :end
-      ;; open group (and collect result of the call)
-      :if starting-list
-      :do (multiple-value-setq (iteration-result context)
-            (construct-hierical-tree context (cons (first starting-list)
-                                                   group-stack)))
-      :else
-      ;; collect term
-      :do (setf iteration-result (getf current-context :piece)
-                context (rest context))
-      :end
-      :when iteration-result
-      :collect iteration-result :into resulting-tree
-      :end)))
+;;; Updated algorithm is simpler in some aspects, and more complex in others.
+;;; It is a variation of two-point merge for a tree (saved regex topology) and
+;;; a list (labeled match results).
+;;;
+;;; Code will walk the regex tree, which *must* be saved, because there is no
+;;; other way to preserve named groups topology. (counter-example is many empty
+;;; named-groups at the same position, e.g. (... #(0 0 0..) #(0 0 0...)).
+;;; No structure can be derived from that.)
+;;;
+;;; Simultaneously, code will iterate over the list of string segments, and
+;;; compose them into a match tree.
+;;;
+;;; The core idea is the same as before, but I've dropped the assumption that
+;;; just match indices could be enough. That will change the implementation
+;;; details drastically.
 
 
-(defun match-to-group-tree (str group-list group-map match-start match-end group-starts group-ends)
-  (let ((table (match-to-group-table str group-list group-map match-start match-end group-starts group-ends)))
-    (nth-value 0 (construct-hierical-tree table nil))))
+(defun reconstruct-match-tree (group-map matched-groups tree-topology segment-list)
+  (labels ((group-equal (one another) (string= one another))
+           (path-equal (one another) (and (= (length one) (length another))
+                                          (every #'group-equal one another)))
+           (make-group-result (group-name tree) (let ((group-mapping (rest (assoc group-name group-map :test #'group-equal))))
+                                                  (funcall (or *make-group-result-fun*
+                                                               +make-group-result-default+)
+                                                           (getf group-mapping :name)
+                                                           (getf group-mapping :info)
+                                                           tree)))
+           ;; There will be groups that had a match (even an empty one) and ones that had not.
+           ;; It is important to not even acknowledge the latter ones.
+           (filter-nodes (branches) (remove-if-not (lambda (node)
+                                                     (member (first node) matched-groups :test #'group-equal))
+                                                   branches))
+           (inner-function (tree-topology segment-list group-stack)
+                           (loop
+                             :with node-result
+                             :with segments := segment-list
+                             :for (group . subtree) :in (filter-nodes tree-topology)
+
+                             ;; Try to grab the first segment for this group
+                             :initially (let ((current-segment (first segments)))
+                                          (when (and current-segment
+                                                     (path-equal (getf current-segment :groups)
+                                                                 group-stack))
+                                            (push (getf current-segment :piece) node-result)
+                                            (setf segments (rest segments))))
+
+                             ;; Recurse further into the child node
+                             :do (multiple-value-bind (call-result new-segments)
+                                   (inner-function subtree segments (cons group group-stack))
+                                   (push (make-group-result group call-result) node-result)
+                                   (setf segments new-segments))
+
+                             ;; Try to grab a splinter segment after each child
+                             :do (let ((current-segment (first segments)))
+                                   (when (and current-segment
+                                              (path-equal (getf current-segment :groups)
+                                                          group-stack))
+                                     (push (getf current-segment :piece) node-result)
+                                     (setf segments (rest segments))))
+
+                             :finally (return-from inner-function (values (if node-result
+                                                                            (nreverse node-result)
+                                                                            (list ""))
+                                                                          segments)))))
+    (nth-value 0 (inner-function tree-topology segment-list nil))))
+
+
+(defun match-to-group-tree (str group-list group-map regex-tree-topology match-start match-end group-starts group-ends)
+  (let* ((matched-groups (filter-matched-groups group-list group-starts group-ends))
+         (segments (segment-string-with-match str group-list group-map match-start match-end group-starts group-ends)))
+    (reconstruct-match-tree group-map matched-groups regex-tree-topology segments)))
 
 
 ;; NOTE: Do not use for command parsing. If you're using it, you're doing it wrong.
@@ -474,6 +432,7 @@ anymore, unless this is reverted, so 'baking'."
           ,string
           (group-list ,scanner)
           (group-map ,scanner)
+          (regex-tree-topology ,scanner)
           (multiple-value-list (d.regex:scan ,scanner
                                              ,string))))
 
@@ -482,6 +441,7 @@ anymore, unless this is reverted, so 'baking'."
 
 ;; NOTE: Works only for groups with unique name
 ;;       Otherwise? Filter group list yourself.
+
 #|
 (defmacro get-group (name groups)
   `(rest (assoc (string ,name) ,groups :test #'string=)))
@@ -548,6 +508,9 @@ NULL-REGEX is used if all regexes are NIL."
                                 (:separator-regex relaxed-sampled-regex))))
                 optional-concat))
 (defun optional-concat (regexes &key ((:explicit explicit) nil) ((:separator-regex sep-rx) nil))
+  "DEPRECATED. Concat regexes as optionals, but with neat handling of separators.
+:SEPARATOR-REGEX is trivially obvious.
+:EXPLICIT makes it so *at least* one regex *must* match."
   (let ((nonnil-regexes (map 'list (lambda (rx)
                                      (typecase rx
                                        (regex rx)

@@ -68,7 +68,7 @@
     #:scan
     #:get-group #:is-group #:list-group-names
     #:make-scanner
-    #:regex-scanner #:scanner #:group-list
+    #:regex-scanner #:scanner #:regex-tree-topology #:group-list
     #:match-to-assoc
     #:match-to-group-table
     #:match-to-group-tree

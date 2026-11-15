@@ -7,21 +7,30 @@
 (in-package :datapouch.command.auxiliary)
 
 
-(defun make-regex-parser (regex &key ((:group-mode group-mode) t))
+(defun make-regex-parser (regex &key ((:regex-tree-topology topology) nil) ((:group-mode group-mode) t))
   "Make parser function from regex-like object."
-  (let ((match-fun (if group-mode #'match-to-group-tree #'match-to-assoc)))
-    (lambda (command-string)
-      (multiple-value-bind (match-start match-end group-starts group-ends) (scan regex command-string)
-        (if match-start
-          (values t (funcall match-fun
-                             command-string
-                             (group-list regex)
-                             (group-map regex)
-                             match-start
-                             match-end
-                             group-starts
-                             group-ends))
-          (values nil nil))))))
+  (lambda (command-string)
+    (multiple-value-bind (match-start match-end group-starts group-ends) (scan regex command-string)
+      (if match-start
+        (values t (if group-mode
+                    (let ((regex-tree-topology (or topology
+                                                   (regex-tree-topology regex))))
+                      (match-to-group-tree command-string
+                                           (group-list regex)
+                                           (group-map regex)
+                                           regex-tree-topology
+                                           match-start
+                                           match-end
+                                           group-starts
+                                           group-ends))
+                    (match-to-assoc command-string
+                                    (group-list regex)
+                                    (group-map regex)
+                                    match-start
+                                    match-end
+                                    group-starts
+                                    group-ends)))
+        (values nil nil)))))
 
 
 (defun make-rmacro-callback (parser handler &key ((:full-string-is-needed full-string) nil))
