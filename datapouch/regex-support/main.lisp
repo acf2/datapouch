@@ -91,9 +91,7 @@ be changed."
 reconstructed later."
   (cond
     ;; Named registers will become (<group-id> ...)
-    ((and (listp regex-tree)
-          (eq (first regex-tree)
-              :named-register))
+    ((ppcre-named-register? regex-tree)
      (list (list* (second regex-tree)
                   (reduce #'append (mapcar #'get-regex-tree-topology
                                            (cddr regex-tree))))))

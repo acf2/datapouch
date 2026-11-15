@@ -4,6 +4,12 @@
 (in-package :datapouch.regex-support)
 
 
+(defun ppcre-named-register? (obj)
+  (and (listp obj)
+       (atom (first obj))
+       (eq (first obj) :named-register)))
+
+
 (defun ppcre-sequence? (seq)
   (and (listp seq)
        (atom (first seq))
