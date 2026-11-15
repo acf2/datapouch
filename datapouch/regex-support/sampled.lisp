@@ -90,6 +90,7 @@ and a list of samples."
                    :group-map (group-map result)
                    :samples (cons "" (samples sr)))))
 
+
 (defmethod make-named-group :around (name (sr sampled-regex) &optional info)
   (declare (ignore info))
   (let ((result (call-next-method)))

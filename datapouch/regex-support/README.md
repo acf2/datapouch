@@ -78,3 +78,43 @@ That should be it.
 But instead of dealing with that, all these operations were included in the process of producing a scanner.
 Because scanner is no longer mutable, and groups won't need their indices to be updated anymore.
 Use scanners, they are cool.
+
+---
+
+# sampled.lisp
+
+'Samples' are testing strings for regexes. Right ones should match, wrong ones should not.
+
+## Intent
+
+When many regexes are bundled at once, there could be collisions.
+Sampled regexes are a naive, trivial attempt to fix that.
+Do not expect much.
+
+There is almost no code here.
+`SAMPLED-REGEX` and `SAMPLED-REGEX-SCANNER` are lightweight descendants of according base classes.
+
+They had been explicitly made incompatible with normal `REGEX` objects.
+If `D.IFACE:CONCAT` or `D.IFACE:COMBINE` are used on a mix of normal `REGEX` and `SAMPLED-REGEX` objects, the result will always be a normal `REGEX`.
+Rule of thumb: to use samples, every little bit must provide them beforehand.
+
+This is where the strength of this file lies.
+If samples for short regular expressions could be concise and neat, samples for long ones are very complex.
+Concatenation and combination (alternation) methods do all this work automatically.
+(Also, please, beware of combinatorial explosion.
+Concatenation of N sampled regexes, even if each one has just two samples, will produce a sampled regex with (expt 2 N) samples.
+Take care.)
+
+## Quick how to
+
+Everything mentioned in main.lisp "How to" applies here, because `SAMPLED-REGEX` objects are a drop-in replacement for `REGEX` ones.
+
+pattern-expressions.lisp utilizes sampled regexes to check for collisions before creating `D.APP:APPLICATION` class objects.
+So, no manual usage is required, if Datapouch's functionality is used in full.
+
+Main takeaways are these:
+
+- `SAMPLED-REGEX-FROM-STRING` allows to create small sampled regexes to combine them later - this is the main function to manually use them;
+- `REGEX-ALLOWS-ALL-SAMPLES` and `REGEX-DENIES-ALL-SAMPLES` could be used with normal `REGEX` objects and any list of test strings;
+- `FIND-INCOMPATIBLE-SAMPLED-REGEXES` is the main workhorse here, as it allows to check any list of sampled regexes for collisions;
+- Use `MAKE-ANYCASE-SAMPLES` with extra caution - every warning about combinatorial explosion has an order of magnitude more weight here.
