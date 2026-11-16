@@ -94,7 +94,7 @@ Do not expect much.
 There is almost no code here.
 `SAMPLED-REGEX` and `SAMPLED-REGEX-SCANNER` are lightweight descendants of according base classes.
 
-They had been explicitly made incompatible with normal `REGEX` objects.
+They are incompatible with normal `REGEX` objects.
 If `D.IFACE:CONCAT` or `D.IFACE:COMBINE` are used on a mix of normal `REGEX` and `SAMPLED-REGEX` objects, the result will always be a normal `REGEX`.
 Rule of thumb: to use samples, every little bit must provide them beforehand.
 
