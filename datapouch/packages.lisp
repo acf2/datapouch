@@ -141,7 +141,7 @@
     #:make-expression
     #:lexicon
     #:set-in-lexicon #:get-from-lexicon
-    ;#:named-result #:result-name #:result-value ; XXX: TBD, should be internal-only ???
+    ;#:named-result #:result-name #:result-value ; XXX: TBD, should be visible only internally?
     #:make-result #:return-match #:return-named-match
     #:wrap-with-lexicon
     #:make-command #:with-lexicon #:with-new-lexicon #:with-anonymous-lexicon

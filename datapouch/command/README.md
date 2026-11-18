@@ -92,9 +92,11 @@ Traverse function starts walking the tree, and looks for groups.
 When it encounters one, it looks group's name up in expression container, and if a match is found, traverse function applies the corresponding handler from the pair.
 Leaves are handled before their parent is, which means that the parent group's handler can work with much more abstract parameters.
 E.g.: if some subexpression means "some data from the database [with these constraints]", then parent group's handler could receive a table slice as its argument, that had been fetched by child's handler function.
+And, as expected, terminal handler is called last.
+This means that it does not need to be stored in lexicon (and really shouldn't).
 
 Then, the short explanation of usage boils down to:
-- filling a lexicon (= container) with expressions, that might be encountered during parsing;
+- stuff a lexicon (= container) with expressions, which might be encountered during parsing;
 - using regexes from this lexicon to compose other regexes;
 - creating a terminal handler (user handler) to process the result of a match.
 
@@ -136,7 +138,7 @@ Then, just before the handler for `:example-group` is called, the group tree wou
 (:group-name <USER-INFO> "12" <NAMED-RESULT :pies-in-the-sky 3> "4")
 ```
 
-There are two distint possibilities here:
+There are two distinct possibilities here:
 - If `:group-name` expression had been defined with `:USE-ONLY-NAMED-RESULTS` set to `NIL`, then the handler will be called like this:
 ```
 (FUNCALL user-handler <USER-INFO> "12" <NAMED-RESULT :pies-in-the-sky 3> "4")
