@@ -47,7 +47,7 @@ E.g.: when commands are shortened down to single characters it is very bothersom
 
 ---
 
-# expression.lisp
+# `expression.lisp`
 
 Attach functions to named regex groups to parse and handle their values.
 Combine them again, and attach another function to process the results.
@@ -70,7 +70,7 @@ Yes, configuration might look finicky, but it allows extensive control.
 Also, expressions now could be considered too low level to be comfortable to use, when there are patterns and pattern-expressions, but everything was built on top of them.
 (To the point, that expression-specific parameters like `:USE-ONLY-NAMED-RESULTS` are passed down from pattern-expressions.)
 
-## Not so quick how to
+## Summary
 
 Two warnings:
 1. This file should not be read before regex-support module. Some parts of expressions depend on it, and might confuse the reader.
@@ -92,17 +92,21 @@ Traverse function starts walking the tree, and looks for groups.
 When it encounters one, it looks group's name up in expression container, and if a match is found, traverse function applies the corresponding handler from the pair.
 Leaves are handled before their parent is, which means that the parent group's handler can work with much more abstract parameters.
 E.g.: if some subexpression means "some data from the database [with these constraints]", then parent group's handler could receive a table slice as its argument, that had been fetched by child's handler function.
-And, as expected, terminal handler is called last.
+And, as expected, terminal handler is called last and called always.
 This means that it does not need to be stored in lexicon (and really shouldn't).
 
+Besides the call order, terminal regex won't have any user info attached to it to be passed as a first argument to a handler.
+Why? Because it has no associated named regex group, and, as a consequence, no place to store such contextual info.
+This can be circumvented relatively easy, so it is not considered a bug.
+
 Then, the short explanation of usage boils down to:
-- stuff a lexicon (= container) with expressions, which might be encountered during parsing;
+- stuffing a lexicon (= container) with expressions, which might be encountered during parsing;
 - using regexes from this lexicon to compose other regexes;
 - creating a terminal handler (user handler) to process the result of a match.
 
 As an important note, regexes from a lexicon could be used in composition of other regexes for the same lexicon.
 
-### And now, quick how to
+## Quick how to
 
 Barring the above explanation, actual usage is relatively easy.
 
@@ -117,10 +121,10 @@ And this lambda will transform or process the group tree, according to user hand
 
 *Very important note* should be made here.
 Even tree-like products of a regex match are hard to read.
-expressions.lisp has an *enforced by default* setting to make user handlers more readable.
+`expressions.lisp` has an *enforced by default* setting to make user handlers more readable.
 
 Parameter `:USE-ONLY-NAMED-RESULTS`, which corresponds to a slot of `EXPRESSION-CONFIG` class, controls this.
-When set to `NIL`, no additional work is necessary, but user handler will recieve regex match "as is" without any processing whatsoever.
+When set to `NIL`, no additional work is necessary, but user handler will receive regex match "as is" without any processing whatsoever.
 When set to `T` (which is the default), everything from the group subtree will be stripped, besides objects of `NAMED-RESULT` class.
 They, instead, will be converted into a keyword arguments for the handler.
 
@@ -155,7 +159,65 @@ Function `MAKE-RESULT` hides the fact that some class is involved altogether.
 
 ---
 
-# reader-macro.lisp symbols
+# `pattern.lisp`
+
+A specific command generation tool, that is expected to work alongside readline functionality, as well as to fulfill creator's specific gimmicky requirements.
+
+## Intent
+
+What kind of requirements were there for command system of Datapouch?
+
+Commands should work, yes. And then? Maybe short versions of commands, to spare the user effort of typing them each time in full? Oh, maybe autocompletion? But... short versions look promising too. Maybe, make some form of "learn-as-you-go" autocomplete, that will expand any correct short-form command into a full form? To show user what was just entered before command is executed? And what about documentation?...
+
+Scope's too big, time's too short, resources are too few. But! There is a catch.
+
+In the same vein as sampled regexes, all these could be divided to the most basic elements, written as elementary "blocks" and then combined, concatenated, etc.
+Cognitive load to fully define one tiny "block" is negligible. But combination allows these blocks subsequently define how big, complex commands will behave.
+
+Five avenues were considered:
+- command execution;
+- short command execution;
+- short command expansion;
+- classic autocomplete;
+- docform, to be used in documentation.
+
+Some of them, in certain circumstances, have the same meaning. E.g.: most immutable command words like "go", "save", "quit" and so on, are fit to be used in autocomplete lists *and* in help for the command. Same goes with short command execution/expansion. The parser (in particular: regex) is the same, the only difference is how it will be used.
+
+This proved to be a fine mess: decoupling them seemed like a very bad idea. But handling all five as one type of object? Counterintuitively, this was easier.
+
+## Summary
+
+When you have a hammer, every problem starts to look like a stuck out nail.
+In the same manner, incapsulation of `pattern.lisp` was done similar to `expression.lisp` file.
+There were regexes and handler functions, that constituted a pair - expression.
+Here are patterns and many handler functions, that constitute another object - behavior.
+
+Explanation of usage is insultingly familiar:
+- stuff a behavior-container with behaviors, which might be involved;
+- use patterns from this behavior-container to compose other patterns (and maybe use them for other behaviors);
+- create functionality to take advantage of this (either terminal [user] handler, expansion handler, autocompletition list or docforms).
+
+Yet, while solving the problem aforementioned in the 'Intent' section, `pattern.lisp` is clumsy to use.`pattern-expression.lisp` is complimentary code, that takes care of trivial cases (like constant words), combinations of patterns (making the usage more organic and less forced), and behavior-container utilization (connecting `pattern.lisp` machinery to framework user). Basic non-trivial patterns (like wildcards) are still required to be handled with functions from `pattern.lisp`, but just about anything else had been made easier.
+
+## Quick how to
+
+No. Nope. Nah-nah-nah, I'm not doing that. Go to 'how to' of `pattern-expressions.lisp`.
+
+---
+
+# `pattern-expressions.lisp`
+
+Boilerplate is disgusting.
+
+## Intent
+
+...but necessary. This file is an attempt to optimize it, to make it easier.
+To be honest, that's the whole leitmotif of Datapouch. Not to make it simpler from implementation standpoint, or to make a beautiful composable , but to make it easier to comprehend.
+
+
+---
+
+# `reader-macro.lisp` symbols
 
 ## External
 
