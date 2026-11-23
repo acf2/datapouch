@@ -6,7 +6,7 @@
 
 ;;; Awful thing
 ;;; Shows how much of the actual complexity is hidden, when patterns are used
-;;; routinely, without explicit definitions.
+;;; raw, without explicit definitions.
 (d.c.aux:with-immutable-parsers
   (defun yes-or-no-dialog (continuation
                             &key
@@ -24,37 +24,37 @@
       (let* ((common-prefix-length (length (d.aux:common-string-prefix (list affirmative negative))))
              (short-affirmative (subseq affirmative 0 (1+ common-prefix-length)))
              (short-negative (subseq negative 0 (1+ common-prefix-length)))
+             (affirmative-srx
+               (d.regex:sampled-regex-from-string (concatenate 'string "(?i)" affirmative)
+                                                  (d.regex:make-anycase-samples affirmative)))
+             (short-affirmative-srx
+               (d.regex:sampled-regex-from-string (concatenate 'string "(?i)" short-affirmative)
+                                                  (d.regex:make-anycase-samples short-affirmative)))
+             (negative-srx
+               (d.regex:sampled-regex-from-string (concatenate 'string "(?i)" negative)
+                                                  (d.regex:make-anycase-samples negative)))
+             (short-negative-srx
+               (d.regex:sampled-regex-from-string (concatenate 'string "(?i)" short-negative)
+                                                  (d.regex:make-anycase-samples short-negative)))
              (bc (d.ptrn:make-preset-behavior-container)))
+        ;; Non-terminals
         (d.ptrn:set-behaviors
           bc
-          (:yes (d.ptrn::make-pattern (d.regex:sampled-regex-from-string (concatenate 'string "(?i)" affirmative)
-                                                                         (d.regex:make-anycase-samples affirmative))
-                                      (d.regex:sampled-regex-from-string (concatenate 'string "(?i)" short-affirmative)
-                                                                         (d.regex:make-anycase-samples short-affirmative))
-                                      (list nil)
+          (:yes (d.ptrn::make-pattern affirmative-srx
+                                      short-affirmative-srx
+                                      d.ptrn:+no-canon-form+
                                       affirmative
                                       short-affirmative)
-                (lambda (&rest rest)
-                  (declare (ignore rest))
-                  t)
-                :use-only-named-results nil
-                :short-expander (lambda (info arg)
-                                  (declare (ignore info arg))
-                                  affirmative))
-          (:no (d.ptrn::make-pattern (d.regex:sampled-regex-from-string (concatenate 'string "(?i)" negative)
-                                                                        (d.regex:make-anycase-samples negative))
-                                     (d.regex:sampled-regex-from-string (concatenate 'string "(?i)" short-negative)
-                                                                        (d.regex:make-anycase-samples short-negative))
-                                     (list nil)
+                (constantly t)
+                :short-expander (constantly affirmative))
+          (:no (d.ptrn::make-pattern negative-srx
+                                     short-negative-srx
+                                     d.ptrn:+no-canon-form+
                                      negative
                                      short-negative)
-               (lambda (&rest rest)
-                 (declare (ignore rest))
-                 nil)
-               :use-only-named-results nil
-               :short-expander (lambda (info arg)
-                                 (declare (ignore info arg))
-                                 negative)))
+               (constantly nil)
+               :short-expander (constantly negative)))
+        ;; Terminals
         (d.ptrn:compile-into-application
           bc
           (((:+ :begin
@@ -68,14 +68,14 @@
           :prompt-fun (let ((first-call t))
                         (lambda (buffer)
                           (declare (ignore buffer))
-                          (let ((result (format nil prompt-format
-                                                (when (not first-call)
-                                                  error-msg)
-                                                prompt-msg
-                                                affirmative
-                                                negative)))
-                            (setf first-call nil)
-                            result))))))))
+                          (prog1
+                            (format nil prompt-format
+                                    (unless first-call
+                                      error-msg)
+                                    prompt-msg
+                                    affirmative
+                                    negative)
+                            (setf first-call nil)))))))))
 
 
 (defun old-find-row-dialog (column-names rows &key ((:choose-many choose-many) nil)

@@ -337,11 +337,12 @@ anymore, unless this is reverted, so 'baking'."
                                       :groups nil))
                         separation-points
                         (rest separation-points)))
-           (groups-ranges (mapcar (lambda (group start end)
-                                    (list group start end))
-                                  group-list
-                                  (coerce group-starts 'list)
-                                  (coerce group-ends 'list))))
+           (groups-ranges (remove nil (mapcar (lambda (group start end)
+                                                (when (and start end)
+                                                  (list group start end)))
+                                              group-list
+                                              (coerce group-starts 'list)
+                                              (coerce group-ends 'list)))))
       (loop :for (group-label start end) :in groups-ranges
             :do (loop :for piece :in pieces
                       :when (and (>= (getf piece :start) start)

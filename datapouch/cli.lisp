@@ -37,7 +37,7 @@
 ;;; Especially when it's a synonym stream
 ;;; What? (sb-sys:fd-stream-fd (eval (synonym-stream-symbol output-stream)))? Like with naked eval?
 (defun readline (buffer prompt-fun)
-  (let ((line (rl:readline :prompt (when (not *noprint-prompt*)
+  (let ((line (rl:readline :prompt (unless *noprint-prompt*
                                      (funcall prompt-fun buffer))
                            :erase-empty-line nil
                            :add-history t)))
