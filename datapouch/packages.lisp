@@ -10,6 +10,7 @@
   (:export #:concat-two #:concat-many #:concat
            #:combine-two #:combine-many #:combine
            #:concat-many-relaxed #:combine-many-relaxed
+           #:concat-relaxed #:combine-relaxed
            #:put-into #:get-from))
 
 
@@ -35,7 +36,8 @@
            #:get-keys-from-hash-table
            #:check-directed-graph-for-cycles
            #:cartesian-product
-           #:traverse))
+           #:traverse
+           #:bake-call))
 
 
 (defpackage :datapouch.regex-support
@@ -121,10 +123,10 @@
 (defpackage :datapouch.command.auxiliary
   (:use #:cl #:d.regex)
   (:nicknames :d.c.aux)
+  (:import-from :alexandria
+                #:with-gensyms)
   (:export #:make-regex-parser
-           #:make-rmacro-callback
-           #:*saved-parsers-function-list*
-           #:with-immutable-parsers))
+           #:make-rmacro-callback))
 
 
 (defpackage :datapouch.command.expression
@@ -153,7 +155,8 @@
   (:nicknames :d.ptrn)
   (:import-from :d.iface
                 #:put-into #:get-from
-                #:concat-two #:combine-two)
+                #:concat-two #:combine-two
+                #:concat-relaxed #:combine-relaxed)
   (:import-from :d.aux
                 #:repeat-string
                 #:list-of-strings
@@ -197,6 +200,7 @@
     #:set-behaviors
     #:pattern-let #:pattern-let*
     #:collect-yields
+    #:collect-yields-with-immutable-parsers
     #:yields-into-application
     #:compile-into-application
     #:return-application
@@ -328,6 +332,8 @@
 (defpackage :datapouch.interaction
   (:use #:cl)
   (:nicknames :d.inter)
+  (:import-from :alexandria
+                #:once-only)
   (:import-from :d.aux
                 #:rotate
                 #:list-of-strings

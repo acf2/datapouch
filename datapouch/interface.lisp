@@ -21,6 +21,10 @@
   `(concat-many (list ,@lst)))
 
 
+(defmacro concat-relaxed (&rest lst)
+  `(concat-many-relaxed (list ,@lst)))
+
+
 (defgeneric combine-two (one another)
   (:documentation "Combine two entities"))
 
@@ -37,6 +41,10 @@
 
 (defmacro combine (&rest lst)
   `(combine-many (list ,@lst)))
+
+
+(defmacro combine-relaxed (&rest lst)
+  `(combine-many-relaxed (list ,@lst)))
 
 
 (defgeneric put-into (container item &key))

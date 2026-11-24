@@ -126,8 +126,7 @@
                     #'next-note-snippet))
       (pattern-let
         bc ((note-selector (:* (:next-note :name :note))))
-        (with-immutable-parsers
-          (collect-yields
+          (collect-yields-with-immutable-parsers
             bc
             ((:+ :begin
                  (:trivial "home")
@@ -157,7 +156,7 @@
                  :end)
              #'command-add-note
              "Add new note.")
-            ))
+            )
         )
       )))
 

@@ -37,42 +37,39 @@
 ;; Make their existense in behavior container required
 ;; That way, we invert the dependency
 
-(d.c.aux:with-immutable-parsers
-  (defun choose-command-yields (container choose-fun)
-    (d.ptrn:collect-yields
-      container
-      ((:+ :begin
-           (:trivial "choose" "c")
-           :space
-           (:row-designator :name :row-designator)
-           :end)
-       choose-fun
-       "bla"))))
+(defun choose-command-yields (container choose-fun)
+  (d.ptrn:collect-yields
+    container
+    ((:+ :begin
+         (:trivial "choose" "c")
+         :space
+         (:row-designator :name :row-designator)
+         :end)
+     choose-fun
+     "bla")))
 
 
-(d.c.aux:with-immutable-parsers
-  (defun peek-command-yields (container peek-fun)
-    (d.ptrn:collect-yields
-      container
-      ((:+ :begin 
-           (:trivial "peek" "p")
-           :space
-           ;(:row-designator-list :name :row-designator-list) ; TODO Peek many at once
-           (:row-designator :name :row-designator)
-           :end)
-       peek-fun
-       "bla"))))
+(defun peek-command-yields (container peek-fun)
+  (d.ptrn:collect-yields
+    container
+    ((:+ :begin
+         (:trivial "peek" "p")
+         :space
+         ;(:row-designator-list :name :row-designator-list) ; TODO Peek many at once
+         (:row-designator :name :row-designator)
+         :end)
+     peek-fun
+     "bla")))
 
 
-(d.c.aux:with-immutable-parsers
-  (defun list-command-yields (container list-fun)
-    (d.ptrn:collect-yields
-      container
-      ((:+ :begin
-           (:trivial "list" "l")
-           :end)
-       list-fun
-       "bla"))))
+(defun list-command-yields (container list-fun)
+  (d.ptrn:collect-yields
+    container
+    ((:+ :begin
+         (:trivial "list" "l")
+         :end)
+     list-fun
+     "bla")))
 
 
 (defparameter *pagination-enabled* t)
@@ -83,38 +80,37 @@
 ;; paginate? -> forward [N], backward [N], begin [N]?, end [N]?
 ;; choose-many -> chosen?, choose* [+all], done, cart, leave/uncheck [+all]
 
-(d.c.aux:with-immutable-parsers
-  (defun pagination-commands-yields (container forward-fun backward-fun start-fun end-fun)
-    (d.ptrn:collect-yields
-      container
-      ((:+ :begin 
-           (:trivial "forward" "f")
-           (:? :space
-               (:row-designator :name :pages-forward))
-           :end)
-       forward-fun
-       "[forward docs will be here]")
-      ((:+ :begin 
-           (:trivial "backward" "b")
-           (:? :space
-               (:row-designator :name :pages-backward))
-           :end)
-       backward-fun
-       "[backward docs will be here]")
-      ((:+ :begin 
-           (:trivial "start" "s")
-           (:? :space
-               (:row-designator :name :page-from-start))
-           :end)
-       start-fun
-       "[start docs will be here]")
-      ((:+ :begin 
-           (:trivial "end" "e")
-           (:? :space
-               (:row-designator :name :page-from-end))
-           :end)
-       end-fun
-       "[end docs will be here]"))))
+(defun pagination-commands-yields (container forward-fun backward-fun start-fun end-fun)
+  (d.ptrn:collect-yields
+    container
+    ((:+ :begin
+         (:trivial "forward" "f")
+         (:? :space
+             (:row-designator :name :pages-forward))
+         :end)
+     forward-fun
+     "[forward docs will be here]")
+    ((:+ :begin
+         (:trivial "backward" "b")
+         (:? :space
+             (:row-designator :name :pages-backward))
+         :end)
+     backward-fun
+     "[backward docs will be here]")
+    ((:+ :begin
+         (:trivial "start" "s")
+         (:? :space
+             (:row-designator :name :page-from-start))
+         :end)
+     start-fun
+     "[start docs will be here]")
+    ((:+ :begin
+         (:trivial "end" "e")
+         (:? :space
+             (:row-designator :name :page-from-end))
+         :end)
+     end-fun
+     "[end docs will be here]")))
 
 
 ;; Why row-map?

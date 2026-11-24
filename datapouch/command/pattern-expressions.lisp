@@ -226,7 +226,8 @@
                                        ,(compile-pattern-expression-snippet container-name
                                                                             (second form))
                                        ,(third form)
-                                       ,@(nthcdr 3 form))))))
+                                       ,@(nthcdr 3 form)))
+       ,container-name)))
 
 
 (defun pattern-let-snippet (container-name let-symbol let-forms body)
@@ -259,9 +260,44 @@
         (values nil nil)))))
 
 
+(defun %collect-rmacro-callback-yields (utility-lexicon regex short-regex handler options)
+  `(list (d.c.aux:make-rmacro-callback
+           (d.c.aux:make-regex-parser ,regex)
+           (apply #'d.expr:wrap-with-lexicon
+                  ,utility-lexicon
+                  ,handler
+                  ,options))
+         (when ,short-regex
+           (d.c.aux:make-rmacro-callback
+             (d.c.aux:make-regex-parser ,short-regex)
+             (apply #'d.expr:wrap-with-lexicon
+                    ,utility-lexicon
+                    ,handler
+                    ,options)))))
+
+(defun %collect-expander-callback-yields (expander-lexicon expander-regex)
+  `(list (when ,expander-regex
+           (make-expander-callback
+             (d.c.aux:make-regex-parser ,expander-regex)
+             (funcall #'d.expr:wrap-with-lexicon
+                      ,expander-lexicon
+                      +default-top-short-expander+
+                      :use-only-named-results nil)))))
+
+(defun %collect-docforms (docform-symbol short-docform-symbol docs)
+  `(list (list (funcall *doc-expr-finalizer* (doc-expr ,docform-symbol))
+               (when ,short-docform-symbol
+                 (funcall *doc-expr-finalizer* (doc-expr ,short-docform-symbol)))
+               ,docs)))
+
+
+(defun %collect-sampled-regexes-for-collision-check (regex-symbol short-regex-symbol)
+  `(list ,regex-symbol ,short-regex-symbol))
+
+
 ;; TODO: Very bad, rewrite, ples
 ;; (pattern-expr handler docs keyword-args...)
-(defun collect-yields-snippet (container-name forms)
+(defun collect-yields-snippet (container-name forms &optional (static nil))
   (with-gensyms
     (ul-name el-name)
     (let ((yields (loop :for form :in forms
@@ -270,39 +306,32 @@
                                    `(let ((,pattern-expr-name ,(compile-pattern-expression-snippet container-name
                                                                                                    (first form))))
                                       (with-slots (regex short-regex expander-short-regex docform short-docform) ,pattern-expr-name
-                                        (let ((,rxname (d.regex:make-scanner regex))
+                                        (let ((,rxname ,(if static
+                                                          `(d.aux:bake-call (d.regex:make-scanner regex))
+                                                          `(d.regex:make-scanner regex)))
                                               (,srxname (when short-regex
-                                                          (d.regex:make-scanner short-regex)))
+                                                          ,(if static
+                                                             `(d.aux:bake-call (d.regex:make-scanner short-regex))
+                                                             `(d.regex:make-scanner short-regex))))
                                               (,erxname (when expander-short-regex
-                                                          (d.regex:make-scanner expander-short-regex)))
+                                                          ,(if static
+                                                             `(d.aux:bake-call (d.regex:make-scanner expander-short-regex))
+                                                             `(d.regex:make-scanner expander-short-regex))))
                                               (,handler-name ,(second form))
                                               (,options-name (list ,@(nthcdr 3 form))))
-                                          (list (list (d.c.aux:make-rmacro-callback ; rmacro-callbacks, full & short
-                                                        (d.c.aux:make-regex-parser ,rxname)
-                                                        (apply #'d.expr:wrap-with-lexicon
-                                                               ,ul-name
-                                                               ,handler-name
-                                                               ,options-name))
-                                                      (when ,srxname
-                                                        (d.c.aux:make-rmacro-callback
-                                                          (d.c.aux:make-regex-parser ,srxname)
-                                                          (apply #'d.expr:wrap-with-lexicon
-                                                                 ,ul-name
-                                                                 ,handler-name
-                                                                 ,options-name))))
-                                                (list (when ,erxname ; expander-callbacks
-                                                        (make-expander-callback
-                                                          (d.c.aux:make-regex-parser ,erxname)
-                                                          (funcall #'d.expr:wrap-with-lexicon
-                                                                   ,el-name
-                                                                   +default-top-short-expander+
-                                                                   :use-only-named-results nil))))
-                                                (canon-form-to-autocomplete (canon-form ,pattern-expr-name)) ; canon-form
-                                                (list (list (funcall *doc-expr-finalizer* (doc-expr docform)) ; documentation
-                                                            (when short-docform
-                                                              (funcall *doc-expr-finalizer* (doc-expr short-docform)))
-                                                            ,(third form)))
-                                                (list regex short-regex))))))))) ; sampled regexes to check collisions/incompatible regexes
+                                          (list
+                                            ,(%collect-rmacro-callback-yields ul-name
+                                                                              rxname
+                                                                              srxname
+                                                                              handler-name
+                                                                              options-name)
+                                            ,(%collect-expander-callback-yields el-name
+                                                                                erxname)
+                                            (canon-form-to-autocomplete (canon-form ,pattern-expr-name))
+                                            ,(%collect-docforms 'docform
+                                                                'short-docform
+                                                                (third form))
+                                            ,(%collect-sampled-regexes-for-collision-check 'regex 'short-regex)))))))))
       `(with-slots ((,ul-name utility-lexicon)
                     (,el-name expander-lexicon)) ,container-name
          (map 'list (lambda (yield-list)
@@ -315,6 +344,13 @@
     (container-name)
     `(let ((,container-name ,container))
        ,(collect-yields-snippet container-name forms))))
+
+
+(defmacro collect-yields-with-immutable-parsers (container &body forms)
+  (with-gensyms
+    (container-name)
+    `(let ((,container-name ,container))
+       ,(collect-yields-snippet container-name forms t))))
 
 
 (define-condition incompatiple-regexes (error)
@@ -338,22 +374,24 @@
       (error 'incompatiple-regexes :pairs pairs))))
 
 
-(defmacro compile-into-application (container forms &rest other &key &allow-other-keys)
+(defmacro compile-into-application (container forms &rest other-options &key ((:static-parsers static) nil) &allow-other-keys)
+  (remf other-options :static-parsers)
   (with-gensyms
     (container-name)
     `(let ((,container-name ,container))
        (apply #'yields-into-application
-              (append ,(collect-yields-snippet container-name forms)
-                      (list ,@other))))))
+              (append ,(collect-yields-snippet container-name forms static)
+                      (list ,@other-options))))))
 
 
-(defmacro return-application (container forms &rest other &key &allow-other-keys)
+(defmacro return-application (container forms &rest other-options &key ((:static-parsers static) nil) &allow-other-keys)
+  (remf other-options :static-parsers)
   (with-gensyms
     (container-name)
     `(let ((,container-name ,container))
        `(apply #'yields-into-application
-               (append ',,(collect-yields-snippet container-name forms)
-                       ',(list ,@other))))))
+               (append ',,(collect-yields-snippet container-name forms static)
+                       ',(list ,@other-options))))))
 
 
 (declaim (ftype (function (keyword))

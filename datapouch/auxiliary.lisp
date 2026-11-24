@@ -179,3 +179,29 @@
            (values (reduce #'append (remove-if #'null (first subtree-result)))
                    (second subtree-result))))
         (:else (values nil tree))))
+
+
+(defun %make-const-thunk (values-list)
+  "Creates a pure constant-returning closure with zero lexical capture
+of the original computation or its arguments."
+  (if (and (consp values-list)
+           (null (cdr values-list)))
+    ;; Fast path for single return value (no values-list unpacking at runtime!)
+    (let ((single-val (car values-list)))
+      (lambda () single-val))
+    ;; General path for 0 or 2+ return values
+    (lambda () (values-list values-list))))
+
+
+(defmacro bake-call (form)
+  "Evaluates FORM once on the first runtime hit, then permanently replaces
+the call site's thunk with a zero-overhead constant closure."
+  (let ((cell (gensym "CELL-")))
+    `(let ((,cell (load-time-value (cons nil nil))))
+       (funcall
+         (or (car ,cell)
+             (setf (car ,cell)
+                   (lambda ()
+                     (let ((res (multiple-value-list ,form)))
+                       (setf (car ,cell) (%make-const-thunk res))
+                       (values-list res)))))))))
