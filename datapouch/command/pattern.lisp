@@ -306,10 +306,10 @@ EXPRESSION-CONFIG docs for parameter meaning."
                  (sdf-another short-docform)) another
       (make-instance 'pattern
                      :regex (concat-two (regex one) (regex another))
-                     :short-regex (when (or short-one short-another)
-                                    (concat-relaxed short-one short-another))
-                     :expander-short-regex (when (or expand-one expand-another)
-                                             (concat-relaxed expand-one expand-another))
+                     :short-regex (when (and short-one short-another)
+                                    (concat-two short-one short-another))
+                     :expander-short-regex (when (and expand-one expand-another)
+                                             (concat-two expand-one expand-another))
                      ;; delete-duplicates could be used here
                      ;; cartesian-product does not reuse conses
                      :canon-form (delete-duplicates (d.aux:cartesian-product (list (canon-form one)
@@ -318,8 +318,8 @@ EXPRESSION-CONFIG docs for parameter meaning."
                                                     :test #'equal)
                      :docform (concat-two (docform one)
                                           (docform another))
-                     :short-docform (when (or sdf-one sdf-another)
-                                      (concat-relaxed sdf-one sdf-another))))))
+                     :short-docform (when (and sdf-one sdf-another)
+                                      (concat-two sdf-one sdf-another))))))
 
 
 (defmethod combine-two ((one pattern) (another pattern))

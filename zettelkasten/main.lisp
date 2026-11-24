@@ -60,6 +60,13 @@
 (defun command-add-note (&key ((:link-number link-number))
                               ((:continue continue))
                               ((:override-note override-note) nil override-note-supplied?))
+  (flet ((clarify (link-number continue conflicting-notes)
+                  (yes-or-no-dialog (lambda (result)
+                                      (command-add-note :link-number link-number
+                                                        :continue continue
+                                                        :override-note (and result
+                                                                            conflicting-notes)))
+                                    :prompt-msg +question-note-with-number-exists+)))
   `(let* ((conflicting-notes (and (not ,override-note-supplied?)
                                   ,link-number
                                   (car (select '(:source :destination)
@@ -67,12 +74,10 @@
                                                (where (:and (:= :source *current-note*)
                                                             (:= :number ,link-number))))))))
      (if conflicting-notes
-       (yes-or-no-dialog (lambda (result)
-                           (command-add-note :link-number ,link-number
-                                             :continue ,continue
-                                             :override-note (and result
-                                                                 conflicting-notes)))
-                         :prompt-msg +question-note-with-number-exists+)
+       (funcall ,#'clarify
+                ,link-number
+                ,continue
+                conflicting-notes)
        (let* ((new-note-body (first (edit-strings ""))))
          (cond ((string= new-note-body "")
                 (format *standard-output* "~A~&" +msg-abort-note-creation+))
@@ -89,7 +94,7 @@
                                                 ,link-number))))
                    (when ,continue
                      (set-current-note new-note))
-                   new-note)))))))
+                   new-note))))))))
 
 
 ; TODO: Add mandatory picking dialog
