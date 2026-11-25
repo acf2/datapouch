@@ -333,6 +333,7 @@
   (:use #:cl)
   (:nicknames :d.inter)
   (:import-from :alexandria
+                #:with-gensyms
                 #:once-only)
   (:import-from :d.aux
                 #:rotate
@@ -363,7 +364,7 @@
            #:assoc-table
            #:make-simple-assoc-table
            #:dialog
-           #:yes-or-no-dialog
+           #:yes-or-no-dialog-template
            #:rotate
            #:find-max-field-widths
            #:pretty-print-rows

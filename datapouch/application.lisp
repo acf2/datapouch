@@ -69,6 +69,10 @@
 ;; NOTE: Very good for push-new-application also.
 ;;       Why? Because then invokation will be not just the last call, before return:
 ;;       It will be called *after* current app is no more.
+;; NOTE: **PAY ATTENTION YOU OLD DEMENTED FUCK**
+;;       This 'function' actually had been made to manipulate code.
+;;       It *must* be called on code, not on live function and values.
+;;       In other words: work ONLY with quoted values.
 (defmacro with-app-exit-progn (exit-progn-symbol &body body)
   (with-gensyms
     (old-application-stack)

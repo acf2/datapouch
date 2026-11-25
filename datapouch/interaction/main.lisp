@@ -12,68 +12,68 @@
 ;;; Awful thing
 ;;; Shows how much of the actual complexity is hidden, when patterns are used
 ;;; raw, without explicit definitions.
-(defmacro yes-or-no-dialog (continuation
-                             &key
-                             ((:prompt-msg prompt-msg) nil)
-                             ((:yes-choice affirmative) "yes")
-                             ((:no-choice negative) "no")
-                             ((:error-msg error-msg) (format nil "Please type ~S for yes or ~S for no."
-                                                             (concatenate 'string (string d.rmacro:*control-character*)
-                                                                          affirmative)
-                                                             (concatenate 'string (string d.rmacro:*control-character*)
-                                                                          negative)))
-                             ((:prompt-format prompt-format) "~@[~A~&~]~@[~A ~](~(~A~) or ~(~A~)) "))
+(defmacro yes-or-no-dialog-template (&key ((:yes-choice affirmative) "yes")
+                                          ((:no-choice negative) "no"))
   (once-only
-    (prompt-msg affirmative negative error-msg prompt-format)
-    `(d.app:with-app-exit-progn
-      exit-then-do
-        (d.ptrn:compile-into-application
-          (d.aux:bake-call
-            (let* ((distinct-prefix-length (1+ (length (d.aux:common-string-prefix (list ,affirmative ,negative)))))
-                   (short-affirmative (if (= distinct-prefix-length (length ,affirmative))
-                                        nil
-                                        (subseq ,affirmative 0 distinct-prefix-length)))
-                   (short-negative (if (= distinct-prefix-length (length ,negative))
-                                     nil
-                                     (subseq ,negative 0 distinct-prefix-length))))
-              (d.ptrn:set-behaviors
-                (load-time-value (d.ptrn:make-preset-behavior-container))
-                (:yes (d.ptrn::make-pattern (%anycase-sampled-rx ,affirmative)
-                                            (when short-affirmative
-                                              (%anycase-sampled-rx short-affirmative))
+    (affirmative negative)
+    `(lambda (cont-gen
+               &key
+               ((:prompt-msg prompt-msg) nil)
+               ((:error-msg error-msg) (format nil "Please type ~S for yes or ~S for no."
+                                               (concatenate 'string (string d.rmacro:*control-character*)
+                                                            ,affirmative)
+                                               (concatenate 'string (string d.rmacro:*control-character*)
+                                                            ,negative)))
+               ((:prompt-format prompt-format) "~@[~A~&~]~@[~A ~](~(~A~) or ~(~A~)) "))
+       (d.app:with-app-exit-progn
+         exit-then-do
+         (d.ptrn:compile-into-application
+           (d.aux:bake-call
+             (let* ((distinct-prefix-length (1+ (length (d.aux:common-string-prefix (list ,affirmative ,negative)))))
+                    (short-affirmative (if (= distinct-prefix-length (length ,affirmative))
+                                         nil
+                                         (subseq ,affirmative 0 distinct-prefix-length)))
+                    (short-negative (if (= distinct-prefix-length (length ,negative))
+                                      nil
+                                      (subseq ,negative 0 distinct-prefix-length))))
+               (d.ptrn:set-behaviors
+                 (load-time-value (d.ptrn:make-preset-behavior-container))
+                 (:yes (d.ptrn::make-pattern (%anycase-sampled-rx ,affirmative)
+                                             (when short-affirmative
+                                               (%anycase-sampled-rx short-affirmative))
+                                             d.ptrn:+no-canon-form+
+                                             ,affirmative
+                                             short-affirmative)
+                       (constantly t)
+                       :short-expander (constantly ,affirmative))
+                 (:no (d.ptrn::make-pattern (%anycase-sampled-rx ,negative)
+                                            (when short-negative
+                                              (%anycase-sampled-rx short-negative))
                                             d.ptrn:+no-canon-form+
-                                            ,affirmative
-                                            short-affirmative)
-                      (constantly t)
-                      :short-expander (constantly ,affirmative))
-                (:no (d.ptrn::make-pattern (%anycase-sampled-rx ,negative)
-                                           (when short-negative
-                                             (%anycase-sampled-rx short-negative))
-                                           d.ptrn:+no-canon-form+
-                                           ,negative
-                                           short-negative)
-                     (constantly nil)
-                     :short-expander (constantly ,negative)))))
-          (((:+ :begin
-                (:* :yes :no)
-                :end)
-            (lambda (result)
-              (exit-then-do
-                (funcall ,continuation result)))
-            "Available answers"
-            :use-only-named-results nil))
-          :static-parsers t
-          :prompt-fun (let ((first-call t))
-                        (lambda (buffer)
-                          (declare (ignore buffer))
-                          (prog1
-                            (format nil ,prompt-format
-                                    (unless first-call
-                                      ,error-msg)
-                                    ,prompt-msg
-                                    ,affirmative
-                                    ,negative)
-                            (setf first-call nil))))))))
+                                            ,negative
+                                            short-negative)
+                      (constantly nil)
+                      :short-expander (constantly ,negative)))))
+           (((:+ :begin
+                 (:* :yes :no)
+                 :end)
+             (lambda (result)
+               (exit-then-do
+                 (funcall cont-gen result)))
+             "Available answers"
+             :use-only-named-results nil))
+           :static-parsers t
+           :prompt-fun (let ((first-call t))
+                         (lambda (buffer)
+                           (declare (ignore buffer))
+                           (prog1
+                             (format nil prompt-format
+                                     (unless first-call
+                                       error-msg)
+                                     prompt-msg
+                                     ,affirmative
+                                     ,negative)
+                             (setf first-call nil)))))))))
 
 
 (defun old-find-row-dialog (column-names rows &key ((:choose-many choose-many) nil)
