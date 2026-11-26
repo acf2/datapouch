@@ -362,6 +362,7 @@
            #:simple-pretty-print-table
            #:make-simple-printable-table
            #:assoc-table
+           #:assoc-row #:nth-key
            #:make-simple-assoc-table
            #:dialog
            #:yes-or-no-dialog-template

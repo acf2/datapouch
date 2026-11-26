@@ -41,6 +41,12 @@
         (nth index table-rows)))))
 
 
+(declaim (ftype (function (number assoc-table)) nth-key))
+(defun nth-key (num table)
+  (with-slots (printable-table) table
+    (first (nth num (rows printable-table)))))
+
+
 (defclass assoc-table-slice ()
   ((table :initarg :table
           :type assoc-table)
