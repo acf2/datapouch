@@ -86,7 +86,9 @@
 (defun %pagination-commands-yields (access-state table-length)
   (let ((last-page-row-number (- table-length
                                  (mod table-length
-                                      *page-length*))))
+                                      *page-length*)))
+        (pages-available (ceiling table-length
+                                  *page-length*)))
     (lambda (container)
       (d.ptrn:collect-yields-with-immutable-parsers
         container
@@ -106,7 +108,7 @@
                          (funcall ,access-state :current-row-index ,target-row-index)
                          (funcall ,access-state :print-table t))
                         (:else
-                          (funcall ,access-state :error-message "Already at last pages-forward")))))))
+                          (funcall ,access-state :error-message "Already at last page")))))))
          "[forward docs will be here]")
         ((:+ :begin
              (:trivial "backward" "b")
@@ -124,7 +126,7 @@
                          (funcall ,access-state :current-row-index ,target-row-index)
                          (funcall ,access-state :print-table t))
                         (:else
-                          (funcall ,access-state :error-message "Already at first pages-backward")))))))
+                          (funcall ,access-state :error-message "Already at first page")))))))
          "[backward docs will be here]")
         ((:+ :begin
              (:trivial "start" "s")
@@ -132,7 +134,14 @@
                  (:number :name :page-from-start))
              :end)
          (lambda (&key page-from-start)
-           nil)
+           (once-only (page-from-start)
+             (with-gensyms (target-row-index)
+               `(let ((,target-row-index
+                        (max 0 (min ,last-page-row-number (* *page-length* (1- (or ,page-from-start 1)))))))
+                  (when (/= (funcall ,access-state :current-row-index)
+                            ,target-row-index)
+                    (funcall ,access-state :print-table t))
+                  (funcall ,access-state :current-row-index ,target-row-index)))))
          "[start docs will be here]")
         ((:+ :begin
              (:trivial "end" "e")
@@ -140,7 +149,15 @@
                  (:number :name :page-from-end))
              :end)
          (lambda (&key page-from-end)
-           nil)
+           (once-only (page-from-end)
+             (with-gensyms (target-row-index)
+               `(let ((,target-row-index
+                        (max 0 (min ,last-page-row-number (* *page-length*
+                                                             (- ,pages-available (or ,page-from-end 1)))))))
+                  (when (/= (funcall ,access-state :current-row-index)
+                            ,target-row-index)
+                    (funcall ,access-state :print-table t))
+                  (funcall ,access-state :current-row-index ,target-row-index)))))
          "[end docs will be here]")))))
 
 
@@ -184,7 +201,7 @@
                         :use-only-named-results nil))))
 
 
-(defun %get-dialog-prompt (prompt message error-message access-state assoc-table table-length paginate? pages-available)
+(defun %get-dialog-prompt (prompt message error-message access-state assoc-table table-length paginate?)
   (lambda (buffer)
     (declare (ignore buffer))
     ;; TBD: Maybe redo with prompt-format??
@@ -193,7 +210,9 @@
       (let ((current-row-index (funcall access-state :current-row-index))
             (print-table? (funcall access-state :print-table))
             (message-state (funcall access-state :message))
-            (error-message-state (funcall access-state :error-message)))
+            (error-message-state (funcall access-state :error-message))
+            (pages-available (ceiling table-length
+                                      *page-length*)))
         (format *standard-output* "~@{~@[~A~&~]~}"
                 (when print-table?
                   (if paginate?
@@ -248,8 +267,6 @@
                                                                  column-names
                                                                  rows)))
                   (table-length (length rows))
-                  (pages-available (ceiling table-length
-                                            *page-length*))
                   (paginate? (and *pagination-enabled*
                                   (> (length rows) *page-length*)))
                   ;; These are application's internal "state" to communicate between its parts
@@ -293,8 +310,7 @@
                                         access-state
                                         assoc-table
                                         table-length
-                                        paginate?
-                                        pages-available)))
+                                        paginate?)))
              (apply #'d.ptrn:yields-into-application
                     (append
                       (gather-yields-using-container
