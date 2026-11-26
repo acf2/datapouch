@@ -64,7 +64,9 @@ successful, returns all characters back, beside reader macro character."
     ;; If no rmacro callback has been called with success, then return all chars back.
     (progn
       (return-to-stream command-string stream)
-      (find-symbol (string char) :cl))))
+      (unread-char char stream)
+      (let ((*readtable* (load-time-value (copy-readtable nil) t)))
+        (read stream)))))
 
 
 (defparameter *control-character* #\/)
