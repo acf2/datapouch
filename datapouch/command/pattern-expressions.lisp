@@ -149,8 +149,7 @@
          ;;       (get-pattern <container> (add-trivial-pattern <container>
          ;;                                                     <word symbol>
          ;;                                                     <shorthand symbol>))))
-         (with-gensyms
-           (word shorthand behavior-type handler-fun)
+         (with-gensyms (word shorthand behavior-type handler-fun)
            `(let* ((,word ,(second tree))
                    (,shorthand ,(third tree))
                    (,behavior-type (trivial-pattern-type ,word ,shorthand))
@@ -239,15 +238,13 @@
 
 
 (defmacro pattern-let (container (&rest let-forms) &body body)
-  (with-gensyms
-    (container-name)
+  (with-gensyms (container-name)
     `(let ((,container-name ,container))
        ,(pattern-let-snippet container-name 'cl:let let-forms body))))
 
 
 (defmacro pattern-let* (container (&rest let-forms) &body body)
-  (with-gensyms
-    (container-name)
+  (with-gensyms (container-name)
     `(let ((,container-name ,container))
        ,(pattern-let-snippet container-name 'cl:let* let-forms body))))
 
@@ -298,11 +295,9 @@
 ;; TODO: Very bad, rewrite, ples
 ;; (pattern-expr handler docs keyword-args...)
 (defun collect-yields-snippet (container-name forms &optional (static nil))
-  (with-gensyms
-    (ul-name el-name)
+  (with-gensyms (ul-name el-name)
     (let ((yields (loop :for form :in forms
-                        :collect (with-gensyms
-                                   (pattern-expr-name rxname srxname erxname handler-name options-name)
+                        :collect (with-gensyms (pattern-expr-name rxname srxname erxname handler-name options-name)
                                    `(let ((,pattern-expr-name ,(compile-pattern-expression-snippet container-name
                                                                                                    (first form))))
                                       (with-slots (regex short-regex expander-short-regex docform short-docform) ,pattern-expr-name
@@ -340,15 +335,13 @@
 
 
 (defmacro collect-yields (container &body forms)
-  (with-gensyms
-    (container-name)
+  (with-gensyms (container-name)
     `(let ((,container-name ,container))
        ,(collect-yields-snippet container-name forms))))
 
 
 (defmacro collect-yields-with-immutable-parsers (container &body forms)
-  (with-gensyms
-    (container-name)
+  (with-gensyms (container-name)
     `(let ((,container-name ,container))
        ,(collect-yields-snippet container-name forms t))))
 
@@ -376,8 +369,7 @@
 
 (defmacro compile-into-application (container forms &rest other-options &key ((:static-parsers static) nil) &allow-other-keys)
   (remf other-options :static-parsers)
-  (with-gensyms
-    (container-name)
+  (with-gensyms (container-name)
     `(let ((,container-name ,container))
        (apply #'yields-into-application
               (append ,(collect-yields-snippet container-name forms static)
@@ -386,8 +378,7 @@
 
 (defmacro return-application (container forms &rest other-options &key ((:static-parsers static) nil) &allow-other-keys)
   (remf other-options :static-parsers)
-  (with-gensyms
-    (container-name)
+  (with-gensyms (container-name)
     `(let ((,container-name ,container))
        `(apply #'yields-into-application
                (append ',,(collect-yields-snippet container-name forms static)
