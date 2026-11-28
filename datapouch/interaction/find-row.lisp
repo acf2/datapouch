@@ -4,35 +4,6 @@
 (in-package :datapouch.interaction)
 
 
-;(let ((seprx (ppcre:create-scanner (ppcre:parse-string "\\D+")))) 
-;  (defun %split-to-integers (string)
-;    (ppcre:split seprx string)))
-;
-;
-;(defun make-pager-selector-behavior-container ()
-;  (let ((bc (d.ptrn:make-preset-behavior-container)))
-;    (d.ptrn:set-behaviors
-;      bc 
-;      (:row-designator (d.ptrn:make-wildcard-pattern "[1-9]\\d*"
-;                                                     (list "1" "90" "31337")
-;                                                     "number"
-;                                                     "N")
-;                       (lambda (info num)
-;                         (d.expr:make-result (getf info :name)
-;                                             (parse-integer num)))
-;                       :use-only-named-results nil)
-;      (:row-designator-list (d.ptrn:make-wildcard-pattern "[1-9]\\d*(?:\\D+[1-9]\\d*)*"
-;                                                          (list "1" "90" "31337" "1 2" "90,31" "31337 2,13")
-;                                                          "numbers"
-;                                                          "Ns")
-;                            (lambda (info nums)
-;                              (d.expr:make-result (getf info :name)
-;                                                  (map 'list #'parse-integer
-;                                                       (%split-to-integers nums))))
-;                            :use-only-named-results nil))
-;    bc))
-
-
 ;; Make them index & index-list
 ;; Make their existense in behavior container required
 ;; That way, we invert the dependency
@@ -47,31 +18,47 @@
            (:row-designator :name :row-designator)
            :end)
        choose-fun
-       "bla"))))
+       "[choose docs should be here]"))))
 
 
-(defun %peek-command-yields (peek-fun)
+(defun %peek-command-yields (access-state assoc-table peek-fn)
   (lambda (container)
     (d.ptrn:collect-yields-with-immutable-parsers
       container
       ((:+ :begin
            (:trivial "peek" "p")
            :space
-           ;(:row-designator-list :name :row-designator-list) ; TODO Peek many at once
-           (:row-designator :name :row-designator)
+           (:row-designator-list :name :rows-to-peek)
            :end)
-       peek-fun
-       "bla"))))
+       (lambda (&key rows-to-peek)
+         (once-only (assoc-table peek-fn)
+           (with-gensyms (rows null-rows)
+             `(let* ((,rows (mapcar (lambda (row-id)
+                                      (cons row-id
+                                            (assoc-row row-id ,assoc-table)))
+                                    (list ,@rows-to-peek)))
+                     (,null-rows (mapcar #'first (remove-if #'rest ,rows))))
+                (if ,null-rows
+                  (funcall ,access-state :error-message
+                           (format nil "These rows weren't found: ~{~#[~;~A~:;~A, ~]~}" ,null-rows))
+                  (loop :for rows-left := ,rows :then (rest rows-left)
+                        :for last-row := (null (rest rows-left))
+                        :while rows-left
+                        :do (funcall ,peek-fn (first rows-left) last-row)))))))
+       "[peek docs should be here]"))))
 
 
-(defun %list-command-yields (list-fun)
+(defun %list-command-yields (access-state)
   (lambda (container)
     (d.ptrn:collect-yields-with-immutable-parsers
       container
       ((:+ :begin
            (:trivial "list" "l")
            :end)
-       list-fun
+       (lambda ()
+         `(progn
+            (funcall ,access-state :print-table t)
+            (funcall ,access-state :message t)))
        "bla"))))
 
 
@@ -84,11 +71,16 @@
 ;; choose-many -> chosen?, choose* [+all], done, cart, leave/uncheck [+all]
 
 (defun %pagination-commands-yields (access-state table-length)
-  (let ((last-page-row-number (- table-length
-                                 (mod table-length
-                                      *page-length*)))
-        (pages-available (ceiling table-length
-                                  *page-length*)))
+  (let* ((last-page-row-number
+           (with-gensyms (last-page-length)
+             `(let ((,last-page-length (mod ,table-length
+                                            *page-length*)))
+                (- ,table-length
+                   (if (= ,last-page-length 0)
+                     *page-length*
+                     ,last-page-length)))))
+         (pages-available `(ceiling ,table-length
+                                    *page-length*)))
     (lambda (container)
       (d.ptrn:collect-yields-with-immutable-parsers
         container
@@ -98,7 +90,7 @@
                  (:number :name :pages-forward))
              :end)
          (lambda (&key pages-forward)
-           (once-only (pages-forward)
+           (once-only (pages-forward last-page-row-number)
              (with-gensyms (target-row-index)
                `(let ((,target-row-index (min (+ (funcall ,access-state :current-row-index)
                                                  (* *page-length* (or ,pages-forward 1)))
@@ -134,7 +126,7 @@
                  (:number :name :page-from-start))
              :end)
          (lambda (&key page-from-start)
-           (once-only (page-from-start)
+           (once-only (page-from-start last-page-row-number)
              (with-gensyms (target-row-index)
                `(let ((,target-row-index
                         (max 0 (min ,last-page-row-number (* *page-length* (1- (or ,page-from-start 1)))))))
@@ -149,7 +141,7 @@
                  (:number :name :page-from-end))
              :end)
          (lambda (&key page-from-end)
-           (once-only (page-from-end)
+           (once-only (page-from-end last-page-row-number)
              (with-gensyms (target-row-index)
                `(let ((,target-row-index
                         (max 0 (min ,last-page-row-number (* *page-length*
@@ -182,25 +174,6 @@
                     (remove-if #'null yield-fns)))))
 
 
-(defun %generate-container-for-selector (index-pattern index-handler)
-  `(d.aux:bake-call
-     (d.ptrn:set-behaviors
-       (load-time-value (d.ptrn:make-preset-behavior-container))
-       ;; Add number behavior (for pagination)
-       (:number (d.ptrn:make-wildcard-pattern "[1-9]\\d*"
-                                              (list "1" "90" "31337")
-                                              "number"
-                                              "N")
-                (lambda (info num)
-                  (d.expr:make-result (getf info :name)
-                                      (parse-integer num)))
-                :use-only-named-results nil)
-       ;; Add index behavior manually
-       (:row-designator ,index-pattern
-                        ,index-handler
-                        :use-only-named-results nil))))
-
-
 (defun %get-dialog-prompt (prompt message error-message access-state assoc-table table-length paginate?)
   (lambda (buffer)
     (declare (ignore buffer))
@@ -214,12 +187,24 @@
             (pages-available (ceiling table-length
                                       *page-length*)))
         (format *standard-output* "~@{~@[~A~&~]~}"
+                ;; User error message
+                (when error-message-state
+                  (if (functionp error-message)
+                    (funcall error-message error-message-state)
+                    error-message))
+                ;; User message
+                (when message-state
+                  (if (functionp message)
+                    (funcall message message-state)
+                    message))
+                ;; Table (or slice/page)
                 (when print-table?
                   (if paginate?
                     (slice assoc-table
                            current-row-index
                            (+ current-row-index *page-length*))
                     assoc-table))
+                ;; Pagination info
                 (when (and print-table?
                            paginate?)
                   (format nil "Showing ~A-~A of ~A entries~&Page ~A of ~A~&"
@@ -231,15 +216,7 @@
                           table-length
                           (1+ (floor current-row-index
                                      *page-length*))
-                          pages-available))
-                (when message-state
-                  (if (functionp message)
-                    (funcall message message-state)
-                    message))
-                (when error-message-state
-                  (if (functionp error-message)
-                    (funcall error-message error-message-state)
-                    error-message))))
+                          pages-available))))
       (funcall access-state :print-table nil)
       (funcall access-state :message nil)
       (funcall access-state :error-message nil))))
@@ -253,73 +230,70 @@
 ;;; (cont-gen column-names rows prompt message error-message)
 ;;; Where message and error-message could be functions
 
-(defmacro pager-1choice-selector-dialog-template (index-pattern index-handler make-printable-table-fun)
+(defmacro pager-1choice-selector-dialog-template (container make-printable-table-fun peek-rows-fn)
   (once-only
-    (index-pattern index-handler make-printable-table-fun)
-    `(let ((bc ,(%generate-container-for-selector index-pattern index-handler)))
-       ;; Generate dialog lambda: shift from 'template' to 'concrete'
-       (lambda (cont-gen column-names rows prompt message error-message)
-         (d.app:with-app-exit-progn
-           exit-then-do
-           (let* ((assoc-table (make-simple-assoc-table column-names
-                                                        rows
-                                                        (funcall ,make-printable-table-fun
-                                                                 column-names
-                                                                 rows)))
-                  (table-length (length rows))
-                  (paginate? (and *pagination-enabled*
-                                  (> (length rows) *page-length*)))
-                  ;; These are application's internal "state" to communicate between its parts
-                  (print-state (list :current-row-index 0
-                                     :print-table t
-                                     :message t
-                                     :error-message nil))
-                  (access-state (lambda (key &optional (value nil value?))
-                                  (if value?
-                                    (setf (getf print-state key)
-                                          value)
-                                    (getf print-state key))))
-                  ;; These are application's parts
-                  (choosing (%choose-command-yields
-                              ;; Cannot really hide this lambda, because of exit-then-do part.
-                              ;; It has to be in here.
-                              (lambda (&key row-designator)
-                                ;; Accept predicate? 'Get index' parameter?
-                                (once-only (row-designator)
-                                  (with-gensyms (check)
-                                    `(let ((,check (assoc-row ,row-designator ,assoc-table)))
-                                       (if ,check
-                                         ,(exit-then-do
-                                            (funcall cont-gen check))
-                                         (funcall ,access-state :error-message ,row-designator))))))))
-                  (paginating
-                    (when paginate?
-                      (%pagination-commands-yields access-state
-                                                   table-length)))
-                  (peeking (%peek-command-yields
-                             (lambda (&key row-designator)
-                               nil)))
-                  (listing (%list-command-yields
-                             (lambda ()
-                               nil)))
-                  ;; And this one is generalized prompt
-                  (prompt-fun
-                    (%get-dialog-prompt prompt
-                                        message
-                                        error-message
-                                        access-state
-                                        assoc-table
-                                        table-length
-                                        paginate?)))
-             (apply #'d.ptrn:yields-into-application
-                    (append
-                      (gather-yields-using-container
-                        bc
-                        choosing
-                        paginating
-                        peeking
-                        listing)
-                      (list :prompt-fun prompt-fun)))))))))
+    (container make-printable-table-fun peek-rows-fn)
+    ;; Generate dialog lambda: shift from 'template' to 'concrete'
+    `(lambda (cont-gen column-names rows prompt message error-message)
+       (d.app:with-app-exit-progn
+         exit-then-do
+         (let* ((assoc-table (make-simple-assoc-table column-names
+                                                      rows
+                                                      (funcall ,make-printable-table-fun
+                                                               column-names
+                                                               rows)))
+                (table-length (length rows))
+                (paginate? (and *pagination-enabled*
+                                (> (length rows) *page-length*)))
+                ;; These are application's internal "state" to communicate between its parts
+                (print-state (list :current-row-index 0
+                                   :print-table t
+                                   :message t
+                                   :error-message nil))
+                (access-state (lambda (key &optional (value nil value?))
+                                (if value?
+                                  (setf (getf print-state key)
+                                        value)
+                                  (getf print-state key))))
+                ;; These are application's parts
+                (choosing (%choose-command-yields
+                            ;; Cannot really hide this lambda, because of exit-then-do part.
+                            ;; It has to be in here.
+                            (lambda (&key row-designator)
+                              ;; Accept predicate? 'Get index' parameter?
+                              (once-only (row-designator)
+                                (with-gensyms (check)
+                                  `(let ((,check (assoc-row ,row-designator ,assoc-table)))
+                                     (if ,check
+                                       ,(exit-then-do
+                                          (funcall cont-gen check))
+                                       (funcall ,access-state :error-message ,row-designator))))))))
+                (paginating
+                  (when paginate?
+                    (%pagination-commands-yields access-state
+                                                 table-length)))
+                (peeking (%peek-command-yields access-state
+                                               assoc-table
+                                               ,peek-rows-fn))
+                (listing (%list-command-yields access-state))
+                ;; And this one is generalized prompt
+                (prompt-fun
+                  (%get-dialog-prompt prompt
+                                      message
+                                      error-message
+                                      access-state
+                                      assoc-table
+                                      table-length
+                                      paginate?)))
+           (apply #'d.ptrn:yields-into-application
+                  (append
+                    (gather-yields-using-container
+                      ,container
+                      choosing
+                      paginating
+                      peeking
+                      listing)
+                    (list :prompt-fun prompt-fun))))))))
 
 
 (let ((seprx (ppcre:create-scanner (ppcre:parse-string "\\D+")))) 
@@ -345,26 +319,54 @@
                      :print-fun #'simple-pretty-print-table))))
 
 
-(defmacro simple-pager-selector-dialog (&key ((:choose-many choose-many) nil))
-  `(let ((index-pattern (d.ptrn:make-wildcard-pattern "[1-9]\\d*"
-                                                      (list "1" "90" "31337")
-                                                      "number"
-                                                      "N"))
-         (index-handler (lambda (info num)
-                          (d.expr:make-result (getf info :name)
-                                              num)))
-         (index-list-pattern (d.ptrn:make-wildcard-pattern "[1-9]\\d*(?:\\D+[1-9]\\d*)*"
-                                                           (list "1" "90" "31337" "1 2" "90,31" "31337 2,13")
-                                                           "numbers"
-                                                           "Ns"))
-         (index-list-handler (lambda (info nums)
-                               (d.expr:make-result (getf info :name)
-                                                   (%split-to-integers nums)))))
-     (if ,choose-many
-       nil
-       (pager-1choice-selector-dialog-template index-pattern
-                                               index-handler
-                                               #'make-indexed-printable-table))))
+(defun %generate-container-for-selector (index-pattern index-handler index-list-pattern index-list-handler)
+  `(d.aux:bake-call
+     (d.ptrn:set-behaviors
+       (load-time-value (d.ptrn:make-preset-behavior-container))
+       ;; Add number behavior (for pagination)
+       (:number (d.ptrn:make-wildcard-pattern "[1-9]\\d*"
+                                              (list "1" "90" "31337")
+                                              "number"
+                                              "N")
+                (lambda (info num)
+                  (d.expr:make-result (getf info :name)
+                                      (parse-integer num)))
+                :use-only-named-results nil)
+       ;; Add index behavior manually
+       (:row-designator ,index-pattern
+                        ,index-handler
+                        :use-only-named-results nil)
+       (:row-designator-list ,index-list-pattern
+                             ,index-list-handler
+                             :use-only-named-results nil))))
+
+
+(defmacro simple-pager-selector-dialog (&key (choose-many nil)
+                                             (peek-row-fn
+                                               (lambda (row last?)
+                                                 (format *standard-output* "~A~&~@[~%~]" row last?))))
+  (once-only (choose-many peek-row-fn)
+    (with-gensyms (behavior-container)
+      `(let ((,behavior-container ,(%generate-container-for-selector
+                                     (d.ptrn:make-wildcard-pattern "[1-9]\\d*"
+                                                                   (list "1" "90" "31337")
+                                                                   "number"
+                                                                   "N")
+                                     (lambda (info num)
+                                       (d.expr:make-result (getf info :name)
+                                                           num))
+                                     (d.ptrn:make-wildcard-pattern "[1-9]\\d*(?:\\D+[1-9]\\d*)*"
+                                                                   (list "1" "90" "31337" "1 2" "90,31" "31337 2,13")
+                                                                   "numbers"
+                                                                   "Ns")
+                                     (lambda (info nums)
+                                       (d.expr:make-result (getf info :name)
+                                                           (%split-to-integers nums))))))
+         (if ,choose-many
+           nil
+           (pager-1choice-selector-dialog-template ,behavior-container
+                                                   #'make-indexed-printable-table
+                                                   ,peek-row-fn))))))
 
 
 (defun make-pager-selector-behavior-container ()
